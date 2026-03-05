@@ -59,3 +59,7 @@ credentials.h
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
