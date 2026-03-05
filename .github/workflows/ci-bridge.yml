@@ -1,0 +1,60 @@
+# CI: Bridge Build + Test (Python)
+# Triggers on PRs that modify bridge service files.
+# Runs ruff lint, mypy type checking, and pytest.
+
+name: CI — Bridge Build + Test
+
+on:
+  pull_request:
+    paths:
+      - 'bridge/**'
+      - 'pyproject.toml'
+      - '.github/workflows/ci-bridge.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bridge/**'
+      - 'pyproject.toml'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install ruff mypy
+          pip install -e ".[dev]" 2>/dev/null || pip install -e bridge/[dev] 2>/dev/null || echo "No bridge package yet"
+
+      - name: Lint with ruff
+        run: ruff check bridge/
+
+      - name: Type check with mypy
+        run: mypy bridge/ --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio
+          pip install -e ".[dev]" 2>/dev/null || pip install -e bridge/[dev] 2>/dev/null || echo "No bridge package yet"
+
+      - name: Run tests
+        run: pytest bridge/tests/ -v --tb=short
