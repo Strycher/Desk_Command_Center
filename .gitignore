@@ -1,26 +1,26 @@
-# Prerequisites
-*.d
+# Build artifacts
+.pio/
+build/
+*.elf
+*.bin
+*.map
+*.hex
 
 # Compiled Object files
-*.slo
-*.lo
 *.o
 *.obj
+*.d
+*.slo
+*.lo
 
 # Precompiled Headers
 *.gch
 *.pch
 
-# Compiled Dynamic libraries
+# Libraries (compiled)
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
@@ -30,3 +30,32 @@
 *.exe
 *.out
 *.app
+
+# IDE / Editor
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Arduino
+*.ino.elf
+*.ino.bin
+
+# Secrets / credentials
+secrets.h
+credentials.h
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
