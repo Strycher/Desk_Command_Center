@@ -18,10 +18,10 @@ BLOCKING=0
 
 echo "─── Desktop Command Center: Preflight ───"
 
-# 1. Check Beads/Dolt connectivity
-# Try common tunnel ports
+# 1. Check Beads/Dolt connectivity (Pi 5 tunnel)
+# Try DCC tunnel ports (3310 primary, 3311-3312 fallback)
 TUNNEL_PORT=""
-for port in 3307 3308 3309; do
+for port in 3310 3311 3312; do
     if bash -c "echo >/dev/tcp/127.0.0.1/$port" 2>/dev/null; then
         TUNNEL_PORT=$port
         break
@@ -29,19 +29,30 @@ for port in 3307 3308 3309; do
 done
 
 if [ -n "$TUNNEL_PORT" ]; then
-    pass "Dolt tunnel active on port $TUNNEL_PORT"
+    pass "Pi 5 Dolt tunnel active on port $TUNNEL_PORT"
     # Try a beads command
     if bd ready --limit=1 >/dev/null 2>&1; then
-        pass "Beads connectivity OK"
+        pass "Beads connectivity OK (Pi 5 Dolt)"
         bd dolt pull 2>/dev/null && pass "Beads synced" || warn "Beads sync failed (non-blocking)"
     else
         fail "Beads command failed — tunnel may be stale"
         BLOCKING=1
     fi
 else
-    fail "No Dolt SSH tunnel found on ports 3307-3309"
-    warn "Start tunnel: ssh -fNL 3307:127.0.0.1:3307 unfocused@46.224.181.82"
-    BLOCKING=1
+    # Try to establish tunnel automatically
+    if ssh -fNL 3310:127.0.0.1:3306 strycher@192.168.50.24 2>/dev/null; then
+        pass "Pi 5 Dolt tunnel established on port 3310"
+        if bd ready --limit=1 >/dev/null 2>&1; then
+            pass "Beads connectivity OK (Pi 5 Dolt)"
+        else
+            fail "Beads command failed after tunnel setup"
+            BLOCKING=1
+        fi
+    else
+        fail "No Pi 5 Dolt SSH tunnel on ports 3310-3312"
+        warn "Start tunnel: ssh -fNL 3310:127.0.0.1:3306 strycher@192.168.50.24"
+        BLOCKING=1
+    fi
 fi
 
 # 2. Check Agent Mail health

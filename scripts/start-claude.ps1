@@ -32,9 +32,9 @@ if ($status) {
     Write-Host "  ✓ Working tree clean" -ForegroundColor Green
 }
 
-# --- 2. SSH Tunnel / Dolt ---
+# --- 2. SSH Tunnel / Pi 5 Dolt ---
 $tunnelPort = $null
-foreach ($port in @(3307, 3308, 3309)) {
+foreach ($port in @(3310, 3311, 3312)) {
     try {
         $tcp = New-Object System.Net.Sockets.TcpClient
         $tcp.Connect("127.0.0.1", $port)
@@ -47,11 +47,11 @@ foreach ($port in @(3307, 3308, 3309)) {
 }
 
 if ($tunnelPort) {
-    Write-Host "  ✓ Dolt tunnel active on port $tunnelPort" -ForegroundColor Green
+    Write-Host "  ✓ Pi 5 Dolt tunnel active on port $tunnelPort" -ForegroundColor Green
     # Test Beads
     $bdResult = bd ready --limit=1 2>$null
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✓ Beads connectivity OK" -ForegroundColor Green
+        Write-Host "  ✓ Beads connectivity OK (Pi 5 Dolt)" -ForegroundColor Green
         bd dolt pull 2>$null | Out-Null
         Write-Host "  ✓ Beads synced" -ForegroundColor Green
     } else {
@@ -59,9 +59,27 @@ if ($tunnelPort) {
         $blocking = $true
     }
 } else {
-    Write-Host "  ✗ No Dolt SSH tunnel on ports 3307-3309" -ForegroundColor Red
-    Write-Host "    Start: ssh -fNL 3307:127.0.0.1:3307 unfocused@46.224.181.82" -ForegroundColor Yellow
-    $blocking = $true
+    # Try to establish tunnel automatically
+    Write-Host "  ⚠ No Pi 5 Dolt tunnel — attempting to establish..." -ForegroundColor Yellow
+    $sshResult = Start-Process -FilePath "ssh" -ArgumentList "-fNL 3310:127.0.0.1:3306 strycher@192.168.50.24" -NoNewWindow -PassThru -Wait
+    Start-Sleep -Seconds 2
+    try {
+        $tcp = New-Object System.Net.Sockets.TcpClient
+        $tcp.Connect("127.0.0.1", 3310)
+        $tcp.Close()
+        Write-Host "  ✓ Pi 5 Dolt tunnel established on port 3310" -ForegroundColor Green
+        $bdResult = bd ready --limit=1 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  ✓ Beads connectivity OK (Pi 5 Dolt)" -ForegroundColor Green
+        } else {
+            Write-Host "  ✗ Beads command failed after tunnel setup" -ForegroundColor Red
+            $blocking = $true
+        }
+    } catch {
+        Write-Host "  ✗ Could not establish Pi 5 Dolt tunnel" -ForegroundColor Red
+        Write-Host "    Start manually: ssh -fNL 3310:127.0.0.1:3306 strycher@192.168.50.24" -ForegroundColor Yellow
+        $blocking = $true
+    }
 }
 
 # --- 3. Agent Mail ---
