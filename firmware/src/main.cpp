@@ -1,6 +1,6 @@
 /**
  * Desk Command Center — Main Entry Point
- * CrowPanel Advance 5.0" (ESP32-S3)
+ * CrowPanel Advance 5.0" (ESP32-S3-WROOM-1-N16R8)
  *
  * Task 1.1: Compiles clean with display + LVGL initialized.
  * No UI yet — that comes in tasks 1.2–1.5.
