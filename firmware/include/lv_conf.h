@@ -23,6 +23,11 @@
 #define LV_INDEV_DEF_READ_PERIOD 33
 #define LV_DPI_DEF               160
 
+/* === Tick — use Arduino millis() as LVGL time source === */
+#define LV_TICK_CUSTOM          1
+#define LV_TICK_CUSTOM_INCLUDE  "Arduino.h"
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR  (millis())
+
 /* === Drawing === */
 #define LV_DRAW_COMPLEX    1
 #define LV_SHADOW_CACHE_SIZE  0

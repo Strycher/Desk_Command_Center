@@ -23,8 +23,8 @@ enum class ScreenId : uint8_t {
 namespace ScreenManager {
     void init();
     void registerScreen(ScreenId id, BaseScreen* screen);
-    void show(ScreenId id, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_FADE_ON,
-              uint32_t anim_ms = 200, bool auto_del = false);
+    void show(ScreenId id, lv_scr_load_anim_t anim = LV_SCR_LOAD_ANIM_NONE,
+              uint32_t anim_ms = 0, bool auto_del = false);
     void showHome();
     void updateAll(const DashboardData& data);
     ScreenId currentId();

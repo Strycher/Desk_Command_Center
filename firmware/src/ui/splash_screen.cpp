@@ -13,6 +13,7 @@ void SplashScreen::create(lv_obj_t* parent) {
     _screen = lv_obj_create(nullptr);
     lv_obj_set_style_bg_color(_screen, BG_COLOR, 0);
     lv_obj_set_style_bg_opa(_screen, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(_screen, LV_OBJ_FLAG_SCROLLABLE);
 
     /* Title */
     _lblTitle = lv_label_create(_screen);

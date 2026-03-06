@@ -36,7 +36,7 @@
 #define PIN_LCD_DE     42   /* Data enable (HENABLE) */
 
 /* Timing */
-#define LCD_PIXEL_CLOCK_HZ  (21 * 1000 * 1000)
+#define LCD_PIXEL_CLOCK_HZ  (15 * 1000 * 1000)
 
 /* --- Touch (GT911 capacitive, I2C) --- */
 #define PIN_TOUCH_SDA  15

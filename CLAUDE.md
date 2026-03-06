@@ -67,6 +67,19 @@ peripheral communication.
 **Beads is the sole source of truth for agent work.** Do not use GitHub issues to
 find or track work.
 
+### GitHub Issue Sync (MANDATORY)
+
+Beads tasks reference GitHub issues via `(GH #N)` in their title. **When closing
+a Beads task, you MUST also close the corresponding GitHub issue.** The user
+tracks progress via GitHub — Beads-only updates are invisible to them.
+
+- **Closing:** `gh issue close <N> --comment "Completed — <brief description>."`
+- **Creating:** When creating a Beads task for new work, also create a GitHub
+  issue and reference it in the Beads title: `bd create --title="Description (GH #N)"`
+- **Status sync:** If a Beads task moves to `in_progress`, add a comment on the
+  GitHub issue: `gh issue comment <N> --body "In progress."`
+- **Never use `gh project` commands** — they consume the shared GraphQL budget.
+
 ### Commands
 
 | Command           | Purpose                          |

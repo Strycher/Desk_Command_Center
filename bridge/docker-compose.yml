@@ -1,0 +1,21 @@
+services:
+  bridge:
+    build: .
+    container_name: dcc-bridge
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - dcc-net
+    volumes:
+      - ./bridge_config.json:/app/bridge_config.json
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  dcc-net:
+    external: true
+    name: dcc_dcc-net

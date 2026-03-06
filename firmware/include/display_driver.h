@@ -17,7 +17,9 @@ class LGFX : public lgfx::LGFX_Device {
 public:
     lgfx::Bus_RGB     _bus_instance;
     lgfx::Panel_RGB   _panel_instance;
+
     lgfx::Touch_GT911 _touch_instance;
+
 
     LGFX(void) {
         /* --- Panel --- */
@@ -77,12 +79,14 @@ public:
             cfg.hsync_polarity    = 0;
             cfg.hsync_front_porch = 8;
             cfg.hsync_pulse_width = 4;
-            cfg.hsync_back_porch  = 8;
+            cfg.hsync_back_porch  = 43;
             cfg.vsync_polarity    = 0;
             cfg.vsync_front_porch = 8;
             cfg.vsync_pulse_width = 4;
-            cfg.vsync_back_porch  = 8;
-            cfg.pclk_idle_high    = 1;
+            cfg.vsync_back_porch  = 12;
+            cfg.pclk_active_neg   = 1;
+            cfg.de_idle_high      = 0;
+            cfg.pclk_idle_high    = 0;
 
             _bus_instance.config(cfg);
         }

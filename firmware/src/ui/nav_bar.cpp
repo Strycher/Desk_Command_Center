@@ -56,7 +56,7 @@ static void closeMoreMenu() {
 static void onMoreItemClick(lv_event_t* e) {
     auto* item = (const SubItem*)lv_event_get_user_data(e);
     closeMoreMenu();
-    ScreenManager::show(item->id);
+    ScreenManager::show(item->id, LV_SCR_LOAD_ANIM_FADE_ON, 200, false);
     NavBar::setActive(item->id);
 }
 
@@ -102,7 +102,7 @@ static void onNavClick(lv_event_t* e) {
         return;
     }
     closeMoreMenu();
-    ScreenManager::show(mainItems[idx].id);
+    ScreenManager::show(mainItems[idx].id, LV_SCR_LOAD_ANIM_FADE_ON, 200, false);
     NavBar::setActive(mainItems[idx].id);
 }
 

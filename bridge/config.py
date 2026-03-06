@@ -49,12 +49,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "github": {
         "api_key": "",
-        "repos": ["Strycher/Desk_Command_Center", "DifferentWire/Unfocused", "Strycher/Field_Compass"],
+        "repos": ["Strycher/Desk_Command_Center", "Strycher/Field_Compass"],
+        "org_api_key": "",
+        "org_repos": ["DifferentWire/Unfocused"],
         "poll_interval": 300,
     },
     "beads": {
-        "host": "127.0.0.1",
-        "port": 3310,
+        "host": "dcc-dolt",
+        "port": 3306,
         "projects": [],
         "poll_interval": 120,
     },

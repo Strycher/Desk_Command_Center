@@ -40,10 +40,9 @@ static lv_disp_draw_buf_t draw_buf;
 static lv_disp_drv_t disp_drv;
 static lv_indev_drv_t indev_drv;
 
-/* Double buffer in PSRAM — 800 * 40 lines * 2 bytes * 2 buffers = ~125 KB */
-static constexpr uint32_t BUF_LINES = 40;
-static lv_color_t* buf1 = nullptr;
-static lv_color_t* buf2 = nullptr;
+/* LVGL draw buffer — 1/10 screen in SRAM (avoids PSRAM bus contention
+   with the RGB DMA peripheral that reads the frame buffer from PSRAM) */
+static lv_color_t disp_draw_buf[SCREEN_WIDTH * SCREEN_HEIGHT / 10];
 
 /* Screens — allocated once, never destroyed */
 static SplashScreen         splash;
@@ -61,16 +60,15 @@ static DiagnosticsScreen    diagnosticsScreen;
 /* Dashboard data — parsed from bridge JSON */
 static DashboardData dashData;
 
-/* --- LVGL display flush callback --- */
+/* --- LVGL display flush callback (sync copy to RGB frame buffer) --- */
 static void lvglFlush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_p) {
     uint32_t w = (area->x2 - area->x1 + 1);
     uint32_t h = (area->y2 - area->y1 + 1);
-    lcd.startWrite();
-    lcd.setAddrWindow(area->x1, area->y1, w, h);
-    lcd.writePixels((uint16_t*)color_p, w * h);
-    lcd.endWrite();
+    lcd.pushImage(area->x1, area->y1, w, h,
+                  (lgfx::rgb565_t*)&color_p->full);
     lv_disp_flush_ready(drv);
 }
+
 
 /* --- LVGL touch read callback --- */
 static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
@@ -135,16 +133,12 @@ void setup() {
     /* Init LVGL */
     lv_init();
 
-    /* Allocate draw buffers in PSRAM */
-    buf1 = (lv_color_t*)ps_malloc(SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t));
-    buf2 = (lv_color_t*)ps_malloc(SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t));
-    if (!buf1 || !buf2) {
-        Serial.println("FATAL: PSRAM buffer allocation failed");
-        return;
-    }
-    lv_disp_draw_buf_init(&draw_buf, buf1, buf2, SCREEN_WIDTH * BUF_LINES);
+    /* Single SRAM draw buffer, 1/10 screen size — matches Elecrow factory
+       approach. SRAM buffer avoids bus contention with RGB DMA on PSRAM. */
+    lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, nullptr,
+                          SCREEN_WIDTH * SCREEN_HEIGHT / 10);
 
-    /* Display driver */
+    /* Display driver — standard partial updates via pushImageDMA */
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res  = SCREEN_WIDTH;
     disp_drv.ver_res  = SCREEN_HEIGHT;
@@ -158,9 +152,9 @@ void setup() {
     indev_drv.read_cb = lvglTouchRead;
     lv_indev_drv_register(&indev_drv);
 
-    Serial.printf("DCC: LVGL ready (%dx%d, %lu KB PSRAM buffers)\n",
+    Serial.printf("DCC: LVGL ready (%dx%d, SRAM buf %lu KB, pushImageDMA)\n",
                   SCREEN_WIDTH, SCREEN_HEIGHT,
-                  (SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t) * 2) / 1024);
+                  sizeof(disp_draw_buf) / 1024);
 
     /* Show splash screen immediately */
     splash.create(nullptr);
@@ -203,10 +197,6 @@ void setup() {
     ScreenManager::registerScreen(ScreenId::SETTINGS,    &settingsScreen);
     ScreenManager::registerScreen(ScreenId::DIAGNOSTICS, &diagnosticsScreen);
 
-    /* WiFi settings screen is a sub-screen accessed from Settings,
-       but we still need it registered if we add a nav path later.
-       For now, we use the SETTINGS slot for the combined settings screen. */
-
     /* Create persistent UI layers (status bar + nav bar + OSK) */
     StatusBar::create();
     NavBar::create();
@@ -216,7 +206,8 @@ void setup() {
     splash.updateStatus("Ready!");
     lv_timer_handler();
     delay(500);
-    ScreenManager::show(ScreenId::HOME, LV_SCR_LOAD_ANIM_FADE_ON, 400, false);
+
+    ScreenManager::show(ScreenId::HOME);
 
     Serial.printf("DCC: boot complete, heap=%lu, PSRAM=%lu\n",
                   ESP.getFreeHeap(), ESP.getFreePsram());

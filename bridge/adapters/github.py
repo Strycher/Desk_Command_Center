@@ -39,15 +39,22 @@ class GitHubAdapter(BaseAdapter):
         )
         self.token = gh_cfg.get("api_key", "")
         self.repos: list[str] = gh_cfg.get("repos", [])
+        self.org_token = gh_cfg.get("org_api_key", "")
+        self.org_repos: set[str] = set(gh_cfg.get("org_repos", []))
+        # Merge org repos into the poll list (deduplicated)
+        for r in self.org_repos:
+            if r not in self.repos:
+                self.repos.append(r)
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self, repo: str = "") -> dict[str, str]:
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "DCC-Bridge/0.2.0",
         }
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        token = self.org_token if repo in self.org_repos else self.token
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         return headers
 
     async def poll(self) -> dict[str, Any]:
@@ -55,7 +62,7 @@ class GitHubAdapter(BaseAdapter):
             return {"repos": {}}
 
         results: dict[str, Any] = {}
-        async with httpx.AsyncClient(timeout=15.0, headers=self._headers()) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             for repo in self.repos:
                 try:
                     results[repo] = await self._poll_repo(client, repo)
@@ -66,10 +73,13 @@ class GitHubAdapter(BaseAdapter):
         return {"repos": results}
 
     async def _poll_repo(self, client: httpx.AsyncClient, repo: str) -> dict[str, Any]:
+        headers = self._headers(repo)
+
         # Open PRs
         prs_resp = await client.get(
             f"{API_BASE}/repos/{repo}/pulls",
             params={"state": "open", "per_page": 10},
+            headers=headers,
         )
         prs_resp.raise_for_status()
 
@@ -77,6 +87,7 @@ class GitHubAdapter(BaseAdapter):
         issues_resp = await client.get(
             f"{API_BASE}/repos/{repo}/issues",
             params={"state": "open", "per_page": 10},
+            headers=headers,
         )
         issues_resp.raise_for_status()
 
@@ -84,6 +95,7 @@ class GitHubAdapter(BaseAdapter):
         runs_resp = await client.get(
             f"{API_BASE}/repos/{repo}/actions/runs",
             params={"per_page": 5},
+            headers=headers,
         )
         runs_resp.raise_for_status()
 
