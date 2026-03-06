@@ -40,6 +40,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "api_key": "",
         "poll_interval": 60,
     },
+    "github": {
+        "api_key": "",
+        "repos": ["Strycher/Desk_Command_Center", "DifferentWire/Unfocused", "Strycher/Field_Compass"],
+        "poll_interval": 300,
+    },
+    "beads": {
+        "host": "127.0.0.1",
+        "port": 3310,
+        "projects": [],
+        "poll_interval": 120,
+    },
 }
 
 CONFIG_PATH = Path(__file__).parent / "bridge_config.json"
