@@ -12,6 +12,7 @@
  */
 
 #include "data_service.h"
+#include "logger.h"
 #include "ntp_time.h"
 #include <HTTPClient.h>
 #include <WiFi.h>
@@ -70,7 +71,7 @@ static void doFetch() {
     HTTPClient http;
 
     String url = String("http://") + _url + "/api/dashboard";
-    Serial.printf("DATA: [Core %d] fetching %s\n", xPortGetCoreID(), url.c_str());
+    LOG_INFO("DATA: [Core %d] fetching %s", xPortGetCoreID(), url.c_str());
 
     http.begin(url);
     http.setTimeout(HTTP_TIMEOUT_MS);
@@ -89,24 +90,24 @@ static void doFetch() {
                 xSemaphoreGive(_dataMutex);
                 _state = FetchState::ERROR;
                 _lastError = String("JSON: ") + err.c_str();
-                Serial.printf("DATA: parse error — %s\n", err.c_str());
+                LOG_ERROR("DATA: parse error — %s", err.c_str());
             } else {
                 _state = FetchState::SUCCESS;
                 _lastSuccessMs = millis();
                 _lastError = "";
                 _dataReady = true;  /* Signal main loop */
                 xSemaphoreGive(_dataMutex);
-                Serial.printf("DATA: OK — %d bytes, %d keys\n",
-                              payload.length(), _doc.size());
+                LOG_INFO("DATA: OK — %d bytes, %d keys",
+                         payload.length(), _doc.size());
             }
         } else {
             /* Couldn't acquire mutex — skip this cycle */
-            Serial.println("DATA: mutex timeout, skipping update");
+            LOG_WARN("DATA: mutex timeout, skipping update");
         }
     } else {
         _state = FetchState::ERROR;
         _lastError = String("HTTP ") + String(code);
-        Serial.printf("DATA: HTTP error %d\n", code);
+        LOG_ERROR("DATA: HTTP error %d", code);
     }
 
     http.end();
@@ -117,7 +118,7 @@ static void doFetch() {
  * Handles HTTP polling and periodic NTP re-sync.
  */
 static void networkTask(void* param) {
-    Serial.printf("DATA: network task started on Core %d\n", xPortGetCoreID());
+    LOG_INFO("DATA: network task started on Core %d", xPortGetCoreID());
 
     /* Initial delay — let WiFi connect before first fetch */
     vTaskDelay(pdMS_TO_TICKS(5000));
@@ -130,8 +131,8 @@ static void networkTask(void* param) {
         NtpTime::backgroundResync();
 
         /* Log heap for monitoring */
-        Serial.printf("DATA: heap=%lu PSRAM=%lu\n",
-                      ESP.getFreeHeap(), ESP.getFreePsram());
+        LOG_DEBUG("DATA: heap=%lu PSRAM=%lu",
+                  ESP.getFreeHeap(), ESP.getFreePsram());
 
         /* Sleep until next poll (or wake early on forcePoll) */
         uint32_t sleepMs = _intervalMs;
@@ -149,7 +150,7 @@ void DataService::init(const char* bridgeUrl, uint16_t pollIntervalSec) {
     strncpy(_url, bridgeUrl, sizeof(_url) - 1);
     _intervalMs = (uint32_t)pollIntervalSec * 1000;
     _dataMutex = xSemaphoreCreateMutex();
-    Serial.printf("DATA: init bridge=%s interval=%ds\n", _url, pollIntervalSec);
+    LOG_INFO("DATA: init bridge=%s interval=%ds", _url, pollIntervalSec);
 }
 
 void DataService::startTask() {
@@ -164,7 +165,7 @@ void DataService::startTask() {
         &_taskHandle,
         NET_TASK_CORE
     );
-    Serial.println("DATA: background task launched on Core 0");
+    LOG_INFO("DATA: background task launched on Core 0");
 }
 
 void DataService::checkReady() {
