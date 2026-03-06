@@ -1,0 +1,158 @@
+# Sync labels to Project V2 fields: when board:* or priority:* labels
+# change on an issue, update the corresponding Project V2 fields.
+#
+# Trigger: issue labeled/unlabeled
+# API: GraphQL (minimal — only Project V2 field mutations)
+name: Sync Labels to Project
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to sync (blank = all open)"
+        required: false
+
+permissions:
+  issues: read
+  repository-projects: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync label to Project V2 field
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // --- Project V2 IDs (from discovery query) ---
+            const PROJECT_ID = "PVT_kwHODGcOBc4BQ5xS";
+
+            const STATUS_FIELD = "PVTSSF_lAHODGcOBc4BQ5xSzg-43pc";
+            const STATUS_MAP = {
+              "board:backlog":     "f75ad846",
+              "board:ready":       "e18bf179",
+              "board:in-progress": "47fc9ee4",
+              "board:in-review":   "aba860b9",
+              "board:done":        "98236657",
+              "board:deferred":    "0a4cdbf4",
+            };
+
+            const PRIORITY_FIELD = "PVTSSF_lAHODGcOBc4BQ5xSzg-43q4";
+            const PRIORITY_MAP = {
+              "priority:p0": "79628723",
+              "priority:p1": "0a877460",
+              "priority:p2": "da944a9c",
+              "priority:p3": "22a5bedc",
+              "priority:p4": "bb5bedf4",
+            };
+
+            // --- Determine which issues to process ---
+            let issueNumbers = [];
+
+            if (context.eventName === "workflow_dispatch") {
+              const input = context.payload.inputs?.issue_number;
+              if (input) {
+                issueNumbers = [parseInt(input, 10)];
+              } else {
+                // Sync all open issues
+                const issues = await github.paginate(
+                  github.rest.issues.listForRepo,
+                  { owner, repo, state: "open", per_page: 100 }
+                );
+                issueNumbers = issues
+                  .filter(i => !i.pull_request)
+                  .map(i => i.number);
+                console.log(`Batch sync: ${issueNumbers.length} open issues`);
+              }
+            } else {
+              issueNumbers = [context.payload.issue.number];
+            }
+
+            // --- Helper: find project item ID for an issue ---
+            async function getProjectItemId(issueNum) {
+              const result = await github.graphql(`
+                query($owner: String!, $repo: String!, $num: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    issue(number: $num) {
+                      projectItems(first: 5) {
+                        nodes {
+                          id
+                          project { id }
+                        }
+                      }
+                    }
+                  }
+                }
+              `, { owner, repo, num: issueNum });
+
+              const items = result.repository.issue.projectItems.nodes;
+              const match = items.find(i => i.project.id === PROJECT_ID);
+              return match?.id || null;
+            }
+
+            // --- Helper: update a single-select field ---
+            async function setField(itemId, fieldId, optionId) {
+              await github.graphql(`
+                mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $project
+                    itemId: $item
+                    fieldId: $field
+                    value: { singleSelectOptionId: $value }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }
+              `, {
+                project: PROJECT_ID,
+                item: itemId,
+                field: fieldId,
+                value: optionId,
+              });
+            }
+
+            // --- Process each issue ---
+            let updated = 0;
+
+            for (const issueNum of issueNumbers) {
+              // Get current labels
+              const { data: issue } = await github.rest.issues.get({
+                owner, repo, issue_number: issueNum,
+              });
+              const labels = issue.labels.map(l => l.name.toLowerCase());
+
+              // Find matching board and priority labels
+              const boardLabel = labels.find(l => l.startsWith("board:"));
+              const priorityLabel = labels.find(l => l.startsWith("priority:"));
+
+              if (!boardLabel && !priorityLabel) continue;
+
+              // Get project item ID
+              const itemId = await getProjectItemId(issueNum);
+              if (!itemId) {
+                console.log(`#${issueNum}: not in project, skipping`);
+                continue;
+              }
+
+              // Update Status field
+              if (boardLabel && STATUS_MAP[boardLabel]) {
+                await setField(itemId, STATUS_FIELD, STATUS_MAP[boardLabel]);
+                console.log(`#${issueNum}: Status -> ${boardLabel}`);
+                updated++;
+              }
+
+              // Update Priority field
+              if (priorityLabel && PRIORITY_MAP[priorityLabel]) {
+                await setField(itemId, PRIORITY_FIELD, PRIORITY_MAP[priorityLabel]);
+                console.log(`#${issueNum}: Priority -> ${priorityLabel}`);
+                updated++;
+              }
+            }
+
+            console.log(`\nUpdated ${updated} field(s)`);
