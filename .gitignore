@@ -60,6 +60,9 @@ credentials.h
 Thumbs.db
 Desktop.ini
 
+# Runtime cache (calendar JSON, etc.)
+.cache/
+
 # Dolt database files (added by bd init)
 .dolt/
 *.db
