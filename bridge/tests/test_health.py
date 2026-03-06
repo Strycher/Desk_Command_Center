@@ -1,11 +1,15 @@
-"""Smoke tests for bridge API stub."""
+"""Smoke tests for bridge API endpoints."""
 
-import pytest
 from fastapi.testclient import TestClient
 
-from main import app
+from main import app, cache
 
 client = TestClient(app)
+
+
+def setup_function():
+    """Clear cache between tests so they don't leak state."""
+    cache.clear()
 
 
 def test_health_returns_ok():
@@ -14,6 +18,13 @@ def test_health_returns_ok():
     data = resp.json()
     assert data["status"] == "ok"
     assert data["service"] == "dcc-bridge"
+    assert data["version"] == "0.2.0"
+
+
+def test_adapters_endpoint():
+    resp = client.get("/api/adapters")
+    assert resp.status_code == 200
+    assert "adapters" in resp.json()
 
 
 def test_calendar_ms_empty():

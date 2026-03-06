@@ -1,5 +1,6 @@
 # Build artifacts
 .pio/
+__pycache__/
 build/
 *.elf
 *.bin
