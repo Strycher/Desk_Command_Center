@@ -123,31 +123,28 @@ void CalendarScreen::addEventCard(const char* title, const char* time,
     lv_obj_set_style_bg_color(card, isCurrent ? CARD_HL : CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(card, 10, 0);
-    lv_obj_set_style_border_width(card, 0, 0);
     lv_obj_set_style_pad_all(card, 10, 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* Color stripe */
-    lv_obj_t* stripe = lv_obj_create(card);
-    lv_obj_set_size(stripe, 4, lv_pct(100));
-    lv_obj_align(stripe, LV_ALIGN_LEFT_MID, -6, 0);
-    lv_obj_set_style_bg_color(stripe, lv_color_hex(color), 0);
-    lv_obj_set_style_bg_opa(stripe, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(stripe, 2, 0);
-    lv_obj_set_style_border_width(stripe, 0, 0);
+    /* Color stripe — use left border instead of a child object.
+       A child with lv_pct(100) height inside a LV_SIZE_CONTENT parent
+       creates a circular layout dependency that freezes LVGL. */
+    lv_obj_set_style_border_side(card, LV_BORDER_SIDE_LEFT, 0);
+    lv_obj_set_style_border_width(card, 4, 0);
+    lv_obj_set_style_border_color(card, lv_color_hex(color), 0);
 
     /* Time */
     lv_obj_t* lblTime = lv_label_create(card);
     lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblTime, TEXT_SECONDARY, 0);
-    lv_obj_align(lblTime, LV_ALIGN_TOP_LEFT, 6, 0);
+    lv_obj_align(lblTime, LV_ALIGN_TOP_LEFT, 2, 0);
     lv_label_set_text(lblTime, time);
 
     /* Title */
     lv_obj_t* lblTitle = lv_label_create(card);
     lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblTitle, TEXT_PRIMARY, 0);
-    lv_obj_align(lblTitle, LV_ALIGN_TOP_LEFT, 6, 20);
+    lv_obj_align(lblTitle, LV_ALIGN_TOP_LEFT, 2, 20);
     lv_obj_set_width(lblTitle, 700);
     lv_label_set_long_mode(lblTitle, LV_LABEL_LONG_WRAP);
     lv_label_set_text(lblTitle, title);
@@ -157,7 +154,7 @@ void CalendarScreen::addEventCard(const char* title, const char* time,
         lv_obj_t* lblLoc = lv_label_create(card);
         lv_obj_set_style_text_font(lblLoc, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lblLoc, TEXT_SECONDARY, 0);
-        lv_obj_align(lblLoc, LV_ALIGN_TOP_LEFT, 6, 42);
+        lv_obj_align(lblLoc, LV_ALIGN_TOP_LEFT, 2, 42);
         lv_obj_set_width(lblLoc, 700);
         lv_label_set_long_mode(lblLoc, LV_LABEL_LONG_DOT);
         lv_label_set_text(lblLoc, location);
@@ -167,8 +164,9 @@ void CalendarScreen::addEventCard(const char* title, const char* time,
 void CalendarScreen::rebuildEventList() {
     if (!_eventList || !_lastData) return;
 
-    /* Clear existing children */
+    /* Clear existing children (invalidates _lblEmpty) */
     lv_obj_clean(_eventList);
+    _lblEmpty = nullptr;
 
     /* Update day title */
     if (_dayOffset < 4) {
@@ -258,6 +256,13 @@ void CalendarScreen::update(const DashboardData& data) {
 }
 
 void CalendarScreen::onShow() {
-    _dayOffset = 0;
-    if (_lastData) rebuildEventList();
+    /* Reset to "Today" view when entering screen.
+       Only rebuild if the day offset actually changed — the last update()
+       call already built the correct widget tree for the current offset. */
+    if (_dayOffset != 0 && _lastData) {
+        _dayOffset = 0;
+        rebuildEventList();
+    } else {
+        _dayOffset = 0;
+    }
 }
