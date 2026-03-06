@@ -6,6 +6,7 @@
 
 #include "ui/screens/devops_screen.h"
 #include <cstring>
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -104,7 +105,7 @@ void DevOpsScreen::create(lv_obj_t* parent) {
     lv_label_set_long_mode(_lblAgentTask, LV_LABEL_LONG_WRAP);
     lv_label_set_text(_lblAgentTask, "");
 
-    Serial.println("DEVOPS: screen created");
+    LOG_INFO("DEVOPS: screen created");
 }
 
 void DevOpsScreen::addRepoCard(const RepoStatus& repo) {

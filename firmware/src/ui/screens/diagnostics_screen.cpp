@@ -6,6 +6,7 @@
 #include "ui/screens/diagnostics_screen.h"
 #include "wifi_manager.h"
 #include "data_service.h"
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -110,7 +111,7 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     _refreshTimer = lv_timer_create(onRefreshTimer, 2000, this);
     lv_timer_pause(_refreshTimer);
 
-    Serial.println("DIAG: screen created");
+    LOG_INFO("DIAG: screen created");
 }
 
 void DiagnosticsScreen::refreshSystemInfo() {

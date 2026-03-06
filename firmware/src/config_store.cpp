@@ -6,6 +6,7 @@
 
 #include "config_store.h"
 #include <Preferences.h>
+#include "logger.h"
 
 static Preferences prefs;
 static const char* NVS_NAMESPACE = "dcc_cfg";
@@ -65,7 +66,7 @@ static void saveWifi(const DeviceConfig& cfg) {
 
 void ConfigStore::init() {
     prefs.begin(NVS_NAMESPACE, false);
-    Serial.println("CFG: NVS namespace opened");
+    LOG_INFO("CFG: NVS namespace opened");
 }
 
 DeviceConfig ConfigStore::load() {
@@ -86,7 +87,7 @@ DeviceConfig ConfigStore::load() {
         strncpy(cfg.timezone, DEFAULT_TZ, DCC_TZ_LEN - 1);
     }
 
-    Serial.printf("CFG: loaded — bridge=%s tz=%s bright=0x%02X poll=%ds wifi=%d\n",
+    LOG_INFO("CFG: loaded — bridge=%s tz=%s bright=0x%02X poll=%ds wifi=%d",
                   cfg.bridge_url, cfg.timezone, cfg.brightness,
                   cfg.poll_interval_sec, cfg.wifi_count);
     return cfg;
@@ -100,10 +101,10 @@ void ConfigStore::save(const DeviceConfig& cfg) {
     prefs.putBool(KEY_24H, cfg.clock_24h);
     prefs.putUShort(KEY_POLL, cfg.poll_interval_sec);
 
-    Serial.println("CFG: saved to NVS");
+    LOG_INFO("CFG: saved to NVS");
 }
 
 void ConfigStore::reset() {
     prefs.clear();
-    Serial.println("CFG: factory reset — NVS cleared");
+    LOG_WARN("CFG: factory reset — NVS cleared");
 }

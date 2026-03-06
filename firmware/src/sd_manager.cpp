@@ -7,6 +7,7 @@
 #include "sd_manager.h"
 #include <SD.h>
 #include <SPI.h>
+#include "logger.h"
 
 /* SD card SPI pins — CrowPanel Advance 5.0" */
 static constexpr int8_t SD_CS   = 4;
@@ -21,14 +22,14 @@ bool SDManager::init() {
     s_spi.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
 
     if (!SD.begin(SD_CS, s_spi, 4000000)) {
-        Serial.println("SD: mount failed or no card");
+        LOG_WARN("SD: mount failed or no card");
         s_mounted = false;
         return false;
     }
 
     uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE) {
-        Serial.println("SD: no card detected");
+        LOG_WARN("SD: no card detected");
         s_mounted = false;
         return false;
     }
@@ -38,8 +39,8 @@ bool SDManager::init() {
     else if (cardType == CARD_SD) typeStr = "SD";
     else if (cardType == CARD_SDHC) typeStr = "SDHC";
 
-    Serial.printf("SD: %s card, %lu MB\n", typeStr,
-                  (unsigned long)(SD.totalBytes() / (1024 * 1024)));
+    LOG_INFO("SD: %s card, %lu MB", typeStr,
+             (unsigned long)(SD.totalBytes() / (1024 * 1024)));
     s_mounted = true;
     return true;
 }
@@ -63,7 +64,7 @@ bool SDManager::appendLog(const char* filename, const char* text) {
 
     File f = SD.open(filename, FILE_APPEND);
     if (!f) {
-        Serial.printf("SD: failed to open %s for append\n", filename);
+        LOG_ERROR("SD: failed to open %s for append", filename);
         return false;
     }
     f.println(text);
@@ -91,7 +92,7 @@ bool SDManager::writeFile(const char* path, const char* content) {
 
     File f = SD.open(path, FILE_WRITE);
     if (!f) {
-        Serial.printf("SD: failed to open %s for write\n", path);
+        LOG_ERROR("SD: failed to open %s for write", path);
         return false;
     }
     f.print(content);
@@ -103,7 +104,7 @@ void SDManager::unmount() {
     if (s_mounted) {
         SD.end();
         s_mounted = false;
-        Serial.println("SD: unmounted");
+        LOG_INFO("SD: unmounted");
     }
 }
 

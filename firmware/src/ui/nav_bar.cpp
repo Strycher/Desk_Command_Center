@@ -4,6 +4,7 @@
  */
 
 #include "ui/nav_bar.h"
+#include "logger.h"
 
 static const lv_color_t BAR_BG      = lv_color_hex(0x1a1a2e);
 static const lv_color_t ICON_NORMAL  = lv_color_hex(0x888899);
@@ -141,7 +142,7 @@ void NavBar::create() {
     }
 
     setActive(ScreenId::HOME);
-    Serial.println("NAV: bar created");
+    LOG_INFO("NAV: bar created");
 }
 
 void NavBar::setActive(ScreenId id) {

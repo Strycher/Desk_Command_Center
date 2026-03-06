@@ -5,6 +5,7 @@
  */
 
 #include "ui/screens/weather_screen.h"
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -95,7 +96,7 @@ void WeatherScreen::create(lv_obj_t* parent) {
     /* Allow horizontal scroll only */
     lv_obj_set_scroll_dir(_hourlyRow, LV_DIR_HOR);
 
-    Serial.println("WEATHER: screen created");
+    LOG_INFO("WEATHER: screen created");
 }
 
 void WeatherScreen::rebuildHourly(const WeatherData& w) {

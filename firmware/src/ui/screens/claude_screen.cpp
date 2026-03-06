@@ -6,6 +6,7 @@
 
 #include "ui/screens/claude_screen.h"
 #include <cstring>
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -106,7 +107,7 @@ void ClaudeScreen::create(lv_obj_t* parent) {
     lv_obj_align(_lblBeadsBlk, LV_ALIGN_TOP_LEFT, 540, 30);
     lv_label_set_text(_lblBeadsBlk, "Blocked: --");
 
-    Serial.println("CLAUDE: screen created");
+    LOG_INFO("CLAUDE: screen created");
 }
 
 void ClaudeScreen::update(const DashboardData& data) {

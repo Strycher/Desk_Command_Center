@@ -3,12 +3,13 @@
  */
 
 #include "ui/screen_manager.h"
+#include "logger.h"
 
 static BaseScreen* screens[static_cast<uint8_t>(ScreenId::_COUNT)] = {};
 static ScreenId    current = ScreenId::HOME;
 
 void ScreenManager::init() {
-    Serial.println("SCR: screen manager init");
+    LOG_INFO("SCR: screen manager init");
 }
 
 void ScreenManager::registerScreen(ScreenId id, BaseScreen* screen) {
@@ -21,7 +22,7 @@ void ScreenManager::registerScreen(ScreenId id, BaseScreen* screen) {
     if (screen->screen()) {
         lv_obj_clear_flag(screen->screen(), LV_OBJ_FLAG_SCROLLABLE);
     }
-    Serial.printf("SCR: registered screen %d\n", idx);
+    LOG_INFO("SCR: registered screen %d", idx);
 }
 
 void ScreenManager::show(ScreenId id, lv_scr_load_anim_t anim,
@@ -47,7 +48,7 @@ void ScreenManager::show(ScreenId id, lv_scr_load_anim_t anim,
     current = id;
     screens[idx]->onShow();
 
-    Serial.printf("SCR: show screen %d\n", idx);
+    LOG_DEBUG("SCR: show screen %d", idx);
 }
 
 void ScreenManager::showHome() {

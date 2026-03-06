@@ -6,6 +6,7 @@
 #include "ui/screens/wifi_settings_screen.h"
 #include "ui/osk.h"
 #include "wifi_manager.h"
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -179,7 +180,7 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
     lv_obj_center(lblCancel);
     lv_obj_add_event_cb(_btnCancel, onCancel, LV_EVENT_CLICKED, this);
 
-    Serial.println("WIFI_SET: screen created");
+    LOG_INFO("WIFI_SET: screen created");
 }
 
 /* --- Network list --- */

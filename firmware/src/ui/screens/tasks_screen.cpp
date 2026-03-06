@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/tasks_screen.h"
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -115,7 +116,7 @@ void TasksScreen::create(lv_obj_t* parent) {
     lv_obj_set_width(_lblEmpty, 780);
     lv_obj_set_style_text_align(_lblEmpty, LV_TEXT_ALIGN_CENTER, 0);
 
-    Serial.println("TASKS: screen created");
+    LOG_INFO("TASKS: screen created");
 }
 
 /* --- Task card --- */

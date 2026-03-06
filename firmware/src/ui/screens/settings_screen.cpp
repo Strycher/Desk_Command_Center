@@ -6,6 +6,7 @@
 #include "ui/screens/settings_screen.h"
 #include "ui/osk.h"
 #include "backlight.h"
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -282,7 +283,7 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_center(lblSavePoll);
     lv_obj_add_event_cb(_btnSavePoll, onSavePoll, LV_EVENT_CLICKED, this);
 
-    Serial.println("SETTINGS: screen created");
+    LOG_INFO("SETTINGS: screen created");
 }
 
 void SettingsScreen::loadSettings() {

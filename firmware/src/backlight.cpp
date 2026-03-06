@@ -7,6 +7,7 @@
 #include "backlight.h"
 #include <Wire.h>
 #include "pins_config.h"
+#include "logger.h"
 
 static constexpr uint8_t BL_ADDR    = BACKLIGHT_I2C_ADDR;
 static constexpr uint8_t BL_REG_MIN = 0x05;
@@ -25,21 +26,21 @@ static void writeReg(uint8_t val) {
     Wire.write(val);
     uint8_t err = Wire.endTransmission();
     if (err != 0) {
-        Serial.printf("BL: I2C write error %d\n", err);
+        LOG_ERROR("BL: I2C write error %d", err);
     }
 }
 
 void Backlight::init() {
     /* I2C bus already started by LovyanGFX touch driver */
     setBrightness(100);
-    Serial.println("BL: initialized at max brightness");
+    LOG_INFO("BL: initialized at max brightness");
 }
 
 void Backlight::setBrightness(uint8_t percent) {
     _currentPercent = (percent > 100) ? 100 : percent;
     writeReg(percentToReg(_currentPercent));
-    Serial.printf("BL: brightness %d%% (reg=0x%02X)\n",
-                  _currentPercent, percentToReg(_currentPercent));
+    LOG_INFO("BL: brightness %d%% (reg=0x%02X)",
+             _currentPercent, percentToReg(_currentPercent));
 }
 
 uint8_t Backlight::getBrightness() {

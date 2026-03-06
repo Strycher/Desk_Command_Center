@@ -7,6 +7,7 @@
 #include <time.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
+#include "logger.h"
 
 static bool         _synced = false;
 static uint32_t     _lastSyncMs = 0;
@@ -17,7 +18,7 @@ static const char* NTP_SERVER2 = "time.nist.gov";
 
 void NtpTime::init(const char* timezone) {
     configTzTime(timezone, NTP_SERVER1, NTP_SERVER2);
-    Serial.printf("NTP: init tz=%s\n", timezone);
+    LOG_INFO("NTP: init tz=%s", timezone);
 }
 
 void NtpTime::check() {
@@ -28,9 +29,7 @@ void NtpTime::check() {
         if (getLocalTime(&timeinfo, 0)) {
             _synced = true;
             _lastSyncMs = millis();
-            Serial.printf("NTP: first sync — %04d-%02d-%02d %02d:%02d:%02d\n",
-                          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-                          timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+            LOG_INFO("NTP: first sync — %04d-%02d-%02d %02d:%02d:%02d", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
         }
     }
     /* Re-sync is handled by backgroundResync() on Core 0 */
@@ -44,7 +43,7 @@ void NtpTime::backgroundResync() {
     const char* tz = getenv("TZ");
     configTzTime(tz ? tz : "UTC0", NTP_SERVER1, NTP_SERVER2);
     _lastSyncMs = millis();
-    Serial.printf("NTP: [Core %d] re-sync triggered\n", xPortGetCoreID());
+    LOG_INFO("NTP: [Core %d] re-sync triggered", xPortGetCoreID());
 }
 
 bool NtpTime::isSynced() {
@@ -88,5 +87,5 @@ time_t NtpTime::now() {
 void NtpTime::setTimezone(const char* tz) {
     setenv("TZ", tz, 1);
     tzset();
-    Serial.printf("NTP: timezone updated to %s\n", tz);
+    LOG_INFO("NTP: timezone updated to %s", tz);
 }

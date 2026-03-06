@@ -9,6 +9,7 @@
 #include "ui/weather_icon.h"
 #include "ntp_time.h"
 #include "config_store.h"
+#include "logger.h"
 
 static const lv_color_t BG_COLOR     = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG      = lv_color_hex(0x1a1a2e);
@@ -325,7 +326,7 @@ void HomeScreen::create(lv_obj_t* parent) {
     _clockTimer = lv_timer_create(clockTimerCb, 1000, this);
     lv_timer_pause(_clockTimer);
 
-    Serial.println("HOME: screen created");
+    LOG_INFO("HOME: screen created");
 }
 
 void HomeScreen::update(const DashboardData& data) {

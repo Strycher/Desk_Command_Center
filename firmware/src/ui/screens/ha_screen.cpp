@@ -6,6 +6,7 @@
 
 #include "ui/screens/ha_screen.h"
 #include <cstring>
+#include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
@@ -69,7 +70,7 @@ void HAScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_pad_row(_entityList, 8, 0);
     lv_obj_set_flex_flow(_entityList, LV_FLEX_FLOW_COLUMN);
 
-    Serial.println("HA: screen created");
+    LOG_INFO("HA: screen created");
 }
 
 void HAScreen::addEntityRow(lv_obj_t* parent, const HAEntity& entity) {

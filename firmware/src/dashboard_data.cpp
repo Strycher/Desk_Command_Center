@@ -5,6 +5,7 @@
 
 #include "dashboard_data.h"
 #include <ArduinoJson.h>
+#include "logger.h"
 
 static SourceStatus parseStatus(const char* s) {
     if (!s) return SourceStatus::MISSING;
@@ -69,7 +70,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
 
     JsonObjectConst sources = doc["sources"];
     if (sources.isNull()) {
-        Serial.println("PARSE: no 'sources' key in response");
+        LOG_WARN("PARSE: no 'sources' key in response");
         return;
     }
 
@@ -243,7 +244,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.claude.status = SourceStatus::MISSING;
     }
 
-    Serial.printf("PARSE: done — cal=%d+%d tasks=%d+%d repos=%d ha=%d\n",
+    LOG_INFO("PARSE: done — cal=%d+%d tasks=%d+%d repos=%d ha=%d",
                   out.google_calendar_count, out.microsoft_calendar_count,
                   out.unfocused_tasks_count, out.monday_tasks_count,
                   out.github.data.repo_count, out.home_assistant.data.entity_count);

@@ -4,6 +4,7 @@
  */
 
 #include "wifi_manager.h"
+#include "logger.h"
 
 static WifiState    _state = WifiState::DISCONNECTED;
 static WifiEntry    _networks[DCC_MAX_WIFI];
@@ -30,7 +31,7 @@ static void sortByPriority() {
 static void tryConnect() {
     if (_count == 0) {
         _state = WifiState::FAILED;
-        Serial.println("WIFI: no networks configured");
+        LOG_WARN("WIFI: no networks configured");
         return;
     }
 
@@ -38,7 +39,7 @@ static void tryConnect() {
     const char* ssid = _networks[_tryIdx].ssid;
     const char* pass = _networks[_tryIdx].password;
 
-    Serial.printf("WIFI: connecting to '%s' (%d/%d)...\n", ssid, _tryIdx + 1, _count);
+    LOG_INFO("WIFI: connecting to '%s' (%d/%d)...", ssid, _tryIdx + 1, _count);
     WiFi.begin(ssid, pass);
     _lastAttemptMs = millis();
 }
@@ -62,14 +63,14 @@ void WifiManager::init(const DeviceConfig& cfg) {
         tryConnect();
     } else {
         _state = WifiState::FAILED;
-        Serial.println("WIFI: no networks in config");
+        LOG_WARN("WIFI: no networks in config");
     }
 }
 
 void WifiManager::check() {
     if (_state == WifiState::CONNECTED) {
         if (WiFi.status() != WL_CONNECTED) {
-            Serial.println("WIFI: connection lost");
+            LOG_WARN("WIFI: connection lost");
             _state = WifiState::DISCONNECTED;
             _tryIdx = 0;
             _backoffMs = 1000;
@@ -81,14 +82,14 @@ void WifiManager::check() {
         if (WiFi.status() == WL_CONNECTED) {
             _state = WifiState::CONNECTED;
             _backoffMs = 1000;
-            Serial.printf("WIFI: connected — IP=%s RSSI=%d\n",
-                          WiFi.localIP().toString().c_str(), WiFi.RSSI());
+            LOG_INFO("WIFI: connected — IP=%s RSSI=%d",
+                     WiFi.localIP().toString().c_str(), WiFi.RSSI());
             return;
         }
 
         /* Timeout on current SSID */
         if (millis() - _lastAttemptMs > CONNECT_TIMEOUT_MS) {
-            Serial.printf("WIFI: timeout on '%s'\n", _networks[_tryIdx].ssid);
+            LOG_WARN("WIFI: timeout on '%s'", _networks[_tryIdx].ssid);
             WiFi.disconnect();
             _tryIdx++;
 
@@ -97,7 +98,7 @@ void WifiManager::check() {
                 _tryIdx = 0;
                 _state = WifiState::DISCONNECTED;
                 _lastAttemptMs = millis();
-                Serial.printf("WIFI: all SSIDs failed, backoff %lums\n", _backoffMs);
+                LOG_WARN("WIFI: all SSIDs failed, backoff %lums", _backoffMs);
             } else {
                 tryConnect();
             }

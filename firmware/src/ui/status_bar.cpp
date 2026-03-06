@@ -8,6 +8,7 @@
 #include "wifi_manager.h"
 #include "data_service.h"
 #include "config_store.h"
+#include "logger.h"
 
 static const lv_color_t BAR_BG       = lv_color_hex(0x1a1a2e);
 static const lv_color_t TEXT_COLOR    = lv_color_hex(0xCCCCDD);
@@ -91,7 +92,7 @@ void StatusBar::create() {
     /* Update every 1 second */
     lv_timer_create(timerCb, 1000, nullptr);
 
-    Serial.println("SB: status bar created");
+    LOG_INFO("SB: status bar created");
 }
 
 void StatusBar::update() {
