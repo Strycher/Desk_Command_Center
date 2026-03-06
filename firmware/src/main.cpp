@@ -2,8 +2,8 @@
  * Desk Command Center — Main Entry Point
  * CrowPanel Advance 5.0" (ESP32-S3-WROOM-1-N16R8)
  *
- * Task 1.1: Compiles clean with display + LVGL initialized.
- * No UI yet — that comes in tasks 1.2–1.5.
+ * Boot sequence: Config → Display → LVGL → Splash → Backlight →
+ *                WiFi → NTP → DataService → UI screens → Home
  */
 
 #include <Arduino.h>
@@ -14,7 +14,26 @@
 #include "backlight.h"
 #include "ntp_time.h"
 #include "data_service.h"
+#include "dashboard_data.h"
+#include "staleness_tracker.h"
+#include "error_state.h"
+
+/* UI */
 #include "ui/splash_screen.h"
+#include "ui/status_bar.h"
+#include "ui/nav_bar.h"
+#include "ui/osk.h"
+#include "ui/screen_manager.h"
+#include "ui/home_screen.h"
+#include "ui/screens/calendar_screen.h"
+#include "ui/screens/tasks_screen.h"
+#include "ui/screens/weather_screen.h"
+#include "ui/screens/devops_screen.h"
+#include "ui/screens/ha_screen.h"
+#include "ui/screens/claude_screen.h"
+#include "ui/screens/wifi_settings_screen.h"
+#include "ui/screens/settings_screen.h"
+#include "ui/screens/diagnostics_screen.h"
 
 static LGFX lcd;
 static lv_disp_draw_buf_t draw_buf;
@@ -25,7 +44,22 @@ static lv_indev_drv_t indev_drv;
 static constexpr uint32_t BUF_LINES = 40;
 static lv_color_t* buf1 = nullptr;
 static lv_color_t* buf2 = nullptr;
-static SplashScreen splash;
+
+/* Screens — allocated once, never destroyed */
+static SplashScreen         splash;
+static HomeScreen           homeScreen;
+static CalendarScreen       calendarScreen;
+static TasksScreen          tasksScreen;
+static WeatherScreen        weatherScreen;
+static DevOpsScreen         devopsScreen;
+static HAScreen             haScreen;
+static ClaudeScreen         claudeScreen;
+static WifiSettingsScreen   wifiSettingsScreen;
+static SettingsScreen       settingsScreen;
+static DiagnosticsScreen    diagnosticsScreen;
+
+/* Dashboard data — parsed from bridge JSON */
+static DashboardData dashData;
 
 /* --- LVGL display flush callback --- */
 static void lvglFlush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_p) {
@@ -50,9 +84,44 @@ static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
     }
 }
 
+/* --- Data callback: bridge JSON → DashboardData → all screens --- */
+static void onBridgeData(JsonDocument& doc) {
+    DashboardParser::parse(doc, dashData);
+    dashData.last_updated_ms = millis();
+
+    /* Mark all sources that have data as updated */
+    if (dashData.google_calendar.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::GOOGLE_CALENDAR);
+    if (dashData.microsoft_calendar.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::MICROSOFT_CALENDAR);
+    if (dashData.weather.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::WEATHER);
+    if (dashData.unfocused_tasks.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::UNFOCUSED_TASKS);
+    if (dashData.monday_tasks.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::MONDAY_TASKS);
+    if (dashData.github.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::GITHUB);
+    if (dashData.home_assistant.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::HOME_ASSISTANT);
+    if (dashData.beads.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::BEADS);
+    if (dashData.claude.status == SourceStatus::OK)
+        StalenessTracker::markUpdated(DataSource::CLAUDE);
+
+    /* Update error state */
+    ErrorState::recordSuccess();
+    ErrorState::setCachedDataAvailable(true);
+
+    /* Push data to all screens */
+    ScreenManager::updateAll(dashData);
+
+    Serial.printf("DCC: data updated, heap=%lu\n", ESP.getFreeHeap());
+}
+
 void setup() {
     Serial.begin(115200);
-    Serial.println("DCC: starting...");
+    Serial.println("\n=== Desk Command Center ===");
 
     /* Init config store */
     ConfigStore::init();
@@ -70,7 +139,7 @@ void setup() {
     buf1 = (lv_color_t*)ps_malloc(SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t));
     buf2 = (lv_color_t*)ps_malloc(SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t));
     if (!buf1 || !buf2) {
-        Serial.println("ERROR: PSRAM buffer allocation failed");
+        Serial.println("FATAL: PSRAM buffer allocation failed");
         return;
     }
     lv_disp_draw_buf_init(&draw_buf, buf1, buf2, SCREEN_WIDTH * BUF_LINES);
@@ -92,39 +161,79 @@ void setup() {
     Serial.printf("DCC: LVGL ready (%dx%d, %lu KB PSRAM buffers)\n",
                   SCREEN_WIDTH, SCREEN_HEIGHT,
                   (SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t) * 2) / 1024);
-    Serial.printf("DCC: Free heap: %lu, PSRAM: %lu\n",
-                  ESP.getFreeHeap(), ESP.getFreePsram());
 
     /* Show splash screen immediately */
     splash.create(nullptr);
     lv_scr_load(splash.screen());
-    splash.updateStatus("Loading config...");
+    splash.updateStatus("Initializing...");
     lv_timer_handler();
 
     /* Init backlight */
     Backlight::init();
     Backlight::setBrightness(cfg.brightness);
 
-    /* Init WiFi */
+    /* Init subsystems */
     splash.updateStatus("Connecting to WiFi...");
     lv_timer_handler();
     WifiManager::init(cfg);
+    ErrorState::init();
+    ErrorState::setWifiConnected(WifiManager::state() == WifiState::CONNECTED);
 
-    /* Init NTP time sync */
     splash.updateStatus("Syncing time...");
     lv_timer_handler();
     NtpTime::init(cfg.timezone);
 
-    /* Init data service */
-    splash.updateStatus("Ready");
+    splash.updateStatus("Starting data service...");
     lv_timer_handler();
+    StalenessTracker::init();
     DataService::init(cfg.bridge_url, cfg.poll_interval_sec);
+    DataService::onData(onBridgeData);
+
+    /* Register all screens */
+    splash.updateStatus("Building UI...");
+    lv_timer_handler();
+    ScreenManager::init();
+    ScreenManager::registerScreen(ScreenId::HOME,        &homeScreen);
+    ScreenManager::registerScreen(ScreenId::CALENDAR,    &calendarScreen);
+    ScreenManager::registerScreen(ScreenId::TASKS,       &tasksScreen);
+    ScreenManager::registerScreen(ScreenId::WEATHER,     &weatherScreen);
+    ScreenManager::registerScreen(ScreenId::DEVOPS,      &devopsScreen);
+    ScreenManager::registerScreen(ScreenId::HA,          &haScreen);
+    ScreenManager::registerScreen(ScreenId::CLAUDE,      &claudeScreen);
+    ScreenManager::registerScreen(ScreenId::SETTINGS,    &settingsScreen);
+    ScreenManager::registerScreen(ScreenId::DIAGNOSTICS, &diagnosticsScreen);
+
+    /* WiFi settings screen is a sub-screen accessed from Settings,
+       but we still need it registered if we add a nav path later.
+       For now, we use the SETTINGS slot for the combined settings screen. */
+
+    /* Create persistent UI layers (status bar + nav bar + OSK) */
+    StatusBar::create();
+    NavBar::create();
+    OSK::init();
+
+    /* Transition from splash to home */
+    splash.updateStatus("Ready!");
+    lv_timer_handler();
+    delay(500);
+    ScreenManager::show(ScreenId::HOME, LV_SCR_LOAD_ANIM_FADE_ON, 400, false);
+
+    Serial.printf("DCC: boot complete, heap=%lu, PSRAM=%lu\n",
+                  ESP.getFreeHeap(), ESP.getFreePsram());
 }
 
 void loop() {
     lv_timer_handler();
     WifiManager::check();
     NtpTime::check();
-    DataService::poll();
+
+    /* Update error state from WiFi */
+    ErrorState::setWifiConnected(WifiManager::state() == WifiState::CONNECTED);
+
+    /* Poll bridge data (respects interval + backoff) */
+    if (ErrorState::shouldRetry() || ErrorState::state() == ConnState::CONNECTED) {
+        DataService::poll();
+    }
+
     delay(5);
 }
