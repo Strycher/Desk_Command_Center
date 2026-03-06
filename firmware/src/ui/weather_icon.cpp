@@ -13,7 +13,7 @@
 #include <string.h>
 
 static constexpr int16_t ICON_SIZE = 48;
-static lv_color_t _iconBuf[ICON_SIZE * ICON_SIZE];
+static lv_color_t _iconBuf[ICON_SIZE * ICON_SIZE] __attribute__((aligned(4)));
 
 /* --- Colors --- */
 static const lv_color_t COL_SUN     = lv_color_hex(0xFFD93D);
