@@ -73,40 +73,59 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         return;
     }
 
-    /* Google Calendar */
-    JsonObjectConst gc = sources["google_calendar"];
+    /* Google Calendar — bridge key: calendar_google
+       data.calendars.<name>.events[] with {title, start, end, all_day, location, color_id} */
+    JsonObjectConst gc = sources["calendar_google"];
     if (!gc.isNull()) {
         parseSourceMeta(gc, out.google_calendar);
-        parseCalendarEvents(gc["data"], out.google_calendar.data,
-                           out.google_calendar_count, MAX_EVENTS);
+        JsonObjectConst gcData = gc["data"];
+        if (!gcData.isNull()) {
+            JsonObjectConst cals = gcData["calendars"];
+            out.google_calendar_count = 0;
+            for (JsonPairConst cal : cals) {
+                JsonArrayConst events = cal.value()["events"];
+                for (JsonObjectConst ev : events) {
+                    if (out.google_calendar_count >= MAX_EVENTS) break;
+                    CalendarEvent& e = out.google_calendar.data[out.google_calendar_count];
+                    copyStr(e.title, sizeof(e.title), ev["title"]);
+                    copyStr(e.location, sizeof(e.location), ev["location"]);
+                    copyStr(e.start_time, sizeof(e.start_time), ev["start"]);
+                    copyStr(e.end_time, sizeof(e.end_time), ev["end"]);
+                    e.color = ev["color_id"] | 0x4285F4;
+                    copyStr(e.source, sizeof(e.source), "google");
+                    e.all_day = ev["all_day"] | false;
+                    out.google_calendar_count++;
+                }
+            }
+        }
     } else {
         out.google_calendar.status = SourceStatus::MISSING;
     }
 
-    /* Microsoft Calendar */
-    JsonObjectConst mc = sources["microsoft_calendar"];
+    /* Microsoft Calendar — bridge key: calendar_ms */
+    JsonObjectConst mc = sources["calendar_ms"];
     if (!mc.isNull()) {
         parseSourceMeta(mc, out.microsoft_calendar);
-        parseCalendarEvents(mc["data"], out.microsoft_calendar.data,
-                           out.microsoft_calendar_count, MAX_EVENTS);
+        /* Same nested structure as Google if/when implemented */
     } else {
         out.microsoft_calendar.status = SourceStatus::MISSING;
     }
 
-    /* Weather */
+    /* Weather — bridge: data.current.{temp,humidity,condition,icon}, data.high, data.low */
     JsonObjectConst w = sources["weather"];
     if (!w.isNull()) {
         parseSourceMeta(w, out.weather);
         JsonObjectConst wd = w["data"];
         if (!wd.isNull()) {
-            out.weather.data.temp_current = wd["temp_current"] | 0.0f;
-            out.weather.data.temp_high = wd["temp_high"] | 0.0f;
-            out.weather.data.temp_low = wd["temp_low"] | 0.0f;
-            out.weather.data.humidity = wd["humidity"] | 0;
+            JsonObjectConst cur = wd["current"];
+            out.weather.data.temp_current = cur["temp"] | 0.0f;
+            out.weather.data.temp_high = wd["high"] | 0.0f;
+            out.weather.data.temp_low = wd["low"] | 0.0f;
+            out.weather.data.humidity = cur["humidity"] | 0;
             copyStr(out.weather.data.condition, sizeof(out.weather.data.condition),
-                    wd["condition"]);
-            copyStr(out.weather.data.icon, sizeof(out.weather.data.icon), wd["icon"]);
-            out.weather.data.precip_chance = wd["precip_chance"] | 0.0f;
+                    cur["condition"]);
+            copyStr(out.weather.data.icon, sizeof(out.weather.data.icon), cur["icon"]);
+            out.weather.data.precip_chance = cur["precip_chance"] | 0.0f;
 
             JsonArrayConst hourly = wd["hourly"];
             out.weather.data.hourly_count = 0;
@@ -146,59 +165,64 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.monday_tasks.status = SourceStatus::MISSING;
     }
 
-    /* GitHub */
+    /* GitHub — bridge: data.repos is a dict keyed by "owner/name" */
     JsonObjectConst gh = sources["github"];
     if (!gh.isNull()) {
         parseSourceMeta(gh, out.github);
         JsonObjectConst ghd = gh["data"];
         if (!ghd.isNull()) {
-            JsonArrayConst repos = ghd["repos"];
+            JsonObjectConst repos = ghd["repos"];
             out.github.data.repo_count = 0;
-            if (!repos.isNull()) {
-                for (JsonObjectConst r : repos) {
-                    if (out.github.data.repo_count >= MAX_REPOS) break;
-                    RepoStatus& rs = out.github.data.repos[out.github.data.repo_count];
-                    copyStr(rs.name, sizeof(rs.name), r["name"]);
-                    rs.open_prs = r["open_prs"] | 0;
-                    rs.open_issues = r["open_issues"] | 0;
-                    copyStr(rs.ci_status, sizeof(rs.ci_status), r["ci_status"]);
-                    out.github.data.repo_count++;
-                }
+            for (JsonPairConst kv : repos) {
+                if (out.github.data.repo_count >= MAX_REPOS) break;
+                RepoStatus& rs = out.github.data.repos[out.github.data.repo_count];
+                copyStr(rs.name, sizeof(rs.name), kv.key().c_str());
+                JsonObjectConst r = kv.value();
+                rs.open_prs = r["open_prs"] | 0;
+                rs.open_issues = r["open_issues"] | 0;
+                const char* ci = r["ci"];
+                copyStr(rs.ci_status, sizeof(rs.ci_status), ci);
+                out.github.data.repo_count++;
             }
         }
     } else {
         out.github.status = SourceStatus::MISSING;
     }
 
-    /* Home Assistant */
+    /* Home Assistant — bridge: data.domains is dict of domain→[entity,...] */
     JsonObjectConst ha = sources["home_assistant"];
     if (!ha.isNull()) {
         parseSourceMeta(ha, out.home_assistant);
-        JsonArrayConst entities = ha["data"];
+        JsonObjectConst haData = ha["data"];
         out.home_assistant.data.entity_count = 0;
-        if (!entities.isNull()) {
-            for (JsonObjectConst e : entities) {
-                if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
-                HAEntity& ent = out.home_assistant.data.entities[out.home_assistant.data.entity_count];
-                copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
-                copyStr(ent.friendly_name, sizeof(ent.friendly_name), e["friendly_name"]);
-                copyStr(ent.state, sizeof(ent.state), e["state"]);
-                copyStr(ent.domain, sizeof(ent.domain), e["domain"]);
-                out.home_assistant.data.entity_count++;
+        if (!haData.isNull()) {
+            JsonObjectConst domains = haData["domains"];
+            for (JsonPairConst domKv : domains) {
+                const char* domainName = domKv.key().c_str();
+                JsonArrayConst entities = domKv.value();
+                for (JsonObjectConst e : entities) {
+                    if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
+                    HAEntity& ent = out.home_assistant.data.entities[out.home_assistant.data.entity_count];
+                    copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
+                    copyStr(ent.friendly_name, sizeof(ent.friendly_name), e["friendly_name"]);
+                    copyStr(ent.state, sizeof(ent.state), e["state"]);
+                    copyStr(ent.domain, sizeof(ent.domain), domainName);
+                    out.home_assistant.data.entity_count++;
+                }
             }
         }
     } else {
         out.home_assistant.status = SourceStatus::MISSING;
     }
 
-    /* Beads */
+    /* Beads — bridge: data.{total_open, total_in_progress} */
     JsonObjectConst bd = sources["beads"];
     if (!bd.isNull()) {
         parseSourceMeta(bd, out.beads);
         JsonObjectConst bdd = bd["data"];
         if (!bdd.isNull()) {
-            out.beads.data.open_count = bdd["open_count"] | 0;
-            out.beads.data.in_progress_count = bdd["in_progress_count"] | 0;
+            out.beads.data.open_count = bdd["total_open"] | 0;
+            out.beads.data.in_progress_count = bdd["total_in_progress"] | 0;
             out.beads.data.blocked_count = bdd["blocked_count"] | 0;
         }
     } else {

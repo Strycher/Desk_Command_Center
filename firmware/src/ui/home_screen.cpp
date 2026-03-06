@@ -109,6 +109,15 @@ void HomeScreen::createApptCard(lv_obj_t* parent) {
     lv_label_set_text(_lblApptMore, "");
 }
 
+/* Extract HH:MM from ISO 8601 "2026-03-06T15:00:00-05:00" → "15:00" */
+static void fmtTime(const char* iso, char* out, size_t outLen) {
+    const char* t = strchr(iso, 'T');
+    if (!t) { out[0] = '\0'; return; }
+    int hh = 0, mm = 0;
+    sscanf(t + 1, "%d:%d", &hh, &mm);
+    snprintf(out, outLen, "%02d:%02d", hh, mm);
+}
+
 void HomeScreen::updateAppt(const DashboardData& data) {
     if (!_lblApptTitle) return;
 
@@ -127,9 +136,10 @@ void HomeScreen::updateAppt(const DashboardData& data) {
 
     if (first) {
         lv_label_set_text(_lblApptTitle, first->title);
-        char timeBuf[64];
-        snprintf(timeBuf, sizeof(timeBuf), "%s - %s",
-                 first->start_time, first->end_time);
+        char startFmt[16], endFmt[16], timeBuf[40];
+        fmtTime(first->start_time, startFmt, sizeof(startFmt));
+        fmtTime(first->end_time, endFmt, sizeof(endFmt));
+        snprintf(timeBuf, sizeof(timeBuf), "%s - %s", startFmt, endFmt);
         lv_label_set_text(_lblApptTime, timeBuf);
         lv_obj_set_style_bg_color(_apptStripe, lv_color_hex(first->color), 0);
 
@@ -159,21 +169,21 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _lblWeatherIcon = lv_label_create(_cardWeather);
-    lv_obj_set_style_text_font(_lblWeatherIcon, &lv_font_montserrat_36, 0);
-    lv_obj_set_style_text_color(_lblWeatherIcon, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblWeatherIcon, LV_ALIGN_TOP_LEFT, 0, 24);
-    lv_label_set_text(_lblWeatherIcon, LV_SYMBOL_IMAGE);
+    lv_obj_set_style_text_font(_lblWeatherIcon, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(_lblWeatherIcon, TEXT_SECONDARY, 0);
+    lv_obj_align(_lblWeatherIcon, LV_ALIGN_TOP_LEFT, 0, 32);
+    lv_label_set_text(_lblWeatherIcon, "---");
 
     _lblTemp = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblTemp, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(_lblTemp, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 60, 24);
+    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 40, 24);
     lv_label_set_text(_lblTemp, "--" "\xC2\xB0");
 
     _lblHighLow = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblHighLow, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, 60, 68);
+    lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, 40, 68);
     lv_label_set_text(_lblHighLow, "H: --  L: --");
 
     _lblCondition = lv_label_create(_cardWeather);
@@ -181,6 +191,26 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
     lv_obj_set_style_text_color(_lblCondition, TEXT_SECONDARY, 0);
     lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 0, 96);
     lv_label_set_text(_lblCondition, "No data");
+}
+
+/* Map OpenWeatherMap icon code (e.g. "01d") to short text indicator */
+static const char* weatherIconText(const char* icon) {
+    if (!icon || !icon[0]) return "?";
+    /* OWM codes: 01=clear, 02=few clouds, 03=scattered, 04=broken,
+       09=shower, 10=rain, 11=thunder, 13=snow, 50=mist */
+    int code = atoi(icon);
+    switch (code) {
+        case  1: return "CLR";
+        case  2: return "FEW";
+        case  3: return "SCT";
+        case  4: return "OVC";
+        case  9: return "SHR";
+        case 10: return "RN";
+        case 11: return "TS";
+        case 13: return "SNW";
+        case 50: return "FOG";
+        default: return "---";
+    }
 }
 
 void HomeScreen::updateWeather(const DashboardData& data) {
@@ -197,6 +227,7 @@ void HomeScreen::updateWeather(const DashboardData& data) {
                  w.temp_high, w.temp_low);
         lv_label_set_text(_lblHighLow, hlBuf);
         lv_label_set_text(_lblCondition, w.condition);
+        lv_label_set_text(_lblWeatherIcon, weatherIconText(w.icon));
     } else {
         lv_label_set_text(_lblTemp, "--\xC2\xB0");
         lv_label_set_text(_lblHighLow, "H: --  L: --");
