@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from adapters import TTLCache, AdapterScheduler
 from adapters.beads import BeadsAdapter
 from adapters.github import GitHubAdapter
+from adapters.home_assistant import HomeAssistantAdapter
 from adapters.weather import WeatherAdapter
 from config import BridgeConfig
 
@@ -39,6 +40,7 @@ _cfg = config.get_all(mask_secrets=False)
 scheduler.register(WeatherAdapter(_cfg))
 scheduler.register(GitHubAdapter(_cfg))
 scheduler.register(BeadsAdapter(_cfg))
+scheduler.register(HomeAssistantAdapter(_cfg))
 
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
@@ -51,6 +53,7 @@ DASHBOARD_SOURCES = {
     "weather": "Weather",
     "github": "GitHub",
     "beads": "Beads Tasks",
+    "home_assistant": "Home Assistant",
 }
 
 
