@@ -41,8 +41,9 @@
 /* --- Touch (GT911 capacitive, I2C) --- */
 #define PIN_TOUCH_SDA  15
 #define PIN_TOUCH_SCL  16
-#define PIN_TOUCH_INT  -1   /* not connected */
-#define PIN_TOUCH_RST  -1   /* not connected */
+#define PIN_TOUCH_INT  -1   /* not connected to ESP32 GPIO */
+#define PIN_TOUCH_RST  -1   /* LovyanGFX must NOT reset GT911 (its 1ms pulse is too short) */
+#define PIN_TOUCH_RST_GPIO 1  /* GPIO 1 — manual 120ms reset in setup() before lcd.begin() */
 #define TOUCH_I2C_ADDR 0x5D
 #define TOUCH_I2C_PORT I2C_NUM_0
 #define TOUCH_I2C_FREQ 400000

@@ -9,6 +9,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include "display_driver.h"
+#include "pins_config.h"
 #include "config_store.h"
 #include "wifi_manager.h"
 #include "backlight.h"
@@ -71,14 +72,28 @@ static void lvglFlush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* col
 
 
 /* --- LVGL touch read callback --- */
+static uint32_t _touchPolls = 0;
+static uint32_t _touchHits  = 0;
+
 static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
+    _touchPolls++;
     uint16_t x, y;
     if (lcd.getTouch(&x, &y)) {
+        _touchHits++;
         data->state = LV_INDEV_STATE_PR;
         data->point.x = x;
         data->point.y = y;
+        /* Log first 5 touches + every 50th after that */
+        if (_touchHits <= 5 || _touchHits % 50 == 0) {
+            Serial.printf("TOUCH: hit #%lu at (%d,%d) [polls=%lu]\n",
+                          _touchHits, x, y, _touchPolls);
+        }
     } else {
         data->state = LV_INDEV_STATE_REL;
+    }
+    /* Report first poll + every ~5 seconds (500 polls at ~33/sec) */
+    if (_touchPolls == 1 || _touchPolls % 500 == 0) {
+        Serial.printf("TOUCH: polls=%lu hits=%lu\n", _touchPolls, _touchHits);
     }
 }
 
@@ -125,10 +140,24 @@ void setup() {
     ConfigStore::init();
     DeviceConfig cfg = ConfigStore::load();
 
-    /* Init display */
+    /* GT911 touch reset — pull RST low for 120ms then release.
+       Must happen BEFORE lcd.begin() which runs Touch_GT911::init().
+       Factory V1.1 firmware uses GPIO 1 for GT911 reset.
+       Verified via I2C scan: GT911 appears at 0x5D after this reset. */
+    pinMode(PIN_TOUCH_RST_GPIO, OUTPUT);
+    digitalWrite(PIN_TOUCH_RST_GPIO, LOW);
+    delay(120);
+    pinMode(PIN_TOUCH_RST_GPIO, INPUT);
+    delay(300);  /* GT911 post-reset init time */
+    Serial.println("TOUCH: GT911 reset done (GPIO 1, 300ms post-reset)");
+
+    /* Init display + touch (PIN_TOUCH_RST=-1 → LovyanGFX skips its own
+       1ms reset which is too short for GT911; our manual 120ms reset
+       already brought the GT911 online at 0x5D). */
     lcd.begin();
     lcd.setColorDepth(16);
     lcd.fillScreen(TFT_BLACK);
+
 
     /* Init LVGL */
     lv_init();
