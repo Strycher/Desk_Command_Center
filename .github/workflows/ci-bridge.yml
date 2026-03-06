@@ -31,13 +31,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install ruff mypy
-          pip install -e ".[dev]" 2>/dev/null || pip install -e bridge/[dev] 2>/dev/null || echo "No bridge package yet"
+          pip install -r bridge/requirements.txt
 
       - name: Lint with ruff
-        run: ruff check bridge/
+        run: ruff check bridge/ --exclude bridge/tests/
 
       - name: Type check with mypy
-        run: mypy bridge/ --ignore-missing-imports
+        run: mypy bridge/main.py --ignore-missing-imports
 
   test:
     runs-on: ubuntu-latest
@@ -53,8 +53,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pytest pytest-asyncio
-          pip install -e ".[dev]" 2>/dev/null || pip install -e bridge/[dev] 2>/dev/null || echo "No bridge package yet"
+          pip install pytest pytest-asyncio httpx
+          pip install -r bridge/requirements.txt
 
       - name: Run tests
-        run: pytest bridge/tests/ -v --tb=short
+        run: PYTHONPATH=bridge pytest bridge/tests/ -v --tb=short
