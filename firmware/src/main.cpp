@@ -9,6 +9,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include "display_driver.h"
+#include "config_store.h"
 
 static LGFX lcd;
 static lv_disp_draw_buf_t draw_buf;
@@ -46,6 +47,10 @@ static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
 void setup() {
     Serial.begin(115200);
     Serial.println("DCC: starting...");
+
+    /* Init config store */
+    ConfigStore::init();
+    DeviceConfig cfg = ConfigStore::load();
 
     /* Init display */
     lcd.begin();
