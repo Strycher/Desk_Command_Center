@@ -8,7 +8,6 @@ on:
     branches: [main]
     paths:
       - 'firmware/**'
-      - 'platformio.ini'
 
 permissions:
   contents: write
@@ -31,7 +30,8 @@ jobs:
         run: pip install platformio
 
       - name: Build firmware
-        run: pio run --environment crowpanel
+        working-directory: firmware
+        run: pio run --environment crowpanel5
 
       - name: Get version tag
         id: version
@@ -45,7 +45,7 @@ jobs:
       - name: Rename artifact
         run: |
           mkdir -p release
-          cp .pio/build/crowpanel/firmware.bin "release/dcc-firmware-${{ steps.version.outputs.tag }}-${{ steps.version.outputs.sha }}.bin"
+          cp firmware/.pio/build/crowpanel5/firmware.bin "release/dcc-firmware-${{ steps.version.outputs.tag }}-${{ steps.version.outputs.sha }}.bin"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
