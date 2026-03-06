@@ -5,6 +5,7 @@ them to the CrowPanel display.
 Endpoints:
   GET  /api/health          — liveness check
   GET  /api/adapters        — adapter status overview
+  GET  /api/dashboard       — merged data for display (single poll)
   POST /calendar/ms         — ingest Outlook calendar JSON (push)
   GET  /calendar/ms         — retrieve latest calendar snapshot
   POST /calendar/google     — ingest Google calendar JSON (push)
@@ -28,6 +29,13 @@ scheduler = AdapterScheduler(cache=cache)
 
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
+
+# Known data sources — the dashboard merges all of these.
+# Each entry: cache_key -> human-readable label
+DASHBOARD_SOURCES = {
+    "calendar_ms": "Outlook Calendar",
+    "calendar_google": "Google Calendar",
+}
 
 
 @asynccontextmanager
@@ -56,6 +64,48 @@ async def health():
 @app.get("/api/adapters")
 async def list_adapters():
     return {"adapters": scheduler.list_adapters()}
+
+
+@app.get("/api/dashboard")
+async def dashboard():
+    """Merged snapshot of all data sources for the display.
+
+    Each source entry contains status, last_updated, and data.
+    Missing or expired sources return null data with error metadata.
+    """
+    sources = {}
+    for key, label in DASHBOARD_SOURCES.items():
+        entry = cache.get_entry(key)
+        if entry is None:
+            sources[key] = {
+                "label": label,
+                "status": "missing",
+                "last_updated": None,
+                "data": None,
+            }
+        elif entry.is_expired:
+            sources[key] = {
+                "label": label,
+                "status": "stale",
+                "last_updated": entry.value.get("received_at"),
+                "data": entry.value,
+            }
+        else:
+            sources[key] = {
+                "label": label,
+                "status": "ok",
+                "last_updated": entry.value.get("received_at"),
+                "data": entry.value,
+            }
+
+    # Include any poll-based adapter statuses
+    adapter_statuses = {a["name"]: a["status"] for a in scheduler.list_adapters()}
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "sources": sources,
+        "adapter_statuses": adapter_statuses,
+    }
 
 
 # --- Push endpoints: Calendar -------------------------------------------

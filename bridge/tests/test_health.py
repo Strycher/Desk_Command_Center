@@ -57,3 +57,42 @@ def test_calendar_google_ingest_and_retrieve():
     resp = client.get("/calendar/google")
     assert resp.status_code == 200
     assert resp.json()["count"] == 2
+
+
+# --- Dashboard ---------------------------------------------------------------
+
+def test_dashboard_empty():
+    resp = client.get("/api/dashboard")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "generated_at" in data
+    assert "sources" in data
+    # All sources should be "missing" with no data
+    for source in data["sources"].values():
+        assert source["status"] == "missing"
+        assert source["data"] is None
+
+
+def test_dashboard_with_ms_calendar():
+    payload = {"count": 1, "events": [{"subject": "Standup"}]}
+    client.post("/calendar/ms", json=payload)
+
+    resp = client.get("/api/dashboard")
+    data = resp.json()
+    ms = data["sources"]["calendar_ms"]
+    assert ms["status"] == "ok"
+    assert ms["data"]["count"] == 1
+    # Google calendar should still be missing
+    google = data["sources"]["calendar_google"]
+    assert google["status"] == "missing"
+
+
+def test_dashboard_with_both_calendars():
+    client.post("/calendar/ms", json={"count": 1, "events": [{"subject": "A"}]})
+    client.post("/calendar/google", json={"count": 2, "events": [{"summary": "B"}, {"summary": "C"}]})
+
+    resp = client.get("/api/dashboard")
+    data = resp.json()
+    assert data["sources"]["calendar_ms"]["status"] == "ok"
+    assert data["sources"]["calendar_google"]["status"] == "ok"
+    assert data["sources"]["calendar_google"]["data"]["count"] == 2
