@@ -40,6 +40,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "api_key": "",
         "poll_interval": 60,
     },
+    "google_calendar": {
+        "client_id": "",
+        "client_secret": "",
+        "refresh_token": "",
+        "calendars": ["primary"],
+        "poll_interval": 300,
+    },
     "github": {
         "api_key": "",
         "repos": ["Strycher/Desk_Command_Center", "DifferentWire/Unfocused", "Strycher/Field_Compass"],

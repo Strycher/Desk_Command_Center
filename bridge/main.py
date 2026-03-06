@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from adapters import TTLCache, AdapterScheduler
 from adapters.beads import BeadsAdapter
 from adapters.github import GitHubAdapter
+from adapters.google_calendar import GoogleCalendarAdapter
 from adapters.home_assistant import HomeAssistantAdapter
 from adapters.weather import WeatherAdapter
 from config import BridgeConfig
@@ -41,6 +42,7 @@ scheduler.register(WeatherAdapter(_cfg))
 scheduler.register(GitHubAdapter(_cfg))
 scheduler.register(BeadsAdapter(_cfg))
 scheduler.register(HomeAssistantAdapter(_cfg))
+scheduler.register(GoogleCalendarAdapter(_cfg))
 
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
