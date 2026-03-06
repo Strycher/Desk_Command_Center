@@ -12,6 +12,7 @@
 #include "config_store.h"
 #include "wifi_manager.h"
 #include "backlight.h"
+#include "ntp_time.h"
 #include "ui/splash_screen.h"
 
 static LGFX lcd;
@@ -107,10 +108,16 @@ void setup() {
     splash.updateStatus("Connecting to WiFi...");
     lv_timer_handler();
     WifiManager::init(cfg);
+
+    /* Init NTP time sync */
+    splash.updateStatus("Syncing time...");
+    lv_timer_handler();
+    NtpTime::init(cfg.timezone);
 }
 
 void loop() {
     lv_timer_handler();
     WifiManager::check();
+    NtpTime::check();
     delay(5);
 }
