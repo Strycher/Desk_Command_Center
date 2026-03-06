@@ -6,6 +6,7 @@
  */
 
 #include "ui/home_screen.h"
+#include "ui/weather_icon.h"
 #include "ntp_time.h"
 #include "config_store.h"
 
@@ -172,22 +173,19 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblWeatherIcon = lv_label_create(_cardWeather);
-    lv_obj_set_style_text_font(_lblWeatherIcon, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(_lblWeatherIcon, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblWeatherIcon, LV_ALIGN_TOP_LEFT, 0, 32);
-    lv_label_set_text(_lblWeatherIcon, "---");
+    _weatherCanvas = WeatherIcon::create(_cardWeather);
+    lv_obj_align(_weatherCanvas, LV_ALIGN_TOP_LEFT, 0, 24);
 
     _lblTemp = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblTemp, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(_lblTemp, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 40, 24);
+    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 58, 24);
     lv_label_set_text(_lblTemp, "--" "\xC2\xB0");
 
     _lblHighLow = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblHighLow, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, 40, 68);
+    lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, 58, 68);
     lv_label_set_text(_lblHighLow, "H: --  L: --");
 
     _lblCondition = lv_label_create(_cardWeather);
@@ -195,26 +193,6 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
     lv_obj_set_style_text_color(_lblCondition, TEXT_SECONDARY, 0);
     lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 0, 96);
     lv_label_set_text(_lblCondition, "No data");
-}
-
-/* Map OpenWeatherMap icon code (e.g. "01d") to short text indicator */
-static const char* weatherIconText(const char* icon) {
-    if (!icon || !icon[0]) return "?";
-    /* OWM codes: 01=clear, 02=few clouds, 03=scattered, 04=broken,
-       09=shower, 10=rain, 11=thunder, 13=snow, 50=mist */
-    int code = atoi(icon);
-    switch (code) {
-        case  1: return "CLR";
-        case  2: return "FEW";
-        case  3: return "SCT";
-        case  4: return "OVC";
-        case  9: return "SHR";
-        case 10: return "RN";
-        case 11: return "TS";
-        case 13: return "SNW";
-        case 50: return "FOG";
-        default: return "---";
-    }
 }
 
 void HomeScreen::updateWeather(const DashboardData& data) {
@@ -231,12 +209,13 @@ void HomeScreen::updateWeather(const DashboardData& data) {
                  w.temp_high, w.temp_low);
         lv_label_set_text(_lblHighLow, hlBuf);
         lv_label_set_text(_lblCondition, w.condition);
-        lv_label_set_text(_lblWeatherIcon, weatherIconText(w.icon));
+        WeatherIcon::update(_weatherCanvas, w.icon);
     } else {
         lv_label_set_text(_lblTemp, "--\xC2\xB0");
         lv_label_set_text(_lblHighLow, "H: --  L: --");
         lv_label_set_text(_lblCondition,
                           data.weather.status == SourceStatus::ERROR ? "Error" : "No data");
+        WeatherIcon::update(_weatherCanvas, "");
     }
 }
 

@@ -27,7 +27,7 @@ private:
 
     /* Weather summary card */
     lv_obj_t* _cardWeather  = nullptr;
-    lv_obj_t* _lblWeatherIcon = nullptr;
+    lv_obj_t* _weatherCanvas = nullptr;
     lv_obj_t* _lblTemp      = nullptr;
     lv_obj_t* _lblHighLow   = nullptr;
     lv_obj_t* _lblCondition = nullptr;
