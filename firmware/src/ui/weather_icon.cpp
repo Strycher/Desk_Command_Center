@@ -1,6 +1,12 @@
 /**
- * Weather Icon — Canvas-drawn weather indicators.
- * Uses LVGL canvas to draw simple weather symbols from OWM codes.
+ * Weather Icon — Direct-buffer weather indicators.
+ * Renders weather symbols directly to a pixel buffer, bypassing
+ * LVGL's canvas draw pipeline which corrupts its internal memory
+ * pool when mixing draw types (circles + lines + rects).
+ *
+ * Uses LVGL canvas only for hosting the buffer and invalidation.
+ * All rasterization is done with simple algorithms (midpoint circle,
+ * Bresenham line) writing directly to the lv_color_t buffer.
  *
  * Icon code format: "NNx" where NN=condition, x=d(ay)/n(ight)
  *   01=clear, 02=few clouds, 03=scattered, 04=broken/overcast,
@@ -26,49 +32,102 @@ static const lv_color_t COL_BOLT    = lv_color_hex(0xFFE066);
 static const lv_color_t COL_FOG     = lv_color_hex(0x9898B0);
 static const lv_color_t COL_BG      = lv_color_hex(0x1a1a2e);
 
-/* --- Drawing helpers --- */
+/* ================================================================
+ * Direct buffer rendering — no LVGL draw calls
+ * ================================================================ */
 
-static void fillCircle(lv_obj_t* c, int16_t cx, int16_t cy, int16_t r,
-                        lv_color_t color) {
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_color = color;
-    dsc.bg_opa = LV_OPA_COVER;
-    dsc.radius = LV_RADIUS_CIRCLE;
-    dsc.border_width = 0;
-    int16_t x = cx - r;
-    int16_t y = cy - r;
-    int16_t d = r * 2;
-    lv_canvas_draw_rect(c, x, y, d, d, &dsc);
+static inline void bufSetPixel(int16_t x, int16_t y, lv_color_t c) {
+    if (x >= 0 && x < ICON_SIZE && y >= 0 && y < ICON_SIZE) {
+        _iconBuf[y * ICON_SIZE + x] = c;
+    }
 }
 
-static void drawLine(lv_obj_t* c, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
-                      lv_color_t color, int16_t width) {
-    lv_draw_line_dsc_t dsc;
-    lv_draw_line_dsc_init(&dsc);
-    dsc.color = color;
-    dsc.width = width;
-    dsc.opa = LV_OPA_COVER;
-    dsc.round_start = 1;
-    dsc.round_end = 1;
-    lv_point_t pts[2] = {{x1, y1}, {x2, y2}};
-    lv_canvas_draw_line(c, pts, 2, &dsc);
+static void bufFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
+                         lv_color_t c) {
+    /* Clamp to bounds */
+    int16_t x0 = (x < 0) ? 0 : x;
+    int16_t y0 = (y < 0) ? 0 : y;
+    int16_t x1 = (x + w > ICON_SIZE) ? ICON_SIZE : x + w;
+    int16_t y1 = (y + h > ICON_SIZE) ? ICON_SIZE : y + h;
+
+    for (int16_t row = y0; row < y1; row++) {
+        lv_color_t* p = &_iconBuf[row * ICON_SIZE + x0];
+        for (int16_t col = x0; col < x1; col++) {
+            *p++ = c;
+        }
+    }
 }
 
-static void fillRect(lv_obj_t* c, int16_t x, int16_t y, int16_t w, int16_t h,
-                      lv_color_t color, int16_t radius) {
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_color = color;
-    dsc.bg_opa = LV_OPA_COVER;
-    dsc.radius = radius;
-    dsc.border_width = 0;
-    lv_canvas_draw_rect(c, x, y, w, h, &dsc);
+static void bufClear(lv_color_t c) {
+    for (int i = 0; i < ICON_SIZE * ICON_SIZE; i++) {
+        _iconBuf[i] = c;
+    }
 }
 
-/* --- Weather shapes --- */
+/* Filled circle — midpoint algorithm with horizontal scanline fill */
+static void bufFillCircle(int16_t cx, int16_t cy, int16_t r, lv_color_t c) {
+    if (r <= 0) return;
 
-static void drawSun(lv_obj_t* c, int16_t cx, int16_t cy, int16_t r) {
+    /* Fill horizontal spans using midpoint circle to find edges */
+    int16_t x = 0;
+    int16_t y = r;
+    int16_t d = 1 - r;
+
+    /* Draw horizontal lines for each y-offset from center */
+    auto hline = [&](int16_t lx, int16_t rx, int16_t ly) {
+        if (ly < 0 || ly >= ICON_SIZE) return;
+        if (lx < 0) lx = 0;
+        if (rx >= ICON_SIZE) rx = ICON_SIZE - 1;
+        lv_color_t* p = &_iconBuf[ly * ICON_SIZE + lx];
+        for (int16_t i = lx; i <= rx; i++) *p++ = c;
+    };
+
+    while (x <= y) {
+        /* Each (x,y) gives 4 horizontal spans */
+        hline(cx - x, cx + x, cy + y);
+        hline(cx - x, cx + x, cy - y);
+        hline(cx - y, cx + y, cy + x);
+        hline(cx - y, cx + y, cy - x);
+
+        if (d < 0) {
+            d += 2 * x + 3;
+        } else {
+            d += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+    }
+}
+
+/* Thick line — Bresenham with perpendicular thickness */
+static void bufDrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                         lv_color_t c, int16_t width) {
+    int16_t dx = abs(x1 - x0);
+    int16_t dy = abs(y1 - y0);
+    int16_t sx = (x0 < x1) ? 1 : -1;
+    int16_t sy = (y0 < y1) ? 1 : -1;
+    int16_t err = dx - dy;
+    int16_t halfW = width / 2;
+
+    for (;;) {
+        /* Draw a small filled area around the pixel for line width */
+        for (int16_t wy = -halfW; wy <= halfW; wy++) {
+            for (int16_t wx = -halfW; wx <= halfW; wx++) {
+                bufSetPixel(x0 + wx, y0 + wy, c);
+            }
+        }
+
+        if (x0 == x1 && y0 == y1) break;
+
+        int16_t e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 <  dx) { err += dx; y0 += sy; }
+    }
+}
+
+/* --- Weather shapes (same visual design, direct buffer ops) --- */
+
+static void drawSun(int16_t cx, int16_t cy, int16_t r) {
     /* Rays */
     for (int i = 0; i < 8; i++) {
         float angle = i * 3.14159f / 4.0f;
@@ -76,110 +135,110 @@ static void drawSun(lv_obj_t* c, int16_t cx, int16_t cy, int16_t r) {
         int16_t iy = cy + (int16_t)((r + 2) * sinf(angle));
         int16_t ox = cx + (int16_t)((r + 6) * cosf(angle));
         int16_t oy = cy + (int16_t)((r + 6) * sinf(angle));
-        drawLine(c, ix, iy, ox, oy, COL_SUN, 2);
+        bufDrawLine(ix, iy, ox, oy, COL_SUN, 2);
     }
     /* Core */
-    fillCircle(c, cx, cy, r, COL_SUN);
+    bufFillCircle(cx, cy, r, COL_SUN);
 }
 
-static void drawMoon(lv_obj_t* c, int16_t cx, int16_t cy, int16_t r) {
+static void drawMoon(int16_t cx, int16_t cy, int16_t r) {
     /* Full circle then overlay a dark circle to create crescent */
-    fillCircle(c, cx, cy, r, COL_MOON);
-    fillCircle(c, cx + r / 2, cy - r / 3, r - 2, COL_BG);
+    bufFillCircle(cx, cy, r, COL_MOON);
+    bufFillCircle(cx + r / 2, cy - r / 3, r - 2, COL_BG);
 }
 
-static void drawCloud(lv_obj_t* c, int16_t x, int16_t y, lv_color_t col) {
+static void drawCloud(int16_t x, int16_t y, lv_color_t col) {
     /* Cloud from overlapping circles + base rect */
-    fillCircle(c, x + 10, y + 8, 8, col);
-    fillCircle(c, x + 20, y + 4, 10, col);
-    fillCircle(c, x + 30, y + 7, 7, col);
-    fillRect(c, x + 4, y + 10, 32, 10, col, 4);
+    bufFillCircle(x + 10, y + 8, 8, col);
+    bufFillCircle(x + 20, y + 4, 10, col);
+    bufFillCircle(x + 30, y + 7, 7, col);
+    bufFillRect(x + 4, y + 10, 32, 10, col);
 }
 
-static void drawRainDrops(lv_obj_t* c, int16_t x, int16_t y) {
-    drawLine(c, x + 10, y, x + 8,  y + 6, COL_RAIN, 2);
-    drawLine(c, x + 18, y, x + 16, y + 6, COL_RAIN, 2);
-    drawLine(c, x + 26, y, x + 24, y + 6, COL_RAIN, 2);
+static void drawRainDrops(int16_t x, int16_t y) {
+    bufDrawLine(x + 10, y, x + 8,  y + 6, COL_RAIN, 2);
+    bufDrawLine(x + 18, y, x + 16, y + 6, COL_RAIN, 2);
+    bufDrawLine(x + 26, y, x + 24, y + 6, COL_RAIN, 2);
 }
 
-static void drawSnowDots(lv_obj_t* c, int16_t x, int16_t y) {
-    fillCircle(c, x + 10, y + 2, 2, COL_SNOW);
-    fillCircle(c, x + 20, y + 4, 2, COL_SNOW);
-    fillCircle(c, x + 28, y + 2, 2, COL_SNOW);
-    fillCircle(c, x + 14, y + 8, 2, COL_SNOW);
-    fillCircle(c, x + 24, y + 9, 2, COL_SNOW);
+static void drawSnowDots(int16_t x, int16_t y) {
+    bufFillCircle(x + 10, y + 2, 2, COL_SNOW);
+    bufFillCircle(x + 20, y + 4, 2, COL_SNOW);
+    bufFillCircle(x + 28, y + 2, 2, COL_SNOW);
+    bufFillCircle(x + 14, y + 8, 2, COL_SNOW);
+    bufFillCircle(x + 24, y + 9, 2, COL_SNOW);
 }
 
-static void drawLightning(lv_obj_t* c, int16_t x, int16_t y) {
-    drawLine(c, x + 20, y,     x + 16, y + 6,  COL_BOLT, 2);
-    drawLine(c, x + 16, y + 6, x + 22, y + 6,  COL_BOLT, 2);
-    drawLine(c, x + 22, y + 6, x + 18, y + 12, COL_BOLT, 2);
+static void drawLightning(int16_t x, int16_t y) {
+    bufDrawLine(x + 20, y,     x + 16, y + 6,  COL_BOLT, 2);
+    bufDrawLine(x + 16, y + 6, x + 22, y + 6,  COL_BOLT, 2);
+    bufDrawLine(x + 22, y + 6, x + 18, y + 12, COL_BOLT, 2);
 }
 
-static void drawFog(lv_obj_t* c, int16_t x, int16_t y) {
+static void drawFog(int16_t x, int16_t y) {
     for (int i = 0; i < 4; i++) {
-        drawLine(c, x + 4, y + i * 6, x + 36, y + i * 6, COL_FOG, 2);
+        bufDrawLine(x + 4, y + i * 6, x + 36, y + i * 6, COL_FOG, 2);
     }
 }
 
 /* --- Main draw dispatch --- */
 
-static void drawIcon(lv_obj_t* c, int code, bool night) {
-    lv_canvas_fill_bg(c, COL_BG, LV_OPA_COVER);
+static void drawIcon(int code, bool night) {
+    bufClear(COL_BG);
 
     switch (code) {
         case 1:  /* Clear */
-            if (night) drawMoon(c, 24, 22, 12);
-            else       drawSun(c, 24, 22, 10);
+            if (night) drawMoon(24, 22, 12);
+            else       drawSun(24, 22, 10);
             break;
 
         case 2:  /* Few clouds */
-            if (night) drawMoon(c, 16, 14, 8);
-            else       drawSun(c, 16, 14, 7);
-            drawCloud(c, 8, 20, COL_CLOUD);
+            if (night) drawMoon(16, 14, 8);
+            else       drawSun(16, 14, 7);
+            drawCloud(8, 20, COL_CLOUD);
             break;
 
         case 3:  /* Scattered clouds */
-            drawCloud(c, 4, 8, COL_CLOUD_D);
-            drawCloud(c, 8, 18, COL_CLOUD);
+            drawCloud(4, 8, COL_CLOUD_D);
+            drawCloud(8, 18, COL_CLOUD);
             break;
 
         case 4:  /* Broken/overcast */
-            drawCloud(c, 2, 6, COL_CLOUD_D);
-            drawCloud(c, 6, 16, COL_CLOUD);
+            drawCloud(2, 6, COL_CLOUD_D);
+            drawCloud(6, 16, COL_CLOUD);
             break;
 
         case 9:  /* Shower rain */
-            drawCloud(c, 6, 8, COL_CLOUD);
-            drawRainDrops(c, 6, 26);
-            drawRainDrops(c, 2, 34);
+            drawCloud(6, 8, COL_CLOUD);
+            drawRainDrops(6, 26);
+            drawRainDrops(2, 34);
             break;
 
         case 10: /* Rain */
-            drawCloud(c, 6, 6, COL_CLOUD_D);
-            drawCloud(c, 8, 12, COL_CLOUD);
-            drawRainDrops(c, 6, 28);
+            drawCloud(6, 6, COL_CLOUD_D);
+            drawCloud(8, 12, COL_CLOUD);
+            drawRainDrops(6, 28);
             break;
 
         case 11: /* Thunderstorm */
-            drawCloud(c, 6, 6, COL_CLOUD_D);
-            drawCloud(c, 8, 12, COL_CLOUD);
-            drawLightning(c, 4, 28);
-            drawRainDrops(c, 6, 36);
+            drawCloud(6, 6, COL_CLOUD_D);
+            drawCloud(8, 12, COL_CLOUD);
+            drawLightning(4, 28);
+            drawRainDrops(6, 36);
             break;
 
         case 13: /* Snow */
-            drawCloud(c, 6, 6, COL_CLOUD);
-            drawSnowDots(c, 4, 26);
+            drawCloud(6, 6, COL_CLOUD);
+            drawSnowDots(4, 26);
             break;
 
         case 50: /* Mist/fog */
-            drawCloud(c, 6, 6, COL_CLOUD_D);
-            drawFog(c, 4, 26);
+            drawCloud(6, 6, COL_CLOUD_D);
+            drawFog(4, 26);
             break;
 
         default: /* Unknown — show a question mark cloud */
-            drawCloud(c, 8, 14, COL_CLOUD);
+            drawCloud(8, 14, COL_CLOUD);
             break;
     }
 }
@@ -190,16 +249,21 @@ lv_obj_t* WeatherIcon::create(lv_obj_t* parent) {
     lv_obj_t* canvas = lv_canvas_create(parent);
     lv_canvas_set_buffer(canvas, _iconBuf, ICON_SIZE, ICON_SIZE,
                           LV_IMG_CF_TRUE_COLOR);
-    lv_canvas_fill_bg(canvas, COL_BG, LV_OPA_COVER);
+    bufClear(COL_BG);
+    lv_obj_invalidate(canvas);
     return canvas;
 }
 
 void WeatherIcon::update(lv_obj_t* canvas, const char* owmCode) {
     if (!canvas || !owmCode || !owmCode[0]) return;
 
+    /* Parse OWM icon code: "NNd" or "NNn" */
     int code = atoi(owmCode);
     bool night = (strlen(owmCode) >= 3 && owmCode[2] == 'n');
 
-    drawIcon(canvas, code, night);
+    /* Render directly to pixel buffer (bypasses LVGL draw pipeline) */
+    drawIcon(code, night);
+
+    /* Tell LVGL the canvas content changed */
     lv_obj_invalidate(canvas);
 }

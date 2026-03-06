@@ -168,15 +168,16 @@ void DataService::startTask() {
 }
 
 void DataService::checkReady() {
-    if (!_dataReady) return;
-
-    /* New data available — lock, fire callback, clear flag */
-    if (xSemaphoreTake(_dataMutex, MUTEX_WAIT) == pdTRUE) {
-        if (_callback) _callback(_doc);
-        _dataReady = false;
+    /* Non-blocking mutex try — provides memory barrier for dual-core
+       cache coherency. Reading _dataReady inside the critical section
+       prevents stale-cache reads between Core 0 (writer) and Core 1. */
+    if (xSemaphoreTake(_dataMutex, 0) == pdTRUE) {
+        if (_dataReady && _callback) {
+            _callback(_doc);
+            _dataReady = false;
+        }
         xSemaphoreGive(_dataMutex);
     }
-    /* If mutex unavailable, try again next loop iteration (5ms) */
 }
 
 void DataService::forcePoll() {
