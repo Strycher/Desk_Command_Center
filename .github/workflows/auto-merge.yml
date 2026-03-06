@@ -1,13 +1,11 @@
 # Auto-merge: Squash-merge approved PRs after CI passes
-# Uses GITHUB_TOKEN for merge operations.
+# Triggers only on PR approval — no more check_suite noise.
 
 name: Auto-Merge Approved PRs
 
 on:
   pull_request_review:
     types: [submitted]
-  check_suite:
-    types: [completed]
 
 permissions:
   contents: write
@@ -17,33 +15,15 @@ jobs:
   auto-merge:
     runs-on: ubuntu-latest
     if: >
-      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
-      (github.event_name == 'check_suite' && github.event.check_suite.conclusion == 'success')
+      github.repository == 'Strycher/Desk_Command_Center' &&
+      github.event.review.state == 'approved'
     steps:
-      - name: Enable auto-merge for approved PRs
+      - name: Squash-merge approved PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request_review" ]]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          else
-            # Find PRs associated with this check suite
-            PR_NUMBER=$(gh pr list --repo ${{ github.repository }} --state open --json number,headRefName --jq '.[0].number' 2>/dev/null || echo "")
-          fi
-
-          if [[ -z "$PR_NUMBER" ]]; then
-            echo "No PR found to merge"
-            exit 0
-          fi
-
+          PR_NUMBER="${{ github.event.pull_request.number }}"
           echo "Checking PR #$PR_NUMBER..."
-
-          # Verify PR is approved
-          APPROVED=$(gh pr view "$PR_NUMBER" --repo ${{ github.repository }} --json reviewDecision --jq '.reviewDecision' 2>/dev/null)
-          if [[ "$APPROVED" != "APPROVED" ]]; then
-            echo "PR #$PR_NUMBER not yet approved (status: $APPROVED)"
-            exit 0
-          fi
 
           # Verify all checks pass
           CHECKS=$(gh pr checks "$PR_NUMBER" --repo ${{ github.repository }} 2>/dev/null)

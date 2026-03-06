@@ -54,10 +54,17 @@ Thumbs.db
 *.ino.elf
 *.ino.bin
 
-# Secrets / credentials
+# Secrets / credentials — NEVER commit these
 secrets.h
 credentials.h
 .env
+.env.*
+!.env.example
+bridge/bridge_config.json
+bridge/client_secret.json
+dcc_config/.env
+*.pem
+*.key
 
 # OS
 .DS_Store

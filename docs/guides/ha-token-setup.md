@@ -1,27 +1,26 @@
 # Home Assistant — Long-Lived Access Token Setup
 
 > **For:** Desk Command Center bridge service
-> **Instance:** http://192.168.50.24:8123
 > **Time:** ~2 minutes
 
 ---
 
 ## Prerequisites
 
-- Home Assistant running and accessible at http://192.168.50.24:8123
+- Home Assistant running and accessible on your network
 - Admin account with login credentials
 
 ---
 
 ## Step 1: Log Into Home Assistant
 
-1. Open http://192.168.50.24:8123 in your browser
+1. Open your Home Assistant instance in a browser (e.g., `http://your-ha-host:8123`)
 2. Log in with your admin credentials
 
 ## Step 2: Navigate to Profile
 
 1. Click your user avatar (bottom-left of the sidebar)
-2. Or go directly to: http://192.168.50.24:8123/profile
+2. Or go directly to: `http://your-ha-host:8123/profile`
 
 ## Step 3: Create Long-Lived Access Token
 
@@ -45,7 +44,7 @@ Run this curl command to verify the token works:
 
 ```bash
 curl -s -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  http://192.168.50.24:8123/api/ | python -m json.tool
+  http://your-ha-host:8123/api/ | python -m json.tool
 ```
 
 Expected response:
@@ -60,7 +59,7 @@ Expected response:
 ```python
 import requests
 
-HA_URL = "http://192.168.50.24:8123"
+HA_URL = "http://your-ha-host:8123"
 TOKEN = "YOUR_TOKEN_HERE"
 
 response = requests.get(
@@ -88,16 +87,3 @@ print(f"Entities found: {len(response.json())}")
 - Never commit tokens to the repository
 - If compromised: revoke immediately via Profile → Delete token
 - Create a dedicated HA user for the bridge service (recommended for production)
-
----
-
-## Captured Values
-
-After completing the walkthrough, record these (keep this section updated):
-
-| Variable | Value |
-|----------|-------|
-| `HA_URL` | http://192.168.50.24:8123 |
-| `HA_LONG_LIVED_TOKEN` | *(saved to .env — DO NOT record here)* |
-| Token Name | Desk Command Center |
-| Created | *(date of creation)* |

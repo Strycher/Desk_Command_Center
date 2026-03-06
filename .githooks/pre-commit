@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-commit hook: block commits that include secrets files.
+# Install: git config core.hooksPath .githooks
+
+BLOCKED_PATTERNS='\.env$|bridge_config\.json$|client_secret\.json$|credentials\.h$|secrets\.h$'
+
+STAGED=$(git diff --cached --name-only)
+
+if echo "$STAGED" | grep -qE "$BLOCKED_PATTERNS"; then
+    echo ""
+    echo "ERROR: Attempting to commit a file that may contain secrets:"
+    echo "$STAGED" | grep -E "$BLOCKED_PATTERNS" | sed 's/^/  /'
+    echo ""
+    echo "If this is intentional, use: git commit --no-verify"
+    exit 1
+fi
