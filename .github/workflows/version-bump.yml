@@ -13,13 +13,21 @@ permissions:
 jobs:
   bump:
     runs-on: ubuntu-latest
-    # Skip if commit message is a version bump itself
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
+    # Skip non-code commits (version bumps, beads backups, merges)
+    if: >-
+      !startsWith(github.event.head_commit.message, 'chore: bump version')
+      && !startsWith(github.event.head_commit.message, 'bd:')
+      && !startsWith(github.event.head_commit.message, 'Merge')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Get latest tag
         id: latest_tag
