@@ -18,12 +18,12 @@ private:
     lv_obj_t* _lblDate     = nullptr;
     lv_timer_t* _clockTimer = nullptr;
 
-    /* Next appointment card */
-    lv_obj_t* _cardAppt     = nullptr;
-    lv_obj_t* _lblApptTitle = nullptr;
-    lv_obj_t* _lblApptTime  = nullptr;
-    lv_obj_t* _lblApptMore  = nullptr;
-    lv_obj_t* _apptStripe   = nullptr;
+    /* Appointments card — up to 3 compact event rows */
+    static constexpr uint8_t MAX_APPT_ROWS = 3;
+    lv_obj_t* _cardAppt            = nullptr;
+    lv_obj_t* _lblApptTimes[3]     = {};
+    lv_obj_t* _lblApptTitles[3]    = {};
+    lv_obj_t* _lblApptMore         = nullptr;
 
     /* Weather summary card */
     lv_obj_t* _cardWeather  = nullptr;

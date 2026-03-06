@@ -73,40 +73,36 @@ void HomeScreen::clockTimerCb(lv_timer_t* timer) {
 void HomeScreen::createApptCard(lv_obj_t* parent) {
     _cardAppt = makeCard(parent, 400, CONTENT_Y + PAD, 390, 180);
 
-    /* Color stripe on left */
-    _apptStripe = lv_obj_create(_cardAppt);
-    lv_obj_set_size(_apptStripe, 4, 140);
-    lv_obj_align(_apptStripe, LV_ALIGN_LEFT_MID, -6, 0);
-    lv_obj_set_style_bg_color(_apptStripe, ACCENT, 0);
-    lv_obj_set_style_bg_opa(_apptStripe, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(_apptStripe, 2, 0);
-    lv_obj_set_style_border_width(_apptStripe, 0, 0);
-
     lv_obj_t* header = lv_label_create(_cardAppt);
-    lv_label_set_text(header, "Next Appointment");
+    lv_label_set_text(header, LV_SYMBOL_BELL " Today");
     lv_obj_set_style_text_font(header, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
-    lv_obj_align(header, LV_ALIGN_TOP_LEFT, 6, 0);
+    lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblApptTitle = lv_label_create(_cardAppt);
-    lv_obj_set_style_text_font(_lblApptTitle, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(_lblApptTitle, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblApptTitle, LV_ALIGN_TOP_LEFT, 6, 24);
-    lv_obj_set_width(_lblApptTitle, 340);
-    lv_label_set_long_mode(_lblApptTitle, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(_lblApptTitle, "No upcoming events");
+    /* Up to 3 compact event rows: "HH:MM  Event title..." */
+    for (uint8_t i = 0; i < MAX_APPT_ROWS; i++) {
+        int16_t rowY = 24 + i * 44;
 
-    _lblApptTime = lv_label_create(_cardAppt);
-    lv_obj_set_style_text_font(_lblApptTime, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(_lblApptTime, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblApptTime, LV_ALIGN_TOP_LEFT, 6, 56);
-    lv_label_set_text(_lblApptTime, "");
+        _lblApptTimes[i] = lv_label_create(_cardAppt);
+        lv_obj_set_style_text_font(_lblApptTimes[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(_lblApptTimes[i], TEXT_SECONDARY, 0);
+        lv_obj_align(_lblApptTimes[i], LV_ALIGN_TOP_LEFT, 0, rowY);
+        lv_label_set_text(_lblApptTimes[i], "");
+
+        _lblApptTitles[i] = lv_label_create(_cardAppt);
+        lv_obj_set_style_text_font(_lblApptTitles[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(_lblApptTitles[i], TEXT_PRIMARY, 0);
+        lv_obj_align(_lblApptTitles[i], LV_ALIGN_TOP_LEFT, 0, rowY + 18);
+        lv_obj_set_width(_lblApptTitles[i], 340);
+        lv_label_set_long_mode(_lblApptTitles[i], LV_LABEL_LONG_DOT);
+        lv_label_set_text(_lblApptTitles[i], "");
+    }
 
     _lblApptMore = lv_label_create(_cardAppt);
     lv_obj_set_style_text_font(_lblApptMore, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblApptMore, ACCENT, 0);
-    lv_obj_align(_lblApptMore, LV_ALIGN_BOTTOM_LEFT, 6, 0);
-    lv_label_set_text(_lblApptMore, "");
+    lv_obj_align(_lblApptMore, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_label_set_text(_lblApptMore, "No upcoming events");
 }
 
 /* Extract HH:MM from ISO 8601 "2026-03-06T15:00:00-05:00" → "15:00" */
@@ -119,40 +115,48 @@ static void fmtTime(const char* iso, char* out, size_t outLen) {
 }
 
 void HomeScreen::updateAppt(const DashboardData& data) {
-    if (!_lblApptTitle) return;
+    if (!_cardAppt) return;
 
-    /* Combine Google + Microsoft events, show first */
-    const CalendarEvent* first = nullptr;
-    uint8_t total = data.google_calendar_count + data.microsoft_calendar_count;
+    /* Gather all events from Google + Microsoft into a flat list */
+    const CalendarEvent* events[MAX_EVENTS * 2];
+    uint8_t total = 0;
 
-    if (data.google_calendar_count > 0 &&
-        data.google_calendar.status == SourceStatus::OK) {
-        first = &data.google_calendar.data[0];
-    }
-    if (data.microsoft_calendar_count > 0 &&
-        data.microsoft_calendar.status == SourceStatus::OK) {
-        if (!first) first = &data.microsoft_calendar.data[0];
-    }
-
-    if (first) {
-        lv_label_set_text(_lblApptTitle, first->title);
-        char startFmt[16], endFmt[16], timeBuf[40];
-        fmtTime(first->start_time, startFmt, sizeof(startFmt));
-        fmtTime(first->end_time, endFmt, sizeof(endFmt));
-        snprintf(timeBuf, sizeof(timeBuf), "%s - %s", startFmt, endFmt);
-        lv_label_set_text(_lblApptTime, timeBuf);
-        lv_obj_set_style_bg_color(_apptStripe, lv_color_hex(first->color), 0);
-
-        if (total > 1) {
-            char moreBuf[32];
-            snprintf(moreBuf, sizeof(moreBuf), "+%d more today", total - 1);
-            lv_label_set_text(_lblApptMore, moreBuf);
-        } else {
-            lv_label_set_text(_lblApptMore, "");
+    if (data.google_calendar.status == SourceStatus::OK) {
+        for (uint8_t i = 0; i < data.google_calendar_count && total < MAX_EVENTS; i++) {
+            events[total++] = &data.google_calendar.data[i];
         }
+    }
+    if (data.microsoft_calendar.status == SourceStatus::OK) {
+        for (uint8_t i = 0; i < data.microsoft_calendar_count && total < MAX_EVENTS; i++) {
+            events[total++] = &data.microsoft_calendar.data[i];
+        }
+    }
+
+    /* Show up to MAX_APPT_ROWS events in compact format */
+    uint8_t show = (total > MAX_APPT_ROWS) ? MAX_APPT_ROWS : total;
+    for (uint8_t i = 0; i < MAX_APPT_ROWS; i++) {
+        if (i < show) {
+            const CalendarEvent& ev = *events[i];
+            char startFmt[16], endFmt[16], timeBuf[40];
+            fmtTime(ev.start_time, startFmt, sizeof(startFmt));
+            fmtTime(ev.end_time, endFmt, sizeof(endFmt));
+            snprintf(timeBuf, sizeof(timeBuf), "%s – %s", startFmt, endFmt);
+            lv_label_set_text(_lblApptTimes[i], timeBuf);
+            lv_label_set_text(_lblApptTitles[i], ev.title);
+        } else {
+            lv_label_set_text(_lblApptTimes[i], "");
+            lv_label_set_text(_lblApptTitles[i], "");
+        }
+    }
+
+    /* Footer: "+N more" or empty */
+    if (total > MAX_APPT_ROWS) {
+        char moreBuf[32];
+        snprintf(moreBuf, sizeof(moreBuf), "+%d more today", total - MAX_APPT_ROWS);
+        lv_label_set_text(_lblApptMore, moreBuf);
+    } else if (total == 0) {
+        lv_label_set_text(_lblApptMore, "No upcoming events");
     } else {
-        lv_label_set_text(_lblApptTitle, "No upcoming events");
-        lv_label_set_text(_lblApptTime, "");
         lv_label_set_text(_lblApptMore, "");
     }
 }
@@ -321,7 +325,8 @@ void HomeScreen::updateTasks(const DashboardData& data) {
     }
 
     if (count == 0) {
-        lv_label_set_text(_lblTaskItems[0], "No tasks");
+        lv_label_set_text(_lblTaskItems[0], "No task sources connected");
+        lv_obj_set_style_text_color(_lblTaskItems[0], TEXT_SECONDARY, 0);
     }
 }
 
