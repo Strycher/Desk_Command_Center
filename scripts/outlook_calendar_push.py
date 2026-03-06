@@ -44,7 +44,8 @@ def _com_time_to_iso(t):
     return str(t)
 
 
-def read_outlook_calendar(hours_ahead=HOURS_AHEAD, max_events=MAX_EVENTS):
+def read_outlook_calendar(hours_ahead=HOURS_AHEAD, max_events=MAX_EVENTS,
+                          store_hint="flextg.com"):
     """Read upcoming calendar events from Outlook via COM."""
     import pythoncom
     import win32com.client
@@ -64,7 +65,27 @@ def read_outlook_calendar(hours_ahead=HOURS_AHEAD, max_events=MAX_EVENTS):
             else:
                 raise RuntimeError(f"Cannot connect to Outlook: {e}")
 
-    cal = ns.GetDefaultFolder(9)  # olFolderCalendar
+    # Find the correct calendar store — prefer target over stale accounts
+    cal = None
+    target_store = store_hint
+    for store in ns.Stores:
+        if target_store.lower() in store.DisplayName.lower():
+            root = store.GetRootFolder()
+            for folder in root.Folders:
+                if folder.DefaultItemType == 1:  # olAppointmentItem
+                    cal = folder
+                    break
+            if cal:
+                break
+
+    if cal is None:
+        # Fall back to default calendar if target store not found
+        cal = ns.GetDefaultFolder(9)  # olFolderCalendar
+        print(f"WARN: '{store_hint}' store not found, using default calendar",
+              file=sys.stderr)
+    else:
+        print(f"Using calendar from store matching '{store_hint}'",
+              file=sys.stderr)
 
     items = cal.Items
     items.Sort("[Start]")
@@ -124,9 +145,13 @@ def main():
         "--hours", type=int, default=HOURS_AHEAD,
         help=f"Hours ahead to fetch (default: {HOURS_AHEAD})",
     )
+    parser.add_argument(
+        "--store", type=str, default="flextg.com",
+        help="Outlook store name to search for (default: flextg.com)",
+    )
     args = parser.parse_args()
 
-    data = read_outlook_calendar(hours_ahead=args.hours)
+    data = read_outlook_calendar(hours_ahead=args.hours, store_hint=args.store)
     json_str = json.dumps(data, indent=2)
 
     if args.push:
