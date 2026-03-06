@@ -10,6 +10,7 @@
 #include <lvgl.h>
 #include "display_driver.h"
 #include "config_store.h"
+#include "wifi_manager.h"
 
 static LGFX lcd;
 static lv_disp_draw_buf_t draw_buf;
@@ -88,9 +89,13 @@ void setup() {
                   (SCREEN_WIDTH * BUF_LINES * sizeof(lv_color_t) * 2) / 1024);
     Serial.printf("DCC: Free heap: %lu, PSRAM: %lu\n",
                   ESP.getFreeHeap(), ESP.getFreePsram());
+
+    /* Init WiFi */
+    WifiManager::init(cfg);
 }
 
 void loop() {
     lv_timer_handler();
+    WifiManager::check();
     delay(5);
 }
