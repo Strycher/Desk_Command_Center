@@ -11,6 +11,8 @@
 #include "display_driver.h"
 #include "config_store.h"
 #include "wifi_manager.h"
+#include "backlight.h"
+#include "ui/splash_screen.h"
 
 static LGFX lcd;
 static lv_disp_draw_buf_t draw_buf;
@@ -21,6 +23,7 @@ static lv_indev_drv_t indev_drv;
 static constexpr uint32_t BUF_LINES = 40;
 static lv_color_t* buf1 = nullptr;
 static lv_color_t* buf2 = nullptr;
+static SplashScreen splash;
 
 /* --- LVGL display flush callback --- */
 static void lvglFlush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_p) {
@@ -90,7 +93,19 @@ void setup() {
     Serial.printf("DCC: Free heap: %lu, PSRAM: %lu\n",
                   ESP.getFreeHeap(), ESP.getFreePsram());
 
+    /* Show splash screen immediately */
+    splash.create(nullptr);
+    lv_scr_load(splash.screen());
+    splash.updateStatus("Loading config...");
+    lv_timer_handler();
+
+    /* Init backlight */
+    Backlight::init();
+    Backlight::setBrightness(cfg.brightness);
+
     /* Init WiFi */
+    splash.updateStatus("Connecting to WiFi...");
+    lv_timer_handler();
     WifiManager::init(cfg);
 }
 
