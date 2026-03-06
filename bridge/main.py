@@ -22,6 +22,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from adapters import TTLCache, AdapterScheduler
+from adapters.weather import WeatherAdapter
 from config import BridgeConfig
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,10 @@ cache = TTLCache()
 scheduler = AdapterScheduler(cache=cache)
 config = BridgeConfig()
 
+# Register poll-based adapters
+_cfg = config.get_all(mask_secrets=False)
+scheduler.register(WeatherAdapter(_cfg))
+
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
 
@@ -39,6 +44,7 @@ PUSH_TTL = 600
 DASHBOARD_SOURCES = {
     "calendar_ms": "Outlook Calendar",
     "calendar_google": "Google Calendar",
+    "weather": "Weather",
 }
 
 
