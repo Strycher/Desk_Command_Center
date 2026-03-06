@@ -6,6 +6,7 @@
 #include "ntp_time.h"
 #include <time.h>
 #include <WiFi.h>
+#include <freertos/FreeRTOS.h>
 
 static bool         _synced = false;
 static uint32_t     _lastSyncMs = 0;
@@ -20,6 +21,8 @@ void NtpTime::init(const char* timezone) {
 }
 
 void NtpTime::check() {
+    /* Main loop only — detect first successful sync.
+     * getLocalTime with timeout=0 is non-blocking. */
     if (!_synced) {
         struct tm timeinfo;
         if (getLocalTime(&timeinfo, 0)) {
@@ -29,15 +32,19 @@ void NtpTime::check() {
                           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
                           timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
         }
-        return;
     }
+    /* Re-sync is handled by backgroundResync() on Core 0 */
+}
 
-    /* Periodic re-sync */
-    if (millis() - _lastSyncMs > RESYNC_INTERVAL_MS) {
-        configTzTime(getenv("TZ") ? getenv("TZ") : "UTC0", NTP_SERVER1, NTP_SERVER2);
-        _lastSyncMs = millis();
-        Serial.println("NTP: re-sync triggered");
-    }
+void NtpTime::backgroundResync() {
+    /* Called from network task on Core 0 — safe to block. */
+    if (!_synced) return;
+    if (millis() - _lastSyncMs < RESYNC_INTERVAL_MS) return;
+
+    const char* tz = getenv("TZ");
+    configTzTime(tz ? tz : "UTC0", NTP_SERVER1, NTP_SERVER2);
+    _lastSyncMs = millis();
+    Serial.printf("NTP: [Core %d] re-sync triggered\n", xPortGetCoreID());
 }
 
 bool NtpTime::isSynced() {

@@ -182,6 +182,7 @@ void setup() {
     StalenessTracker::init();
     DataService::init(cfg.bridge_url, cfg.poll_interval_sec);
     DataService::onData(onBridgeData);
+    DataService::startTask();  /* Launch background network task on Core 0 */
 
     /* Register all screens */
     splash.updateStatus("Building UI...");
@@ -221,10 +222,8 @@ void loop() {
     /* Update error state from WiFi */
     ErrorState::setWifiConnected(WifiManager::state() == WifiState::CONNECTED);
 
-    /* Poll bridge data (respects interval + backoff) */
-    if (ErrorState::shouldRetry() || ErrorState::state() == ConnState::CONNECTED) {
-        DataService::poll();
-    }
+    /* Check for new data from background network task (non-blocking) */
+    DataService::checkReady();
 
     delay(5);
 }
