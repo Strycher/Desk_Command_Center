@@ -1,0 +1,29 @@
+/**
+ * Weather Screen — Current conditions, details, and hourly forecast.
+ * Large current temp + icon, detail row, horizontal hourly scroll.
+ */
+
+#pragma once
+#include "ui/base_screen.h"
+
+class WeatherScreen : public BaseScreen {
+public:
+    void create(lv_obj_t* parent) override;
+    void update(const DashboardData& data) override;
+
+private:
+    /* Current conditions */
+    lv_obj_t* _lblIcon      = nullptr;
+    lv_obj_t* _lblTemp      = nullptr;
+    lv_obj_t* _lblCondition = nullptr;
+
+    /* Detail row */
+    lv_obj_t* _lblHighLow   = nullptr;
+    lv_obj_t* _lblHumidity  = nullptr;
+    lv_obj_t* _lblPrecip    = nullptr;
+
+    /* Hourly forecast container */
+    lv_obj_t* _hourlyRow    = nullptr;
+
+    void rebuildHourly(const WeatherData& w);
+};
