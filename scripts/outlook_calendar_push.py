@@ -68,21 +68,26 @@ def read_outlook_calendar(hours_ahead=HOURS_AHEAD, max_events=MAX_EVENTS,
     # Find the correct calendar store — prefer target over stale accounts
     cal = None
     target_store = store_hint
-    for store in ns.Stores:
-        if target_store.lower() in store.DisplayName.lower():
-            root = store.GetRootFolder()
-            for folder in root.Folders:
-                if folder.DefaultItemType == 1:  # olAppointmentItem
-                    cal = folder
+    try:
+        for store in ns.Stores:
+            if target_store.lower() in store.DisplayName.lower():
+                root = store.GetRootFolder()
+                for folder in root.Folders:
+                    if folder.DefaultItemType == 1:  # olAppointmentItem
+                        cal = folder
+                        break
+                if cal:
                     break
-            if cal:
-                break
+    except Exception as e:
+        print(f"WARN: Store enumeration failed ({e}), using default",
+              file=sys.stderr)
 
     if cal is None:
         # Fall back to default calendar if target store not found
         cal = ns.GetDefaultFolder(9)  # olFolderCalendar
-        print(f"WARN: '{store_hint}' store not found, using default calendar",
-              file=sys.stderr)
+        if target_store:
+            print(f"WARN: '{store_hint}' store not found, using default calendar",
+                  file=sys.stderr)
     else:
         print(f"Using calendar from store matching '{store_hint}'",
               file=sys.stderr)
