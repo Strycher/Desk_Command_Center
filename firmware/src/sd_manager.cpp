@@ -106,3 +106,48 @@ void SDManager::unmount() {
         Serial.println("SD: unmounted");
     }
 }
+
+/* --- Extensions for logger / web serial --- */
+
+bool SDManager::mkdir(const char* path) {
+    if (!s_mounted) return false;
+    if (SD.exists(path)) return true;  /* already exists */
+    return SD.mkdir(path);
+}
+
+bool SDManager::exists(const char* path) {
+    if (!s_mounted) return false;
+    return SD.exists(path);
+}
+
+File SDManager::openRead(const char* path) {
+    if (!s_mounted) return File();
+    return SD.open(path, FILE_READ);
+}
+
+File SDManager::openAppend(const char* path) {
+    if (!s_mounted) return File();
+    return SD.open(path, FILE_APPEND);
+}
+
+void SDManager::listDir(const char* path,
+                        void (*cb)(const char* name, size_t size))
+{
+    if (!s_mounted || !cb) return;
+
+    File dir = SD.open(path);
+    if (!dir || !dir.isDirectory()) {
+        if (dir) dir.close();
+        return;
+    }
+
+    File entry = dir.openNextFile();
+    while (entry) {
+        if (!entry.isDirectory()) {
+            cb(entry.name(), entry.size());
+        }
+        entry.close();
+        entry = dir.openNextFile();
+    }
+    dir.close();
+}

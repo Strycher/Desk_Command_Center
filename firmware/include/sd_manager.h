@@ -6,6 +6,7 @@
 
 #pragma once
 #include <Arduino.h>
+#include <SD.h>
 
 namespace SDManager {
 
@@ -32,4 +33,21 @@ namespace SDManager {
 
     /** Unmount SD card safely. */
     void unmount();
+
+    /* --- Extensions for logger / web serial --- */
+
+    /** Create a directory (and parents if needed). */
+    bool mkdir(const char* path);
+
+    /** Check if a file or directory exists. */
+    bool exists(const char* path);
+
+    /** Open a file for reading. Caller must close. Empty File on failure. */
+    File openRead(const char* path);
+
+    /** Open a file for append. Caller must close. Empty File on failure. */
+    File openAppend(const char* path);
+
+    /** Enumerate files in a directory. Callback receives name + size. */
+    void listDir(const char* path, void (*cb)(const char* name, size_t size));
 }
