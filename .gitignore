@@ -1,6 +1,9 @@
 # Build artifacts
 .pio/
 __pycache__/
+
+# Runtime config (may contain API keys)
+bridge/bridge_config.json
 build/
 *.elf
 *.bin

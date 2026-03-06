@@ -5,6 +5,8 @@ them to the CrowPanel display.
 Endpoints:
   GET  /api/health          — liveness check
   GET  /api/adapters        — adapter status overview
+  GET  /api/config          — current config (secrets masked)
+  PUT  /api/config          — partial config update
   GET  /api/dashboard       — merged data for display (single poll)
   POST /calendar/ms         — ingest Outlook calendar JSON (push)
   GET  /calendar/ms         — retrieve latest calendar snapshot
@@ -20,12 +22,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from adapters import TTLCache, AdapterScheduler
+from config import BridgeConfig
 
 logger = logging.getLogger(__name__)
 
-# Shared cache — used by both push endpoints and poll adapters
+# Shared state
 cache = TTLCache()
 scheduler = AdapterScheduler(cache=cache)
+config = BridgeConfig()
 
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
@@ -64,6 +68,23 @@ async def health():
 @app.get("/api/adapters")
 async def list_adapters():
     return {"adapters": scheduler.list_adapters()}
+
+
+@app.get("/api/config")
+async def get_config():
+    return config.get_all(mask_secrets=True)
+
+
+@app.put("/api/config")
+async def update_config(request: Request):
+    updates = await request.json()
+    result = config.update(updates)
+    if result["errors"]:
+        return JSONResponse(
+            status_code=400,
+            content=result,
+        )
+    return result
 
 
 @app.get("/api/dashboard")
