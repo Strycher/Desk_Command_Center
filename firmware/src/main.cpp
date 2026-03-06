@@ -2,18 +2,22 @@
  * Desk Command Center — Main Entry Point
  * CrowPanel Advance 5.0" (ESP32-S3-WROOM-1-N16R8)
  *
- * Boot sequence: Config → Display → LVGL → Splash → Backlight →
- *                WiFi → NTP → DataService → UI screens → Home
+ * Boot sequence: Serial → Logger → Config → Display → LVGL → Splash →
+ *                Backlight → WiFi → NTP → SD → Logger SD → DataService →
+ *                WebSerial → UI screens → Home
  */
 
 #include <Arduino.h>
 #include <lvgl.h>
 #include "display_driver.h"
 #include "pins_config.h"
+#include "logger.h"
 #include "config_store.h"
 #include "wifi_manager.h"
 #include "backlight.h"
 #include "ntp_time.h"
+#include "sd_manager.h"
+#include "web_serial.h"
 #include "data_service.h"
 #include "dashboard_data.h"
 #include "staleness_tracker.h"
@@ -85,15 +89,15 @@ static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
         data->point.y = y;
         /* Log first 5 touches + every 50th after that */
         if (_touchHits <= 5 || _touchHits % 50 == 0) {
-            Serial.printf("TOUCH: hit #%lu at (%d,%d) [polls=%lu]\n",
-                          _touchHits, x, y, _touchPolls);
+            LOG_DEBUG("TOUCH: hit #%lu at (%d,%d) [polls=%lu]",
+                      _touchHits, x, y, _touchPolls);
         }
     } else {
         data->state = LV_INDEV_STATE_REL;
     }
     /* Report first poll + every ~5 seconds (500 polls at ~33/sec) */
     if (_touchPolls == 1 || _touchPolls % 500 == 0) {
-        Serial.printf("TOUCH: polls=%lu hits=%lu\n", _touchPolls, _touchHits);
+        LOG_DEBUG("TOUCH: polls=%lu hits=%lu", _touchPolls, _touchHits);
     }
 }
 
@@ -129,12 +133,13 @@ static void onBridgeData(JsonDocument& doc) {
     /* Push data to all screens */
     ScreenManager::updateAll(dashData);
 
-    Serial.printf("DCC: data updated, heap=%lu\n", ESP.getFreeHeap());
+    LOG_INFO("DCC: data updated, heap=%lu", ESP.getFreeHeap());
 }
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n=== Desk Command Center ===");
+    Logger::init();  /* Ring buffer + spinlock — before any LOG_* calls */
+    LOG_INFO("=== Desk Command Center ===");
 
     /* Init config store */
     ConfigStore::init();
@@ -149,7 +154,7 @@ void setup() {
     delay(120);
     pinMode(PIN_TOUCH_RST_GPIO, INPUT);
     delay(300);  /* GT911 post-reset init time */
-    Serial.println("TOUCH: GT911 reset done (GPIO 1, 300ms post-reset)");
+    LOG_INFO("TOUCH: GT911 reset done (GPIO 1, 300ms post-reset)");
 
     /* Init display + touch (PIN_TOUCH_RST=-1 → LovyanGFX skips its own
        1ms reset which is too short for GT911; our manual 120ms reset
@@ -181,9 +186,9 @@ void setup() {
     indev_drv.read_cb = lvglTouchRead;
     lv_indev_drv_register(&indev_drv);
 
-    Serial.printf("DCC: LVGL ready (%dx%d, SRAM buf %lu KB, pushImageDMA)\n",
-                  SCREEN_WIDTH, SCREEN_HEIGHT,
-                  sizeof(disp_draw_buf) / 1024);
+    LOG_INFO("DCC: LVGL ready (%dx%d, SRAM buf %lu KB, pushImageDMA)",
+             SCREEN_WIDTH, SCREEN_HEIGHT,
+             sizeof(disp_draw_buf) / 1024);
 
     /* Show splash screen immediately */
     splash.create(nullptr);
@@ -206,12 +211,19 @@ void setup() {
     lv_timer_handler();
     NtpTime::init(cfg.timezone);
 
+    /* Init SD card + open session log file */
+    SDManager::init();
+    Logger::initSDLog();
+
     splash.updateStatus("Starting data service...");
     lv_timer_handler();
     StalenessTracker::init();
     DataService::init(cfg.bridge_url, cfg.poll_interval_sec);
     DataService::onData(onBridgeData);
     DataService::startTask();  /* Launch background network task on Core 0 */
+
+    /* Start web serial monitor (needs WiFi) */
+    WebSerial::init();
 
     /* Register all screens */
     splash.updateStatus("Building UI...");
@@ -239,8 +251,8 @@ void setup() {
 
     ScreenManager::show(ScreenId::HOME);
 
-    Serial.printf("DCC: boot complete, heap=%lu, PSRAM=%lu\n",
-                  ESP.getFreeHeap(), ESP.getFreePsram());
+    LOG_INFO("DCC: boot complete, heap=%lu, PSRAM=%lu",
+             ESP.getFreeHeap(), ESP.getFreePsram());
 }
 
 void loop() {
@@ -253,6 +265,12 @@ void loop() {
 
     /* Check for new data from background network task (non-blocking) */
     DataService::checkReady();
+
+    /* Logger: flush SD buffer + rotation check */
+    Logger::tick();
+
+    /* Web serial monitor: process HTTP requests */
+    WebSerial::handleClient();
 
     delay(5);
 }
