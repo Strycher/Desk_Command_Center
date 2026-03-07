@@ -1,7 +1,7 @@
 /**
  * Weather Screen — Implementation
  * Content area: y=30..430.
- * Top: current conditions card. Middle: detail stats. Bottom: hourly scroll.
+ * Top: current conditions card. Middle: hourly/daily toggle. Bottom: forecast.
  */
 
 #include "ui/screens/weather_screen.h"
@@ -14,6 +14,9 @@ static const lv_color_t TEXT_PRIMARY   = lv_color_hex(0xE0E0FF);
 static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT         = lv_color_hex(0x6C63FF);
 static const lv_color_t HOURLY_BG     = lv_color_hex(0x252548);
+static const lv_color_t TOGGLE_ACTIVE  = lv_color_hex(0x6C63FF);
+static const lv_color_t TOGGLE_INACTIVE = lv_color_hex(0x2a2a4a);
+static const lv_color_t RAIN_BLUE      = lv_color_hex(0x5BA8FF);
 
 static constexpr int16_t CONTENT_Y = 30;
 static constexpr int16_t PAD       = 10;
@@ -49,6 +52,28 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     return card;
+}
+
+/* Helper: make a toggle button */
+static lv_obj_t* makeToggleBtn(lv_obj_t* parent, const char* text,
+                                int16_t x, int16_t y, bool active) {
+    lv_obj_t* btn = lv_btn_create(parent);
+    lv_obj_set_pos(btn, x, y);
+    lv_obj_set_size(btn, 90, 30);
+    lv_obj_set_style_bg_color(btn, active ? TOGGLE_ACTIVE : TOGGLE_INACTIVE, 0);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(btn, 8, 0);
+    lv_obj_set_style_border_width(btn, 0, 0);
+    lv_obj_set_style_shadow_width(btn, 0, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+
+    lv_obj_t* lbl = lv_label_create(btn);
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lbl, TEXT_PRIMARY, 0);
+    lv_obj_center(lbl);
+
+    return btn;
 }
 
 void WeatherScreen::create(lv_obj_t* parent) {
@@ -94,33 +119,67 @@ void WeatherScreen::create(lv_obj_t* parent) {
     lv_obj_align(_lblPrecip, LV_ALIGN_TOP_RIGHT, 0, 70);
     lv_label_set_text(_lblPrecip, "Precip: --%");
 
-    /* === Hourly forecast header === */
-    lv_obj_t* lblHourlyHeader = lv_label_create(_screen);
-    lv_obj_set_style_text_font(lblHourlyHeader, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(lblHourlyHeader, TEXT_SECONDARY, 0);
-    lv_obj_set_pos(lblHourlyHeader, PAD + 4, CONTENT_Y + 170);
-    lv_label_set_text(lblHourlyHeader, "Hourly Forecast");
+    /* === Hourly / Daily toggle buttons === */
+    _btnHourly = makeToggleBtn(_screen, "Hourly", PAD + 4, CONTENT_Y + 168, true);
+    lv_obj_set_user_data(_btnHourly, this);
+    lv_obj_add_event_cb(_btnHourly, onToggleCb, LV_EVENT_CLICKED, nullptr);
 
-    /* === Horizontal scrollable hourly row === */
-    _hourlyRow = lv_obj_create(_screen);
-    lv_obj_set_size(_hourlyRow, 780, 190);
-    lv_obj_set_pos(_hourlyRow, PAD, CONTENT_Y + 195);
-    lv_obj_set_style_bg_opa(_hourlyRow, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(_hourlyRow, 0, 0);
-    lv_obj_set_style_pad_all(_hourlyRow, 0, 0);
-    lv_obj_set_style_pad_column(_hourlyRow, 8, 0);
-    lv_obj_set_flex_flow(_hourlyRow, LV_FLEX_FLOW_ROW);
-    /* Allow horizontal scroll only */
-    lv_obj_set_scroll_dir(_hourlyRow, LV_DIR_HOR);
+    _btnDaily = makeToggleBtn(_screen, "Daily", PAD + 100, CONTENT_Y + 168, false);
+    lv_obj_set_user_data(_btnDaily, this);
+    lv_obj_add_event_cb(_btnDaily, onToggleCb, LV_EVENT_CLICKED, nullptr);
+
+    /* === Forecast scroll row (shared by hourly and daily) === */
+    _forecastRow = lv_obj_create(_screen);
+    lv_obj_set_size(_forecastRow, 780, 190);
+    lv_obj_set_pos(_forecastRow, PAD, CONTENT_Y + 205);
+    lv_obj_set_style_bg_opa(_forecastRow, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(_forecastRow, 0, 0);
+    lv_obj_set_style_pad_all(_forecastRow, 0, 0);
+    lv_obj_set_style_pad_column(_forecastRow, 8, 0);
+    lv_obj_set_flex_flow(_forecastRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_scroll_dir(_forecastRow, LV_DIR_HOR);
 
     LOG_INFO("WEATHER: screen created");
 }
 
+void WeatherScreen::onToggleCb(lv_event_t* e) {
+    lv_obj_t* btn = lv_event_get_target(e);
+    auto* self = (WeatherScreen*)lv_obj_get_user_data(btn);
+    if (!self) return;
+
+    if (btn == self->_btnHourly && self->_viewMode != VIEW_HOURLY) {
+        self->setViewMode(VIEW_HOURLY);
+    } else if (btn == self->_btnDaily && self->_viewMode != VIEW_DAILY) {
+        self->setViewMode(VIEW_DAILY);
+    }
+}
+
+void WeatherScreen::setViewMode(ViewMode mode) {
+    _viewMode = mode;
+
+    /* Update toggle button colors */
+    lv_obj_set_style_bg_color(_btnHourly,
+        mode == VIEW_HOURLY ? TOGGLE_ACTIVE : TOGGLE_INACTIVE, 0);
+    lv_obj_set_style_bg_color(_btnDaily,
+        mode == VIEW_DAILY ? TOGGLE_ACTIVE : TOGGLE_INACTIVE, 0);
+
+    rebuildForecast();
+}
+
+void WeatherScreen::rebuildForecast() {
+    if (!_hasCachedData) return;
+    if (_viewMode == VIEW_DAILY) {
+        rebuildDaily(_cachedWeather);
+    } else {
+        rebuildHourly(_cachedWeather);
+    }
+}
+
 void WeatherScreen::rebuildHourly(const WeatherData& w) {
-    lv_obj_clean(_hourlyRow);
+    lv_obj_clean(_forecastRow);
 
     if (w.hourly_count == 0) {
-        lv_obj_t* lbl = lv_label_create(_hourlyRow);
+        lv_obj_t* lbl = lv_label_create(_forecastRow);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl, "No hourly data available");
@@ -130,7 +189,7 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
     for (uint8_t i = 0; i < w.hourly_count && i < MAX_HOURLY; i++) {
         const HourlyForecast& h = w.hourly[i];
 
-        lv_obj_t* tile = lv_obj_create(_hourlyRow);
+        lv_obj_t* tile = lv_obj_create(_forecastRow);
         lv_obj_set_size(tile, 90, 170);
         lv_obj_set_style_bg_color(tile, HOURLY_BG, 0);
         lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
@@ -146,7 +205,7 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
         lv_obj_align(lblTime, LV_ALIGN_TOP_MID, 0, 0);
         lv_label_set_text(lblTime, h.time);
 
-        /* Weather description (mapped from OWM code) */
+        /* Weather description */
         lv_obj_t* lblIcon = lv_label_create(tile);
         lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lblIcon, TEXT_SECONDARY, 0);
@@ -166,12 +225,71 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
         if (h.precip_chance > 0.0f) {
             lv_obj_t* lblPrecip = lv_label_create(tile);
             lv_obj_set_style_text_font(lblPrecip, &lv_font_montserrat_20, 0);
-            lv_obj_set_style_text_color(lblPrecip, ACCENT, 0);
+            lv_obj_set_style_text_color(lblPrecip, RAIN_BLUE, 0);
             lv_obj_align(lblPrecip, LV_ALIGN_TOP_MID, 0, 90);
             char precipBuf[16];
             snprintf(precipBuf, sizeof(precipBuf), "%.0f%%", h.precip_chance);
             lv_label_set_text(lblPrecip, precipBuf);
         }
+    }
+}
+
+void WeatherScreen::rebuildDaily(const WeatherData& w) {
+    lv_obj_clean(_forecastRow);
+
+    if (w.daily_count == 0) {
+        lv_obj_t* lbl = lv_label_create(_forecastRow);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
+        lv_label_set_text(lbl, "No daily data available");
+        return;
+    }
+
+    for (uint8_t i = 0; i < w.daily_count && i < MAX_DAILY; i++) {
+        const DailyForecast& d = w.daily[i];
+
+        lv_obj_t* tile = lv_obj_create(_forecastRow);
+        lv_obj_set_size(tile, 140, 170);
+        lv_obj_set_style_bg_color(tile, HOURLY_BG, 0);
+        lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(tile, 10, 0);
+        lv_obj_set_style_border_width(tile, 0, 0);
+        lv_obj_set_style_pad_all(tile, 8, 0);
+        lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
+
+        /* Day name (Mon, Tue, ...) */
+        lv_obj_t* lblDay = lv_label_create(tile);
+        lv_obj_set_style_text_font(lblDay, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(lblDay, TEXT_PRIMARY, 0);
+        lv_obj_align(lblDay, LV_ALIGN_TOP_MID, 0, 0);
+        lv_label_set_text(lblDay, d.day);
+
+        /* Condition from icon code */
+        lv_obj_t* lblCond = lv_label_create(tile);
+        lv_obj_set_style_text_font(lblCond, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(lblCond, TEXT_SECONDARY, 0);
+        lv_obj_align(lblCond, LV_ALIGN_TOP_MID, 0, 28);
+        lv_label_set_text(lblCond, owmToLabel(d.icon));
+
+        /* High / Low temps */
+        lv_obj_t* lblHL = lv_label_create(tile);
+        lv_obj_set_style_text_font(lblHL, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(lblHL, TEXT_PRIMARY, 0);
+        lv_obj_align(lblHL, LV_ALIGN_TOP_MID, 0, 62);
+        char hlBuf[24];
+        snprintf(hlBuf, sizeof(hlBuf), "%.0f\xC2\xB0/%.0f\xC2\xB0",
+                 d.temp_high, d.temp_low);
+        lv_label_set_text(lblHL, hlBuf);
+
+        /* Precipitation chance */
+        lv_obj_t* lblRain = lv_label_create(tile);
+        lv_obj_set_style_text_font(lblRain, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(lblRain,
+            d.precip_chance > 30.0f ? RAIN_BLUE : TEXT_SECONDARY, 0);
+        lv_obj_align(lblRain, LV_ALIGN_TOP_MID, 0, 94);
+        char rainBuf[16];
+        snprintf(rainBuf, sizeof(rainBuf), "%.0f%%", d.precip_chance);
+        lv_label_set_text(lblRain, rainBuf);
     }
 }
 
@@ -182,6 +300,10 @@ void WeatherScreen::update(const DashboardData& data) {
     /* Label updates are safe offscreen — they don't trigger layout recalc */
     if (data.weather.status == SourceStatus::OK) {
         const WeatherData& w = data.weather.data;
+
+        /* Cache for toggle rebuilds */
+        _cachedWeather = w;
+        _hasCachedData = true;
 
         char tempBuf[16];
         snprintf(tempBuf, sizeof(tempBuf), "%.0f\xC2\xB0", w.temp_current);
@@ -206,14 +328,15 @@ void WeatherScreen::update(const DashboardData& data) {
                  w.precip_chance);
         lv_label_set_text(_lblPrecip, precipBuf);
 
-        /* Rebuild hourly tiles only if we're the currently-visible screen.
+        /* Rebuild forecast tiles only if we're the currently-visible screen.
            Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
            when the screen becomes visible via lv_scr_load_anim(). */
         if (lv_scr_act() == _screen) {
-            rebuildHourly(w);
+            rebuildForecast();
             _dirty = false;
         }
     } else {
+        _hasCachedData = false;
         lv_label_set_text(_lblTemp, "--\xC2\xB0");
         lv_label_set_text(_lblCondition,
                           data.weather.status == SourceStatus::ERROR
@@ -222,7 +345,7 @@ void WeatherScreen::update(const DashboardData& data) {
         lv_label_set_text(_lblHumidity, "Humidity: --%");
         lv_label_set_text(_lblPrecip, "Precip: --%");
         if (lv_scr_act() == _screen) {
-            lv_obj_clean(_hourlyRow);
+            lv_obj_clean(_forecastRow);
             _dirty = false;
         }
     }
@@ -230,10 +353,10 @@ void WeatherScreen::update(const DashboardData& data) {
 
 void WeatherScreen::onShow() {
     if (!_lastData) return;
-    if (_lastData->weather.status == SourceStatus::OK) {
-        rebuildHourly(_lastData->weather.data);
+    if (_lastData->weather.status == SourceStatus::OK && _hasCachedData) {
+        rebuildForecast();
     } else {
-        lv_obj_clean(_hourlyRow);
+        lv_obj_clean(_forecastRow);
     }
     _dirty = false;
 }
