@@ -17,9 +17,16 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <esp_heap_caps.h>
+#include "logger.h"
 
 static constexpr int16_t ICON_SIZE = 48;
-static lv_color_t _iconBuf[ICON_SIZE * ICON_SIZE] __attribute__((aligned(4)));
+
+/* Per-canvas buffer pointer — set before each draw pass.
+ * Each canvas owns its own heap-allocated buffer (stored in user_data).
+ * This replaces the former shared static buffer that caused corruption
+ * when multiple screens (home + weather) both created WeatherIcon canvases. */
+static lv_color_t* _curBuf = nullptr;
 
 /* --- Colors --- */
 static const lv_color_t COL_SUN     = lv_color_hex(0xFFD93D);
@@ -38,7 +45,7 @@ static const lv_color_t COL_BG      = lv_color_hex(0x1a1a2e);
 
 static inline void bufSetPixel(int16_t x, int16_t y, lv_color_t c) {
     if (x >= 0 && x < ICON_SIZE && y >= 0 && y < ICON_SIZE) {
-        _iconBuf[y * ICON_SIZE + x] = c;
+        _curBuf[y * ICON_SIZE + x] = c;
     }
 }
 
@@ -51,7 +58,7 @@ static void bufFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
     int16_t y1 = (y + h > ICON_SIZE) ? ICON_SIZE : y + h;
 
     for (int16_t row = y0; row < y1; row++) {
-        lv_color_t* p = &_iconBuf[row * ICON_SIZE + x0];
+        lv_color_t* p = &_curBuf[row * ICON_SIZE + x0];
         for (int16_t col = x0; col < x1; col++) {
             *p++ = c;
         }
@@ -60,7 +67,7 @@ static void bufFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
 
 static void bufClear(lv_color_t c) {
     for (int i = 0; i < ICON_SIZE * ICON_SIZE; i++) {
-        _iconBuf[i] = c;
+        _curBuf[i] = c;
     }
 }
 
@@ -78,7 +85,7 @@ static void bufFillCircle(int16_t cx, int16_t cy, int16_t r, lv_color_t c) {
         if (ly < 0 || ly >= ICON_SIZE) return;
         if (lx < 0) lx = 0;
         if (rx >= ICON_SIZE) rx = ICON_SIZE - 1;
-        lv_color_t* p = &_iconBuf[ly * ICON_SIZE + lx];
+        lv_color_t* p = &_curBuf[ly * ICON_SIZE + lx];
         for (int16_t i = lx; i <= rx; i++) *p++ = c;
     };
 
@@ -246,10 +253,29 @@ static void drawIcon(int code, bool night) {
 /* --- Public API --- */
 
 lv_obj_t* WeatherIcon::create(lv_obj_t* parent) {
+    /* Each canvas gets its own buffer so multiple icons can coexist
+     * (e.g. home screen + weather screen).  Prefer PSRAM (8 MB free)
+     * to keep SRAM headroom for LVGL heap and draw buffers. */
+    const size_t bufBytes = ICON_SIZE * ICON_SIZE * sizeof(lv_color_t);
+    lv_color_t* buf = (lv_color_t*)heap_caps_malloc(bufBytes,
+                                                     MALLOC_CAP_SPIRAM);
+    if (!buf) {
+        buf = (lv_color_t*)malloc(bufBytes);   /* SRAM fallback */
+    }
+    if (!buf) {
+        LOG_ERROR("WICON: failed to allocate %u B icon buffer", bufBytes);
+        return nullptr;
+    }
+
     lv_obj_t* canvas = lv_canvas_create(parent);
-    lv_canvas_set_buffer(canvas, _iconBuf, ICON_SIZE, ICON_SIZE,
+    lv_canvas_set_buffer(canvas, buf, ICON_SIZE, ICON_SIZE,
                           LV_IMG_CF_TRUE_COLOR);
+    lv_obj_set_user_data(canvas, buf);         /* stash for update() */
+
+    _curBuf = buf;
     bufClear(COL_BG);
+    _curBuf = nullptr;
+
     lv_obj_invalidate(canvas);
     return canvas;
 }
@@ -257,12 +283,18 @@ lv_obj_t* WeatherIcon::create(lv_obj_t* parent) {
 void WeatherIcon::update(lv_obj_t* canvas, const char* owmCode) {
     if (!canvas || !owmCode || !owmCode[0]) return;
 
+    /* Retrieve this canvas's own buffer */
+    _curBuf = (lv_color_t*)lv_obj_get_user_data(canvas);
+    if (!_curBuf) return;
+
     /* Parse OWM icon code: "NNd" or "NNn" */
     int code = atoi(owmCode);
     bool night = (strlen(owmCode) >= 3 && owmCode[2] == 'n');
 
-    /* Render directly to pixel buffer (bypasses LVGL draw pipeline) */
+    /* Render directly to this canvas's pixel buffer */
     drawIcon(code, night);
+
+    _curBuf = nullptr;                         /* defensive: no stale ref */
 
     /* Tell LVGL the canvas content changed */
     lv_obj_invalidate(canvas);
