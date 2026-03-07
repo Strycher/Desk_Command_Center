@@ -17,6 +17,12 @@ static const lv_color_t TEXT_PRIMARY  = lv_color_hex(0xE0E0FF);
 static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT       = lv_color_hex(0x6C63FF);
 
+/* Task priority dot colors */
+static const lv_color_t PRIO_HIGH    = lv_color_hex(0xFF4444);
+static const lv_color_t PRIO_MED     = lv_color_hex(0xFFAA00);
+static const lv_color_t PRIO_LOW     = lv_color_hex(0x44AA44);
+static const lv_color_t PRIO_NONE    = lv_color_hex(0x555577);
+
 static constexpr int16_t CONTENT_Y   = 30;
 static constexpr int16_t CONTENT_H   = 400;
 static constexpr int16_t PAD         = 10;
@@ -240,15 +246,49 @@ void HomeScreen::createTasksCard(lv_obj_t* parent) {
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
     for (uint8_t i = 0; i < 5; i++) {
+        int16_t rowY = 24 + i * 28;
+
+        /* Priority color dot — 8px circle */
+        _taskDots[i] = lv_obj_create(_cardTasks);
+        lv_obj_set_size(_taskDots[i], 8, 8);
+        lv_obj_set_style_radius(_taskDots[i], LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_opa(_taskDots[i], LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(_taskDots[i], PRIO_NONE, 0);
+        lv_obj_set_style_border_width(_taskDots[i], 0, 0);
+        lv_obj_clear_flag(_taskDots[i], LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_align(_taskDots[i], LV_ALIGN_TOP_LEFT, 0, rowY + 6);
+        lv_obj_add_flag(_taskDots[i], LV_OBJ_FLAG_HIDDEN);
+
+        /* Task title label — shifted right to make room for dot */
         _lblTaskItems[i] = lv_label_create(_cardTasks);
         lv_obj_set_style_text_font(_lblTaskItems[i], &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(_lblTaskItems[i], TEXT_PRIMARY, 0);
-        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 0, 24 + i * 28);
-        lv_obj_set_width(_lblTaskItems[i], 360);
+        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 14, rowY);
+        lv_obj_set_width(_lblTaskItems[i], 346);
         lv_label_set_long_mode(_lblTaskItems[i], LV_LABEL_LONG_DOT);
         lv_label_set_text(_lblTaskItems[i], "");
     }
+
+    /* Deferred count badge — bottom-right of card */
+    _lblDeferred = lv_label_create(_cardTasks);
+    lv_obj_set_style_text_font(_lblDeferred, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(_lblDeferred, TEXT_SECONDARY, 0);
+    lv_obj_align(_lblDeferred, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+    lv_label_set_text(_lblDeferred, "");
+
     _taskItemCount = 0;
+}
+
+/* Sort key: priority 1 (high) first, 2, 3, then 0 (none) last. */
+static uint8_t prioSortKey(uint8_t p) { return p == 0 ? 4 : p; }
+
+static lv_color_t prioColor(uint8_t p) {
+    switch (p) {
+        case 1:  return PRIO_HIGH;
+        case 2:  return PRIO_MED;
+        case 3:  return PRIO_LOW;
+        default: return PRIO_NONE;
+    }
 }
 
 void HomeScreen::updateTasks(const DashboardData& data) {
@@ -286,10 +326,11 @@ void HomeScreen::updateTasks(const DashboardData& data) {
         }
     }
 
-    /* Sort by priority (simple bubble) */
+    /* Sort by priority: high(1) → med(2) → low(3) → none(0) */
     for (uint8_t i = 0; i < count; i++) {
         for (uint8_t j = i + 1; j < count; j++) {
-            if (merged[j].priority < merged[i].priority) {
+            if (prioSortKey(merged[j].priority)
+                < prioSortKey(merged[i].priority)) {
                 MergedTask tmp = merged[i];
                 merged[i] = merged[j];
                 merged[j] = tmp;
@@ -300,21 +341,33 @@ void HomeScreen::updateTasks(const DashboardData& data) {
     uint8_t show = (count > 5) ? 5 : count;
     for (uint8_t i = 0; i < 5; i++) {
         if (i < show) {
-            char buf[128];
-            const char* prio = "";
-            if (merged[i].priority == 1) prio = "! ";
-            else if (merged[i].priority == 2) prio = "- ";
-            snprintf(buf, sizeof(buf), "%s[%s] %s",
-                     prio, merged[i].source, merged[i].title);
-            lv_label_set_text(_lblTaskItems[i], buf);
+            /* Color dot */
+            lv_obj_set_style_bg_color(_taskDots[i], prioColor(merged[i].priority), 0);
+            lv_obj_clear_flag(_taskDots[i], LV_OBJ_FLAG_HIDDEN);
+
+            /* Task text — no more text-based priority prefix */
+            lv_label_set_text(_lblTaskItems[i], merged[i].title);
+            lv_obj_set_style_text_color(_lblTaskItems[i], TEXT_PRIMARY, 0);
         } else {
+            lv_obj_add_flag(_taskDots[i], LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(_lblTaskItems[i], "");
         }
     }
 
     if (count == 0) {
+        lv_obj_add_flag(_taskDots[0], LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(_lblTaskItems[0], "No task sources connected");
         lv_obj_set_style_text_color(_lblTaskItems[0], TEXT_SECONDARY, 0);
+    }
+
+    /* Deferred count badge */
+    uint8_t deferred = data.unfocused_deferred_count;
+    if (deferred > 0) {
+        char defBuf[24];
+        snprintf(defBuf, sizeof(defBuf), "%d deferred", deferred);
+        lv_label_set_text(_lblDeferred, defBuf);
+    } else {
+        lv_label_set_text(_lblDeferred, "");
     }
 }
 
