@@ -88,6 +88,11 @@ void SettingsScreen::onBrightnessChanged(lv_event_t* e) {
     char buf[16];
     snprintf(buf, sizeof(buf), "%d%%", val);
     lv_label_set_text(self->_lblBrightVal, buf);
+    /* NVS save deferred to onBrightnessRelease — saves block UI for ~100ms */
+}
+
+void SettingsScreen::onBrightnessRelease(lv_event_t* e) {
+    auto* self = (SettingsScreen*)lv_event_get_user_data(e);
     ConfigStore::save(self->_cfg);
 }
 
@@ -226,6 +231,8 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(_sliderBright, TEXT_PRIMARY, LV_PART_KNOB);
     lv_obj_add_event_cb(_sliderBright, onBrightnessChanged,
                         LV_EVENT_VALUE_CHANGED, this);
+    lv_obj_add_event_cb(_sliderBright, onBrightnessRelease,
+                        LV_EVENT_RELEASED, this);
 
     _lblBrightVal = lv_label_create(dispCard);
     lv_obj_set_style_text_font(_lblBrightVal, &lv_font_montserrat_14, 0);

@@ -14,7 +14,7 @@
 
 /* === Memory === */
 #define LV_MEM_CUSTOM      0
-#define LV_MEM_SIZE         (64U * 1024U)  /* 64 KB for LVGL internal heap */
+#define LV_MEM_SIZE         (96U * 1024U)  /* 96 KB — 9 screens with flex layouts need headroom */
 #define LV_MEM_ADR          0
 #define LV_MEM_BUF_MAX_NUM  16
 

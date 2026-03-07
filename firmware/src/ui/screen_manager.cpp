@@ -51,8 +51,16 @@ void ScreenManager::show(ScreenId id, lv_scr_load_anim_t anim,
     }
     current = id;
     screens[idx]->onShow();
-    LOG_INFO("SCR: show %d → %d, heap=%lu",
-             cur_idx, idx, (unsigned long)ESP.getFreeHeap());
+
+    /* Log both system heap and LVGL internal heap for fragmentation diagnosis */
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    LOG_INFO("SCR: %d→%d heap=%lu lv_free=%lu/%lu frag=%d%%",
+             cur_idx, idx,
+             (unsigned long)ESP.getFreeHeap(),
+             (unsigned long)mon.free_size,
+             (unsigned long)mon.total_size,
+             (int)mon.frag_pct);
 }
 
 void ScreenManager::showHome() {

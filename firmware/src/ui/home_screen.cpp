@@ -77,31 +77,31 @@ void HomeScreen::createApptCard(lv_obj_t* parent) {
 
     lv_obj_t* header = lv_label_create(_cardAppt);
     lv_label_set_text(header, LV_SYMBOL_BELL " Today");
-    lv_obj_set_style_text_font(header, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(header, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
     /* Up to 3 compact event rows: "HH:MM  Event title..." */
     for (uint8_t i = 0; i < MAX_APPT_ROWS; i++) {
-        int16_t rowY = 24 + i * 44;
+        int16_t rowY = 24 + i * 46;
 
         _lblApptTimes[i] = lv_label_create(_cardAppt);
-        lv_obj_set_style_text_font(_lblApptTimes[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(_lblApptTimes[i], &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(_lblApptTimes[i], TEXT_SECONDARY, 0);
         lv_obj_align(_lblApptTimes[i], LV_ALIGN_TOP_LEFT, 0, rowY);
         lv_label_set_text(_lblApptTimes[i], "");
 
         _lblApptTitles[i] = lv_label_create(_cardAppt);
-        lv_obj_set_style_text_font(_lblApptTitles[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(_lblApptTitles[i], &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(_lblApptTitles[i], TEXT_PRIMARY, 0);
-        lv_obj_align(_lblApptTitles[i], LV_ALIGN_TOP_LEFT, 0, rowY + 18);
+        lv_obj_align(_lblApptTitles[i], LV_ALIGN_TOP_LEFT, 0, rowY + 20);
         lv_obj_set_width(_lblApptTitles[i], 340);
         lv_label_set_long_mode(_lblApptTitles[i], LV_LABEL_LONG_DOT);
         lv_label_set_text(_lblApptTitles[i], "");
     }
 
     _lblApptMore = lv_label_create(_cardAppt);
-    lv_obj_set_style_text_font(_lblApptMore, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(_lblApptMore, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_lblApptMore, ACCENT, 0);
     lv_obj_align(_lblApptMore, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_label_set_text(_lblApptMore, "No upcoming events");
@@ -170,7 +170,7 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
 
     lv_obj_t* header = lv_label_create(_cardWeather);
     lv_label_set_text(header, "Weather");
-    lv_obj_set_style_text_font(header, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(header, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
@@ -184,14 +184,14 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
     lv_label_set_text(_lblTemp, "--" "\xC2\xB0");
 
     _lblHighLow = lv_label_create(_cardWeather);
-    lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblHighLow, TEXT_SECONDARY, 0);
     lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, 58, 68);
     lv_label_set_text(_lblHighLow, "H: --  L: --");
 
     _lblCondition = lv_label_create(_cardWeather);
-    lv_obj_set_style_text_font(_lblCondition, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(_lblCondition, TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(_lblCondition, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(_lblCondition, TEXT_PRIMARY, 0);
     lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 0, 96);
     lv_label_set_text(_lblCondition, "No data");
 }
@@ -227,15 +227,15 @@ void HomeScreen::createTasksCard(lv_obj_t* parent) {
 
     lv_obj_t* header = lv_label_create(_cardTasks);
     lv_label_set_text(header, "Tasks");
-    lv_obj_set_style_text_font(header, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(header, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
     for (uint8_t i = 0; i < 5; i++) {
         _lblTaskItems[i] = lv_label_create(_cardTasks);
-        lv_obj_set_style_text_font(_lblTaskItems[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(_lblTaskItems[i], &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(_lblTaskItems[i], TEXT_PRIMARY, 0);
-        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 0, 24 + i * 28);
+        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 0, 24 + i * 30);
         lv_obj_set_width(_lblTaskItems[i], 360);
         lv_label_set_long_mode(_lblTaskItems[i], LV_LABEL_LONG_DOT);
         lv_label_set_text(_lblTaskItems[i], "");

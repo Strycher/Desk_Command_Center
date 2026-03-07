@@ -41,6 +41,7 @@ private:
     static void onSaveURL(lv_event_t* e);
     static void onSaveTZ(lv_event_t* e);
     static void onBrightnessChanged(lv_event_t* e);
+    static void onBrightnessRelease(lv_event_t* e);
     static void on24hToggle(lv_event_t* e);
     static void onSavePoll(lv_event_t* e);
     static void onURLFocus(lv_event_t* e);
