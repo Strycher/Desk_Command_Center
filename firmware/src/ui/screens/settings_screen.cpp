@@ -94,6 +94,7 @@ void SettingsScreen::onBrightnessChanged(lv_event_t* e) {
 void SettingsScreen::onBrightnessRelease(lv_event_t* e) {
     auto* self = (SettingsScreen*)lv_event_get_user_data(e);
     ConfigStore::save(self->_cfg);
+    lv_label_set_text(self->_lblStatus, "Brightness saved");
 }
 
 void SettingsScreen::on24hToggle(lv_event_t* e) {
@@ -214,6 +215,12 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_font(dispHdr, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(dispHdr, TEXT_PRIMARY, 0);
     lv_obj_align(dispHdr, LV_ALIGN_TOP_LEFT, 0, 0);
+
+    lv_obj_t* dispHint = lv_label_create(dispCard);
+    lv_label_set_text(dispHint, "(auto-saved)");
+    lv_obj_set_style_text_font(dispHint, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(dispHint, TEXT_SECONDARY, 0);
+    lv_obj_align_to(dispHint, dispHdr, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, 0);
 
     /* Brightness slider */
     lv_obj_t* lblBright = lv_label_create(dispCard);
