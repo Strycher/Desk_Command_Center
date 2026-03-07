@@ -10,6 +10,7 @@ class WeatherScreen : public BaseScreen {
 public:
     void create(lv_obj_t* parent) override;
     void update(const DashboardData& data) override;
+    void onShow() override;
 
 private:
     /* Current conditions */
@@ -24,6 +25,10 @@ private:
 
     /* Hourly forecast container */
     lv_obj_t* _hourlyRow    = nullptr;
+
+    /* Cached data for deferred rebuild */
+    const DashboardData* _lastData = nullptr;
+    bool _dirty = false;
 
     void rebuildHourly(const WeatherData& w);
 };

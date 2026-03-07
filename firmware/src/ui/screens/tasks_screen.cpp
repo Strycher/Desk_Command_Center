@@ -276,7 +276,12 @@ void TasksScreen::rebuildTaskList() {
 
 void TasksScreen::update(const DashboardData& data) {
     _lastData = &data;
-    rebuildTaskList();
+    /* Rebuild only if we're the currently-visible screen.
+       Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
+       when the screen becomes visible via lv_scr_load_anim(). */
+    if (lv_scr_act() == _screen) {
+        rebuildTaskList();
+    }
 }
 
 void TasksScreen::onShow() {
