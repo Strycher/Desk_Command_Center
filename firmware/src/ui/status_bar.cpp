@@ -98,17 +98,23 @@ void StatusBar::create() {
 void StatusBar::update() {
     if (!lblTime) return;
 
-    /* Time */
+    /* Time — only set label when text changes to avoid LVGL invalidation */
     String t = NtpTime::timeStr(_clock24h);
-    lv_label_set_text(lblTime, t.c_str());
+    if (strcmp(lv_label_get_text(lblTime), t.c_str()) != 0) {
+        lv_label_set_text(lblTime, t.c_str());
+    }
 
-    /* Date */
+    /* Date — only set label when text changes */
     String d = NtpTime::dateStr();
-    lv_label_set_text(lblDate, d.c_str());
+    if (strcmp(lv_label_get_text(lblDate), d.c_str()) != 0) {
+        lv_label_set_text(lblDate, d.c_str());
+    }
 
     /* WiFi */
-    int8_t rssi = WifiManager::rssi();
-    lv_label_set_text(lblWifi, wifiIcon(rssi));
+    const char* icon = wifiIcon(WifiManager::rssi());
+    if (strcmp(lv_label_get_text(lblWifi), icon) != 0) {
+        lv_label_set_text(lblWifi, icon);
+    }
     lv_color_t wifiColor = (WifiManager::state() == WifiState::CONNECTED)
                            ? SYNC_OK : SYNC_ERROR;
     lv_obj_set_style_text_color(lblWifi, wifiColor, 0);

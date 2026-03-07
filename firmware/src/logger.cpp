@@ -71,7 +71,8 @@ void Logger::initSDLog() {
 
     /* Build filename from NTP time (or uptime fallback) */
     struct tm ti;
-    if (NtpTime::isSynced() && getLocalTime(&ti, 0)) {
+    time_t now = time(nullptr);
+    if (NtpTime::isSynced() && now >= 1000000000 && (localtime_r(&now, &ti), true)) {
         snprintf(s_logFilename, sizeof(s_logFilename),
                  LOG_DIR "/serial_%04d%02d%02d_%02d%02d%02d.log",
                  ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday,
@@ -169,7 +170,8 @@ const char* Logger::timestamp() {
     int core = xPortGetCoreID();
 
     struct tm ti;
-    if (NtpTime::isSynced() && getLocalTime(&ti, 0)) {
+    time_t now = time(nullptr);
+    if (NtpTime::isSynced() && now >= 1000000000 && (localtime_r(&now, &ti), true)) {
         snprintf(tsBuf[core], sizeof(tsBuf[core]), "[%02d:%02d:%02d] ",
                  ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {

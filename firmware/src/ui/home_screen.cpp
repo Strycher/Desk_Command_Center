@@ -59,10 +59,18 @@ void HomeScreen::createClock(lv_obj_t* parent) {
 
 void HomeScreen::updateClock() {
     if (!_lblClock) return;
+
+    /* Only set label when text changes — avoids LVGL dirty-rect
+     * invalidation that causes visible redraw flicker. */
     String t = NtpTime::timeStr(false);
-    lv_label_set_text(_lblClock, t.c_str());
+    if (strcmp(lv_label_get_text(_lblClock), t.c_str()) != 0) {
+        lv_label_set_text(_lblClock, t.c_str());
+    }
+
     String d = NtpTime::dateStr();
-    lv_label_set_text(_lblDate, d.c_str());
+    if (strcmp(lv_label_get_text(_lblDate), d.c_str()) != 0) {
+        lv_label_set_text(_lblDate, d.c_str());
+    }
 }
 
 void HomeScreen::clockTimerCb(lv_timer_t* timer) {
