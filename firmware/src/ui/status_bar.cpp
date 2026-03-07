@@ -70,7 +70,7 @@ void StatusBar::create() {
 
     /* Date — center */
     lblDate = lv_label_create(bar);
-    lv_obj_set_style_text_font(lblDate, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblDate, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblDate, TEXT_COLOR, 0);
     lv_obj_align(lblDate, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(lblDate, "---");
@@ -84,7 +84,7 @@ void StatusBar::create() {
 
     /* Sync indicator — far right */
     lblSync = lv_label_create(bar);
-    lv_obj_set_style_text_font(lblSync, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblSync, &lv_font_montserrat_16, 0);
     lv_obj_align(lblSync, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_label_set_text(lblSync, LV_SYMBOL_REFRESH);
     lv_obj_set_style_text_color(lblSync, SYNC_STALE, 0);

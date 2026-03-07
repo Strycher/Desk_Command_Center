@@ -233,9 +233,9 @@ void HomeScreen::createTasksCard(lv_obj_t* parent) {
 
     for (uint8_t i = 0; i < 5; i++) {
         _lblTaskItems[i] = lv_label_create(_cardTasks);
-        lv_obj_set_style_text_font(_lblTaskItems[i], &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(_lblTaskItems[i], &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(_lblTaskItems[i], TEXT_PRIMARY, 0);
-        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 0, 24 + i * 30);
+        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 0, 24 + i * 28);
         lv_obj_set_width(_lblTaskItems[i], 360);
         lv_label_set_long_mode(_lblTaskItems[i], LV_LABEL_LONG_DOT);
         lv_label_set_text(_lblTaskItems[i], "");

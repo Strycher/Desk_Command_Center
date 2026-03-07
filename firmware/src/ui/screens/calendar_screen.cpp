@@ -19,6 +19,15 @@ static constexpr int16_t NAV_HEIGHT = 50;
 
 static const char* DAY_LABELS[] = {"Today", "Tomorrow", "In 2 days", "In 3 days"};
 
+/* Extract HH:MM from ISO 8601 "2026-03-06T15:00:00-05:00" → "15:00" */
+static void fmtTime(const char* iso, char* out, size_t outLen) {
+    const char* t = strchr(iso, 'T');
+    if (!t) { snprintf(out, outLen, "%s", iso); return; }  /* fallback: raw string */
+    int hh = 0, mm = 0;
+    sscanf(t + 1, "%d:%d", &hh, &mm);
+    snprintf(out, outLen, "%d:%02d", hh, mm);
+}
+
 void CalendarScreen::onPrev(lv_event_t* e) {
     auto* self = (CalendarScreen*)lv_event_get_user_data(e);
     if (self->_dayOffset > 0) {
@@ -136,7 +145,7 @@ void CalendarScreen::addEventCard(const char* title, const char* time,
 
     /* Time */
     lv_obj_t* lblTime = lv_label_create(card);
-    lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblTime, TEXT_SECONDARY, 0);
     lv_obj_align(lblTime, LV_ALIGN_TOP_LEFT, 2, 0);
     lv_label_set_text(lblTime, time);
@@ -153,7 +162,7 @@ void CalendarScreen::addEventCard(const char* title, const char* time,
     /* Location (if present) */
     if (location && location[0] != '\0') {
         lv_obj_t* lblLoc = lv_label_create(card);
-        lv_obj_set_style_text_font(lblLoc, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(lblLoc, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lblLoc, TEXT_SECONDARY, 0);
         lv_obj_align(lblLoc, LV_ALIGN_TOP_LEFT, 2, 42);
         lv_obj_set_width(lblLoc, 700);
@@ -183,9 +192,10 @@ void CalendarScreen::rebuildEventList() {
     if (_lastData->google_calendar.status == SourceStatus::OK) {
         for (uint8_t i = 0; i < _lastData->google_calendar_count; i++) {
             const CalendarEvent& ev = _lastData->google_calendar.data[i];
-            char timeBuf[48];
-            snprintf(timeBuf, sizeof(timeBuf), "%s - %s",
-                     ev.start_time, ev.end_time);
+            char startFmt[16], endFmt[16], timeBuf[48];
+            fmtTime(ev.start_time, startFmt, sizeof(startFmt));
+            fmtTime(ev.end_time, endFmt, sizeof(endFmt));
+            snprintf(timeBuf, sizeof(timeBuf), "%s - %s", startFmt, endFmt);
             addEventCard(ev.title, timeBuf, ev.location, ev.color, count == 0);
             count++;
         }
@@ -194,9 +204,10 @@ void CalendarScreen::rebuildEventList() {
     if (_lastData->microsoft_calendar.status == SourceStatus::OK) {
         for (uint8_t i = 0; i < _lastData->microsoft_calendar_count; i++) {
             const CalendarEvent& ev = _lastData->microsoft_calendar.data[i];
-            char timeBuf[48];
-            snprintf(timeBuf, sizeof(timeBuf), "%s - %s",
-                     ev.start_time, ev.end_time);
+            char startFmt[16], endFmt[16], timeBuf[48];
+            fmtTime(ev.start_time, startFmt, sizeof(startFmt));
+            fmtTime(ev.end_time, endFmt, sizeof(endFmt));
+            snprintf(timeBuf, sizeof(timeBuf), "%s - %s", startFmt, endFmt);
             addEventCard(ev.title, timeBuf, ev.location, ev.color, false);
             count++;
         }
@@ -231,7 +242,7 @@ void CalendarScreen::rebuildEventList() {
 
     lv_obj_t* gLbl = lv_label_create(legend);
     lv_label_set_text(gLbl, "Google");
-    lv_obj_set_style_text_font(gLbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(gLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(gLbl, TEXT_SECONDARY, 0);
     lv_obj_align(gLbl, LV_ALIGN_LEFT_MID, 14, 0);
 
@@ -246,7 +257,7 @@ void CalendarScreen::rebuildEventList() {
 
     lv_obj_t* mLbl = lv_label_create(legend);
     lv_label_set_text(mLbl, "Microsoft");
-    lv_obj_set_style_text_font(mLbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(mLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(mLbl, TEXT_SECONDARY, 0);
     lv_obj_align(mLbl, LV_ALIGN_LEFT_MID, 94, 0);
 }

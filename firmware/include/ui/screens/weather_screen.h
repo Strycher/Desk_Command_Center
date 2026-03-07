@@ -13,7 +13,7 @@ public:
 
 private:
     /* Current conditions */
-    lv_obj_t* _lblIcon      = nullptr;
+    lv_obj_t* _weatherIcon  = nullptr;   /* WeatherIcon canvas */
     lv_obj_t* _lblTemp      = nullptr;
     lv_obj_t* _lblCondition = nullptr;
 

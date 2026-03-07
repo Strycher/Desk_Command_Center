@@ -5,6 +5,7 @@
  */
 
 #include "ui/screens/weather_screen.h"
+#include "ui/weather_icon.h"
 #include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
@@ -16,6 +17,24 @@ static const lv_color_t HOURLY_BG     = lv_color_hex(0x252548);
 
 static constexpr int16_t CONTENT_Y = 30;
 static constexpr int16_t PAD       = 10;
+
+/* Map OWM icon code to short description for hourly tiles */
+static const char* owmToLabel(const char* code) {
+    if (!code || !code[0]) return "?";
+    int num = atoi(code);
+    switch (num) {
+        case  1: return "Clear";
+        case  2: return "Ptly";
+        case  3: return "Cloudy";
+        case  4: return "Ovcst";
+        case  9: return "Shwrs";
+        case 10: return "Rain";
+        case 11: return "Storm";
+        case 13: return "Snow";
+        case 50: return "Fog";
+        default: return "?";
+    }
+}
 
 /* Helper: make a styled card */
 static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
@@ -40,46 +59,44 @@ void WeatherScreen::create(lv_obj_t* parent) {
     /* === Current conditions card (top, full width) === */
     lv_obj_t* currentCard = makeCard(_screen, PAD, CONTENT_Y + PAD, 780, 150);
 
-    _lblIcon = lv_label_create(currentCard);
-    lv_obj_set_style_text_font(_lblIcon, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(_lblIcon, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblIcon, LV_ALIGN_TOP_LEFT, 0, 10);
-    lv_label_set_text(_lblIcon, LV_SYMBOL_IMAGE);
+    /* Weather icon canvas (48x48, drawn from OWM codes) */
+    _weatherIcon = WeatherIcon::create(currentCard);
+    lv_obj_align(_weatherIcon, LV_ALIGN_TOP_LEFT, 0, 12);
 
     _lblTemp = lv_label_create(currentCard);
     lv_obj_set_style_text_font(_lblTemp, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(_lblTemp, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 70, 10);
+    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 58, 10);
     lv_label_set_text(_lblTemp, "--\xC2\xB0");
 
     _lblCondition = lv_label_create(currentCard);
     lv_obj_set_style_text_font(_lblCondition, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblCondition, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 70, 70);
+    lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 58, 68);
     lv_label_set_text(_lblCondition, "No data");
 
     /* Detail stats on the right side */
     _lblHighLow = lv_label_create(currentCard);
-    lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblHighLow, TEXT_PRIMARY, 0);
     lv_obj_align(_lblHighLow, LV_ALIGN_TOP_RIGHT, 0, 10);
     lv_label_set_text(_lblHighLow, "H: --\xC2\xB0  L: --\xC2\xB0");
 
     _lblHumidity = lv_label_create(currentCard);
-    lv_obj_set_style_text_font(_lblHumidity, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(_lblHumidity, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblHumidity, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblHumidity, LV_ALIGN_TOP_RIGHT, 0, 36);
+    lv_obj_align(_lblHumidity, LV_ALIGN_TOP_RIGHT, 0, 40);
     lv_label_set_text(_lblHumidity, "Humidity: --%");
 
     _lblPrecip = lv_label_create(currentCard);
-    lv_obj_set_style_text_font(_lblPrecip, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(_lblPrecip, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblPrecip, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblPrecip, LV_ALIGN_TOP_RIGHT, 0, 62);
+    lv_obj_align(_lblPrecip, LV_ALIGN_TOP_RIGHT, 0, 70);
     lv_label_set_text(_lblPrecip, "Precip: --%");
 
     /* === Hourly forecast header === */
     lv_obj_t* lblHourlyHeader = lv_label_create(_screen);
-    lv_obj_set_style_text_font(lblHourlyHeader, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(lblHourlyHeader, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(lblHourlyHeader, TEXT_SECONDARY, 0);
     lv_obj_set_pos(lblHourlyHeader, PAD + 4, CONTENT_Y + 170);
     lv_label_set_text(lblHourlyHeader, "Hourly Forecast");
@@ -124,23 +141,23 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
 
         /* Time label */
         lv_obj_t* lblTime = lv_label_create(tile);
-        lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lblTime, TEXT_PRIMARY, 0);
         lv_obj_align(lblTime, LV_ALIGN_TOP_MID, 0, 0);
         lv_label_set_text(lblTime, h.time);
 
-        /* Weather icon (text placeholder) */
+        /* Weather description (mapped from OWM code) */
         lv_obj_t* lblIcon = lv_label_create(tile);
-        lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_20, 0);
-        lv_obj_set_style_text_color(lblIcon, TEXT_PRIMARY, 0);
+        lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(lblIcon, TEXT_SECONDARY, 0);
         lv_obj_align(lblIcon, LV_ALIGN_TOP_MID, 0, 24);
-        lv_label_set_text(lblIcon, h.icon[0] ? h.icon : LV_SYMBOL_IMAGE);
+        lv_label_set_text(lblIcon, owmToLabel(h.icon));
 
         /* Temperature */
         lv_obj_t* lblTemp = lv_label_create(tile);
         lv_obj_set_style_text_font(lblTemp, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lblTemp, TEXT_PRIMARY, 0);
-        lv_obj_align(lblTemp, LV_ALIGN_TOP_MID, 0, 60);
+        lv_obj_align(lblTemp, LV_ALIGN_TOP_MID, 0, 50);
         char tempBuf[16];
         snprintf(tempBuf, sizeof(tempBuf), "%.0f\xC2\xB0", h.temp);
         lv_label_set_text(lblTemp, tempBuf);
@@ -148,9 +165,9 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
         /* Precipitation chance */
         if (h.precip_chance > 0.0f) {
             lv_obj_t* lblPrecip = lv_label_create(tile);
-            lv_obj_set_style_text_font(lblPrecip, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_font(lblPrecip, &lv_font_montserrat_16, 0);
             lv_obj_set_style_text_color(lblPrecip, ACCENT, 0);
-            lv_obj_align(lblPrecip, LV_ALIGN_TOP_MID, 0, 90);
+            lv_obj_align(lblPrecip, LV_ALIGN_TOP_MID, 0, 80);
             char precipBuf[16];
             snprintf(precipBuf, sizeof(precipBuf), "%.0f%%", h.precip_chance);
             lv_label_set_text(lblPrecip, precipBuf);
@@ -167,6 +184,9 @@ void WeatherScreen::update(const DashboardData& data) {
         lv_label_set_text(_lblTemp, tempBuf);
 
         lv_label_set_text(_lblCondition, w.condition);
+
+        /* Update weather icon canvas from OWM code */
+        WeatherIcon::update(_weatherIcon, w.icon);
 
         char hlBuf[32];
         snprintf(hlBuf, sizeof(hlBuf), "H: %.0f\xC2\xB0  L: %.0f\xC2\xB0",
