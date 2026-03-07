@@ -98,8 +98,6 @@ static void showMoreMenu() {
 
 static void onNavClick(lv_event_t* e) {
     auto idx = (uintptr_t)lv_event_get_user_data(e);
-    LOG_INFO("NAV: click idx=%d → screen %d", (int)idx,
-             idx < NUM_MAIN ? (int)mainItems[idx].id : -1);
     if (idx == 4) {
         showMoreMenu();
         return;

@@ -28,10 +28,7 @@ void ScreenManager::registerScreen(ScreenId id, BaseScreen* screen) {
 void ScreenManager::show(ScreenId id, lv_scr_load_anim_t anim,
                           uint32_t anim_ms, bool auto_del) {
     uint8_t idx = static_cast<uint8_t>(id);
-    if (idx >= static_cast<uint8_t>(ScreenId::_COUNT) || !screens[idx]) {
-        LOG_WARN("SCR: show(%d) — invalid or null, abort", idx);
-        return;
-    }
+    if (idx >= static_cast<uint8_t>(ScreenId::_COUNT) || !screens[idx]) return;
 
     /* Hide current (only if it's a registered screen) */
     uint8_t cur_idx = static_cast<uint8_t>(current);
@@ -51,8 +48,7 @@ void ScreenManager::show(ScreenId id, lv_scr_load_anim_t anim,
     current = id;
     screens[idx]->onShow();
 
-    LOG_INFO("SCR: show %d → %d, heap=%lu",
-             cur_idx, idx, (unsigned long)ESP.getFreeHeap());
+    LOG_DEBUG("SCR: show screen %d", idx);
 }
 
 void ScreenManager::showHome() {

@@ -89,8 +89,8 @@ static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
         data->point.y = y;
         /* Log first 5 touches + every 50th after that */
         if (_touchHits <= 5 || _touchHits % 50 == 0) {
-            LOG_INFO("TOUCH: hit #%lu at (%d,%d) [polls=%lu]",
-                     _touchHits, x, y, _touchPolls);
+            LOG_DEBUG("TOUCH: hit #%lu at (%d,%d) [polls=%lu]",
+                      _touchHits, x, y, _touchPolls);
         }
     } else {
         data->state = LV_INDEV_STATE_REL;
