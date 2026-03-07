@@ -9,7 +9,7 @@
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
 static const lv_color_t TEXT_PRIMARY   = lv_color_hex(0xE0E0FF);
-static const lv_color_t TEXT_SECONDARY = lv_color_hex(0x8888AA);
+static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT         = lv_color_hex(0x6C63FF);
 static const lv_color_t BTN_BG        = lv_color_hex(0x252540);
 static const lv_color_t PRIO_HIGH     = lv_color_hex(0xFF4444);

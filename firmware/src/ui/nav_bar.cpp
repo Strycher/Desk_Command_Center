@@ -24,7 +24,7 @@ static const NavItem mainItems[] = {
     { LV_SYMBOL_HOME,  ScreenId::HOME     },
     { LV_SYMBOL_BELL,  ScreenId::CALENDAR },
     { LV_SYMBOL_LIST,  ScreenId::TASKS    },
-    { LV_SYMBOL_IMAGE, ScreenId::WEATHER  },
+    { LV_SYMBOL_TINT,  ScreenId::WEATHER  },
     { LV_SYMBOL_BARS,  ScreenId::_COUNT   },  // "More" — hamburger menu
 };
 

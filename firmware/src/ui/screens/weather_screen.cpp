@@ -11,7 +11,7 @@
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
 static const lv_color_t TEXT_PRIMARY   = lv_color_hex(0xE0E0FF);
-static const lv_color_t TEXT_SECONDARY = lv_color_hex(0x8888AA);
+static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT         = lv_color_hex(0x6C63FF);
 static const lv_color_t HOURLY_BG     = lv_color_hex(0x252548);
 
@@ -121,7 +121,7 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
 
     if (w.hourly_count == 0) {
         lv_obj_t* lbl = lv_label_create(_hourlyRow);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl, "No hourly data available");
         return;
@@ -141,23 +141,23 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
 
         /* Time label */
         lv_obj_t* lblTime = lv_label_create(tile);
-        lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(lblTime, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lblTime, TEXT_PRIMARY, 0);
         lv_obj_align(lblTime, LV_ALIGN_TOP_MID, 0, 0);
         lv_label_set_text(lblTime, h.time);
 
         /* Weather description (mapped from OWM code) */
         lv_obj_t* lblIcon = lv_label_create(tile);
-        lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lblIcon, TEXT_SECONDARY, 0);
-        lv_obj_align(lblIcon, LV_ALIGN_TOP_MID, 0, 24);
+        lv_obj_align(lblIcon, LV_ALIGN_TOP_MID, 0, 28);
         lv_label_set_text(lblIcon, owmToLabel(h.icon));
 
         /* Temperature */
         lv_obj_t* lblTemp = lv_label_create(tile);
         lv_obj_set_style_text_font(lblTemp, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lblTemp, TEXT_PRIMARY, 0);
-        lv_obj_align(lblTemp, LV_ALIGN_TOP_MID, 0, 50);
+        lv_obj_align(lblTemp, LV_ALIGN_TOP_MID, 0, 58);
         char tempBuf[16];
         snprintf(tempBuf, sizeof(tempBuf), "%.0f\xC2\xB0", h.temp);
         lv_label_set_text(lblTemp, tempBuf);
@@ -165,9 +165,9 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
         /* Precipitation chance */
         if (h.precip_chance > 0.0f) {
             lv_obj_t* lblPrecip = lv_label_create(tile);
-            lv_obj_set_style_text_font(lblPrecip, &lv_font_montserrat_16, 0);
+            lv_obj_set_style_text_font(lblPrecip, &lv_font_montserrat_20, 0);
             lv_obj_set_style_text_color(lblPrecip, ACCENT, 0);
-            lv_obj_align(lblPrecip, LV_ALIGN_TOP_MID, 0, 80);
+            lv_obj_align(lblPrecip, LV_ALIGN_TOP_MID, 0, 90);
             char precipBuf[16];
             snprintf(precipBuf, sizeof(precipBuf), "%.0f%%", h.precip_chance);
             lv_label_set_text(lblPrecip, precipBuf);

@@ -21,7 +21,7 @@
 /* === Display === */
 #define LV_DISP_DEF_REFR_PERIOD  33  /* ~30 FPS */
 #define LV_INDEV_DEF_READ_PERIOD 33
-#define LV_DPI_DEF               160
+#define LV_DPI_DEF               188  /* 800px / 4.25" panel width */
 
 /* === Tick — use Arduino millis() as LVGL time source === */
 #define LV_TICK_CUSTOM          1
