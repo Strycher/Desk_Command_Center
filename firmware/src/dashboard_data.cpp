@@ -143,6 +143,22 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                     out.weather.data.hourly_count++;
                 }
             }
+
+            /* Daily forecast array */
+            JsonArrayConst daily = wd["daily"];
+            out.weather.data.daily_count = 0;
+            if (!daily.isNull()) {
+                for (JsonObjectConst d : daily) {
+                    if (out.weather.data.daily_count >= MAX_DAILY) break;
+                    DailyForecast& df = out.weather.data.daily[out.weather.data.daily_count];
+                    copyStr(df.day, sizeof(df.day), d["day"]);
+                    df.temp_high = d["temp_high"] | 0.0f;
+                    df.temp_low  = d["temp_low"]  | 0.0f;
+                    copyStr(df.icon, sizeof(df.icon), d["icon"]);
+                    df.precip_chance = d["precip_chance"] | 0.0f;
+                    out.weather.data.daily_count++;
+                }
+            }
         }
     } else {
         out.weather.status = SourceStatus::MISSING;

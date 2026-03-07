@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -82,7 +84,7 @@ class WeatherAdapter(BaseAdapter):
                     "lon": self.lon,
                     "appid": self.api_key,
                     "units": self.units,
-                    "cnt": 8,  # 8 × 3h = 24h
+                    "cnt": 40,  # 40 × 3h = 5 days
                 },
             )
             forecast.raise_for_status()
@@ -97,20 +99,59 @@ class WeatherAdapter(BaseAdapter):
         cur = raw["current"]
         fc = raw["forecast"]
         temp_unit = "F" if self.units == "imperial" else "C"
+        entries = fc.get("list", [])
 
-        # Extract hourly forecast from 3-hour blocks
+        # Extract hourly forecast from first 8 × 3-hour blocks (24h)
         hourly = []
-        for entry in fc.get("list", [])[:8]:
+        for entry in entries[:8]:
+            pop = entry.get("pop", 0)  # 0.0-1.0
             hourly.append({
                 "time": entry["dt"],
                 "temp": entry["main"]["temp"],
                 "condition": entry["weather"][0]["main"],
                 "icon": entry["weather"][0]["icon"],
+                "precip_chance": round(pop * 100),
             })
 
-        # Find daily high/low from forecast
-        temps = [e["main"]["temp"] for e in fc.get("list", [])[:8]]
-        temps.append(cur["main"]["temp"])
+        # Aggregate daily forecasts from all entries (up to 5 days)
+        day_buckets: dict[str, list[dict]] = defaultdict(list)
+        for entry in entries:
+            dt_txt = entry.get("dt_txt", "")  # "2026-03-07 15:00:00"
+            date_str = dt_txt[:10] if dt_txt else ""
+            if date_str:
+                day_buckets[date_str].append(entry)
+
+        daily = []
+        for date_str in sorted(day_buckets.keys()):
+            bucket = day_buckets[date_str]
+            temps = [e["main"]["temp"] for e in bucket]
+            pops = [e.get("pop", 0) for e in bucket]
+            # Pick midday icon (12:00 or closest) for representative condition
+            midday = None
+            for e in bucket:
+                if "12:00:00" in e.get("dt_txt", ""):
+                    midday = e
+                    break
+            if not midday:
+                midday = bucket[len(bucket) // 2]
+            # Day name from date string
+            try:
+                day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%a")
+            except ValueError:
+                day_name = date_str
+            daily.append({
+                "date": date_str,
+                "day": day_name,
+                "temp_high": round(max(temps), 1),
+                "temp_low": round(min(temps), 1),
+                "icon": midday["weather"][0]["icon"],
+                "condition": midday["weather"][0]["main"],
+                "precip_chance": round(max(pops) * 100),
+            })
+
+        # Find daily high/low from first 24h forecast + current
+        temps_24h = [e["main"]["temp"] for e in entries[:8]]
+        temps_24h.append(cur["main"]["temp"])
 
         return {
             "provider": "openweathermap",
@@ -123,11 +164,13 @@ class WeatherAdapter(BaseAdapter):
                 "description": cur["weather"][0]["description"],
                 "icon": cur["weather"][0]["icon"],
                 "wind_speed": cur.get("wind", {}).get("speed"),
+                "precip_chance": round(hourly[0].get("precip_chance", 0)) if hourly else 0,
             },
-            "high": max(temps),
-            "low": min(temps),
+            "high": max(temps_24h),
+            "low": min(temps_24h),
             "temp_unit": temp_unit,
             "hourly": hourly,
+            "daily": daily,
         }
 
     # --- National Weather Service (free, no key) ---

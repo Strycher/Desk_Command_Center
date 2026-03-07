@@ -12,6 +12,7 @@ static constexpr uint8_t MAX_TASKS  = 20;
 static constexpr uint8_t MAX_REPOS  = 10;
 static constexpr uint8_t MAX_HA_ENTITIES = 20;
 static constexpr uint8_t MAX_HOURLY = 12;
+static constexpr uint8_t MAX_DAILY  = 5;
 
 enum class SourceStatus : uint8_t { MISSING, OK, ERROR, STALE };
 
@@ -37,7 +38,15 @@ struct HourlyForecast {
     char  time[6];          // "14:00"
     float temp;
     char  icon[16];
-    float precip_chance;
+    float precip_chance;    // 0-100 %
+};
+
+struct DailyForecast {
+    char  day[4];           // "Mon", "Tue", ...
+    float temp_high;
+    float temp_low;
+    char  icon[16];         // OWM code for midday condition
+    float precip_chance;    // 0-100 %, max across day's periods
 };
 
 struct WeatherData {
@@ -50,6 +59,8 @@ struct WeatherData {
     float   precip_chance;
     HourlyForecast hourly[MAX_HOURLY];
     uint8_t hourly_count;
+    DailyForecast  daily[MAX_DAILY];
+    uint8_t daily_count;
 };
 
 struct RepoStatus {
