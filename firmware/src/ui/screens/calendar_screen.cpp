@@ -119,8 +119,11 @@ void CalendarScreen::addEventCard(const char* title, const char* time,
                                    const char* location, uint32_t color,
                                    bool isCurrent) {
     lv_obj_t* card = lv_obj_create(_eventList);
-    lv_obj_set_size(card, 760, LV_SIZE_CONTENT);
-    lv_obj_set_style_min_height(card, 60, 0);
+    /* Fixed height — LV_SIZE_CONTENT inside a flex column with wrapping labels
+       causes an infinite layout loop in LVGL 8.x (deferred layout on screen
+       activation triggers circular recalc). Use fixed height instead. */
+    bool hasLoc = (location && location[0] != '\0');
+    lv_obj_set_size(card, 760, hasLoc ? 80 : 60);
     lv_obj_set_style_bg_color(card, isCurrent ? CARD_HL : CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(card, 10, 0);
@@ -249,6 +252,8 @@ void CalendarScreen::rebuildEventList() {
     lv_obj_set_style_text_font(mLbl, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(mLbl, TEXT_SECONDARY, 0);
     lv_obj_align(mLbl, LV_ALIGN_LEFT_MID, 94, 0);
+
+    LOG_INFO("CAL: rebuilt %d events", count);
 }
 
 void CalendarScreen::update(const DashboardData& data) {
