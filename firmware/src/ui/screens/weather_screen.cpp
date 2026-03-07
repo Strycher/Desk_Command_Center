@@ -176,6 +176,10 @@ void WeatherScreen::rebuildHourly(const WeatherData& w) {
 }
 
 void WeatherScreen::update(const DashboardData& data) {
+    _lastData = &data;
+    _dirty = true;
+
+    /* Label updates are safe offscreen — they don't trigger layout recalc */
     if (data.weather.status == SourceStatus::OK) {
         const WeatherData& w = data.weather.data;
 
@@ -202,7 +206,13 @@ void WeatherScreen::update(const DashboardData& data) {
                  w.precip_chance);
         lv_label_set_text(_lblPrecip, precipBuf);
 
-        rebuildHourly(w);
+        /* Rebuild hourly tiles only if we're the currently-visible screen.
+           Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
+           when the screen becomes visible via lv_scr_load_anim(). */
+        if (lv_scr_act() == _screen) {
+            rebuildHourly(w);
+            _dirty = false;
+        }
     } else {
         lv_label_set_text(_lblTemp, "--\xC2\xB0");
         lv_label_set_text(_lblCondition,
@@ -211,6 +221,19 @@ void WeatherScreen::update(const DashboardData& data) {
         lv_label_set_text(_lblHighLow, "H: --\xC2\xB0  L: --\xC2\xB0");
         lv_label_set_text(_lblHumidity, "Humidity: --%");
         lv_label_set_text(_lblPrecip, "Precip: --%");
+        if (lv_scr_act() == _screen) {
+            lv_obj_clean(_hourlyRow);
+            _dirty = false;
+        }
+    }
+}
+
+void WeatherScreen::onShow() {
+    if (!_lastData) return;
+    if (_lastData->weather.status == SourceStatus::OK) {
+        rebuildHourly(_lastData->weather.data);
+    } else {
         lv_obj_clean(_hourlyRow);
     }
+    _dirty = false;
 }
