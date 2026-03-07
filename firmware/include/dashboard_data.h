@@ -13,7 +13,7 @@ static constexpr uint8_t MAX_REPOS  = 10;
 static constexpr uint8_t MAX_HA_ENTITIES = 20;
 static constexpr uint8_t MAX_HOURLY = 12;
 
-enum class SourceStatus : uint8_t { OK, ERROR, STALE, MISSING };
+enum class SourceStatus : uint8_t { MISSING, OK, ERROR, STALE };
 
 struct CalendarEvent {
     char     title[128];

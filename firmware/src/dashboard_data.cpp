@@ -65,7 +65,9 @@ static void parseSourceMeta(JsonObjectConst src, SourceBlock<T>& block) {
 }
 
 void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
-    memset(&out, 0, sizeof(out));
+    /* No memset — preserve stale data for sources the bridge omits.
+     * Each source section fully overwrites its block when present,
+     * or sets status = MISSING when absent. */
     out.last_updated_ms = millis();
 
     JsonObjectConst sources = doc["sources"];

@@ -11,7 +11,7 @@
 
 static bool         _synced = false;
 static uint32_t     _lastSyncMs = 0;
-static constexpr uint32_t RESYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000; // 6 hours
+static constexpr uint32_t RESYNC_INTERVAL_MS = 24UL * 60 * 60 * 1000; // 24 hours
 
 static const char* NTP_SERVER1 = "pool.ntp.org";
 static const char* NTP_SERVER2 = "time.nist.gov";
