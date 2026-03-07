@@ -60,6 +60,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "projects": [],
         "poll_interval": 120,
     },
+    "unfocused_tasks": {
+        "api_url": "https://getunfocused.app",
+        "api_key": "",
+        "statuses": ["not_started", "in_progress"],
+        "limit": 50,
+        "poll_interval": 300,
+    },
 }
 
 CONFIG_PATH = Path(__file__).parent / "bridge_config.json"

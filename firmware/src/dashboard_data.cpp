@@ -148,11 +148,12 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.weather.status = SourceStatus::MISSING;
     }
 
-    /* Unfocused Tasks */
+    /* Unfocused Tasks — data.tasks is the array */
     JsonObjectConst ut = sources["unfocused_tasks"];
     if (!ut.isNull()) {
         parseSourceMeta(ut, out.unfocused_tasks);
-        parseTaskItems(ut["data"], out.unfocused_tasks.data,
+        JsonObjectConst utd = ut["data"];
+        parseTaskItems(utd["tasks"], out.unfocused_tasks.data,
                       out.unfocused_tasks_count, MAX_TASKS);
     } else {
         out.unfocused_tasks.status = SourceStatus::MISSING;

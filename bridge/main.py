@@ -26,6 +26,7 @@ from adapters.beads import BeadsAdapter
 from adapters.github import GitHubAdapter
 from adapters.google_calendar import GoogleCalendarAdapter
 from adapters.home_assistant import HomeAssistantAdapter
+from adapters.unfocused_tasks import UnfocusedTasksAdapter
 from adapters.weather import WeatherAdapter
 from config import BridgeConfig
 
@@ -43,6 +44,7 @@ scheduler.register(GitHubAdapter(_cfg))
 scheduler.register(BeadsAdapter(_cfg))
 scheduler.register(HomeAssistantAdapter(_cfg))
 scheduler.register(GoogleCalendarAdapter(_cfg))
+scheduler.register(UnfocusedTasksAdapter(_cfg))
 
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
@@ -56,6 +58,7 @@ DASHBOARD_SOURCES = {
     "github": "GitHub",
     "beads": "Beads Tasks",
     "home_assistant": "Home Assistant",
+    "unfocused_tasks": "Unfocused Tasks",
 }
 
 
