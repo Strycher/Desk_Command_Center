@@ -14,18 +14,32 @@ logger = logging.getLogger(__name__)
 # Map Unfocused priority strings to firmware uint8_t values.
 # Firmware: 0=none, 1=high, 2=medium, 3=low
 _PRIORITY_MAP = {
+    # Pn prefix format (e.g. "P1 - High")
     "P0": 1,  # Critical → high
     "P1": 1,  # High
     "P2": 2,  # Medium
     "P3": 3,  # Low
+    # Plain word format (e.g. "High", "Medium", "Low")
+    "High": 1,
+    "Medium": 2,
+    "Low": 3,
 }
+
+# Statuses considered "active" (shown in task list)
+_ACTIVE_STATUSES = {"not_started", "in_progress"}
+# Statuses considered "deferred" (counted but not shown)
+_DEFERRED_STATUSES = {"on_hold"}
 
 
 def _parse_priority(priority_str: str | None) -> int:
-    """Extract priority level from strings like 'P2 - Medium'."""
+    """Map priority from 'P2 - Medium', 'High', 'Medium', etc."""
     if not priority_str:
         return 0
-    prefix = priority_str[:2]  # "P0", "P1", etc.
+    # Try exact match first (handles "High", "Medium", "Low")
+    if priority_str in _PRIORITY_MAP:
+        return _PRIORITY_MAP[priority_str]
+    # Try Pn prefix (handles "P2 - Medium" format)
+    prefix = priority_str[:2]
     return _PRIORITY_MAP.get(prefix, 0)
 
 
@@ -56,7 +70,6 @@ class UnfocusedTasksAdapter(BaseAdapter):
         )
         self.api_url = uf_cfg.get("api_url", "https://getunfocused.app")
         self.api_key = uf_cfg.get("api_key", "")
-        self.statuses = uf_cfg.get("statuses", ["not_started", "in_progress"])
         self.limit = uf_cfg.get("limit", 50)
 
     async def poll(self) -> dict[str, Any]:
@@ -64,10 +77,7 @@ class UnfocusedTasksAdapter(BaseAdapter):
             raise ValueError("unfocused_tasks.api_key not configured")
 
         url = f"{self.api_url.rstrip('/')}/api/tasks"
-        params = {
-            "status": ",".join(self.statuses),
-            "limit": self.limit,
-        }
+        params = {"limit": self.limit}
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/json",
@@ -80,19 +90,26 @@ class UnfocusedTasksAdapter(BaseAdapter):
 
     def parse(self, raw: dict[str, Any]) -> dict[str, Any]:
         raw_tasks = raw.get("tasks", [])
-        meta = raw.get("meta", {})
 
         tasks = []
+        deferred_count = 0
         for t in raw_tasks:
+            status = t.get("status", "")
+            if status in _DEFERRED_STATUSES:
+                deferred_count += 1
+                continue
+            if status not in _ACTIVE_STATUSES:
+                continue
             tasks.append({
                 "title": t.get("title", ""),
                 "due_date": t.get("due_date", ""),
                 "priority": _parse_priority(t.get("priority")),
                 "source": "unfocused",
-                "completed": t.get("status") == "completed",
+                "completed": status == "completed",
             })
 
         return {
             "tasks": tasks,
-            "total": meta.get("total", len(tasks)),
+            "total": len(tasks),
+            "deferred_count": deferred_count,
         }

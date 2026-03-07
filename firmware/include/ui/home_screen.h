@@ -34,7 +34,9 @@ private:
 
     /* Tasks summary card */
     lv_obj_t* _cardTasks    = nullptr;
+    lv_obj_t* _taskDots[5]  = {};      // Priority color dot
     lv_obj_t* _lblTaskItems[5] = {};
+    lv_obj_t* _lblDeferred  = nullptr; // "N deferred" badge
     uint8_t   _taskItemCount = 0;
 
     void createClock(lv_obj_t* parent);

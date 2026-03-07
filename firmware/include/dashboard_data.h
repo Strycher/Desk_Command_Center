@@ -107,6 +107,7 @@ struct DashboardData {
 
     SourceBlock<TaskItem[MAX_TASKS]> unfocused_tasks;
     uint8_t unfocused_tasks_count;
+    uint8_t unfocused_deferred_count;
 
     SourceBlock<TaskItem[MAX_TASKS]> monday_tasks;
     uint8_t monday_tasks_count;
