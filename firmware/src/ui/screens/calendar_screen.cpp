@@ -253,17 +253,20 @@ void CalendarScreen::rebuildEventList() {
 
 void CalendarScreen::update(const DashboardData& data) {
     _lastData = &data;
-    rebuildEventList();
+    _dirty = true;
+    /* Rebuild only if we're the currently-visible screen.
+       Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
+       when the screen becomes visible via lv_scr_load_anim(). */
+    if (lv_scr_act() == _screen) {
+        rebuildEventList();
+        _dirty = false;
+    }
 }
 
 void CalendarScreen::onShow() {
-    /* Reset to "Today" view when entering screen.
-       Only rebuild if the day offset actually changed — the last update()
-       call already built the correct widget tree for the current offset. */
-    if (_dayOffset != 0 && _lastData) {
-        _dayOffset = 0;
+    _dayOffset = 0;
+    if (_lastData) {
         rebuildEventList();
-    } else {
-        _dayOffset = 0;
+        _dirty = false;
     }
 }

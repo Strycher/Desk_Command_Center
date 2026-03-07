@@ -202,20 +202,49 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
     }
 }
 
-void HAScreen::update(const DashboardData& data) {
-    if (data.home_assistant.status == SourceStatus::OK) {
-        rebuildEntityList(data.home_assistant.data);
+void HAScreen::onShow() {
+    if (!_lastData) return;
+    /* Rebuild entity list from stored data when screen becomes visible */
+    if (_lastData->home_assistant.status == SourceStatus::OK) {
+        rebuildEntityList(_lastData->home_assistant.data);
     } else {
         lv_obj_clean(_entityList);
         lv_obj_t* lbl = lv_label_create(_entityList);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl,
-            data.home_assistant.status == SourceStatus::ERROR
+            _lastData->home_assistant.status == SourceStatus::ERROR
                 ? "Home Assistant: connection error"
                 : "No Home Assistant data");
         lv_obj_set_width(lbl, 760);
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_pad_top(lbl, 60, 0);
+    }
+    _dirty = false;
+}
+
+void HAScreen::update(const DashboardData& data) {
+    _lastData = &data;
+    _dirty = true;
+    /* Rebuild only if we're the currently-visible screen.
+       Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
+       when the screen becomes visible via lv_scr_load_anim(). */
+    if (lv_scr_act() == _screen) {
+        if (data.home_assistant.status == SourceStatus::OK) {
+            rebuildEntityList(data.home_assistant.data);
+        } else {
+            lv_obj_clean(_entityList);
+            lv_obj_t* lbl = lv_label_create(_entityList);
+            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+            lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
+            lv_label_set_text(lbl,
+                data.home_assistant.status == SourceStatus::ERROR
+                    ? "Home Assistant: connection error"
+                    : "No Home Assistant data");
+            lv_obj_set_width(lbl, 760);
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_pad_top(lbl, 60, 0);
+        }
+        _dirty = false;
     }
 }

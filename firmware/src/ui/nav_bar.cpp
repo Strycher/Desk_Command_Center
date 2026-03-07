@@ -4,6 +4,7 @@
  */
 
 #include "ui/nav_bar.h"
+#include <Arduino.h>
 #include "logger.h"
 
 static const lv_color_t BAR_BG      = lv_color_hex(0x1a1a2e);
@@ -49,13 +50,18 @@ static ScreenId  _activeId = ScreenId::HOME;
 
 static void closeMoreMenu() {
     if (moreMenu) {
-        lv_obj_del(moreMenu);
+        /* Use async delete — closeMoreMenu() is called from inside
+           onMoreItemClick(), which is a callback on a child of moreMenu.
+           Synchronous lv_obj_del() here frees the button mid-callback,
+           causing a use-after-free crash when LVGL processes the release. */
+        lv_obj_del_async(moreMenu);
         moreMenu = nullptr;
     }
 }
 
 static void onMoreItemClick(lv_event_t* e) {
     auto* item = (const SubItem*)lv_event_get_user_data(e);
+    LOG_INFO("NAV: more → %s (screen %d)", item->label, (int)item->id);
     closeMoreMenu();
     ScreenManager::show(item->id, LV_SCR_LOAD_ANIM_FADE_ON, 200, false);
     NavBar::setActive(item->id);

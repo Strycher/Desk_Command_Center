@@ -10,9 +10,12 @@ class HAScreen : public BaseScreen {
 public:
     void create(lv_obj_t* parent) override;
     void update(const DashboardData& data) override;
+    void onShow() override;
 
 private:
     lv_obj_t* _entityList = nullptr;
+    const DashboardData* _lastData = nullptr;
+    bool _dirty = false;
 
     void rebuildEntityList(const HAData& ha);
     void addDomainGroup(const char* domain, const HAEntity* entities,

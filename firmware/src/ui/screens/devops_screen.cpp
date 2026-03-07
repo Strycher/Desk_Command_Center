@@ -176,20 +176,44 @@ void DevOpsScreen::rebuildRepoList(const GitHubData& gh) {
     }
 }
 
-void DevOpsScreen::update(const DashboardData& data) {
-    /* GitHub repos */
-    if (data.github.status == SourceStatus::OK) {
-        rebuildRepoList(data.github.data);
+void DevOpsScreen::onShow() {
+    if (!_lastData) return;
+    /* Rebuild repo list from stored data when screen becomes visible */
+    if (_lastData->github.status == SourceStatus::OK) {
+        rebuildRepoList(_lastData->github.data);
     } else {
         lv_obj_clean(_repoList);
         lv_obj_t* lbl = lv_label_create(_repoList);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
-        lv_label_set_text(lbl, data.github.status == SourceStatus::ERROR
+        lv_label_set_text(lbl, _lastData->github.status == SourceStatus::ERROR
                                ? "GitHub: connection error" : "No GitHub data");
     }
+    _dirty = false;
+}
 
-    /* Beads summary */
+void DevOpsScreen::update(const DashboardData& data) {
+    _lastData = &data;
+    _dirty = true;
+
+    /* GitHub repos — rebuild only if we're the currently-visible screen.
+       Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
+       when the screen becomes visible via lv_scr_load_anim(). */
+    if (lv_scr_act() == _screen) {
+        if (data.github.status == SourceStatus::OK) {
+            rebuildRepoList(data.github.data);
+        } else {
+            lv_obj_clean(_repoList);
+            lv_obj_t* lbl = lv_label_create(_repoList);
+            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+            lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
+            lv_label_set_text(lbl, data.github.status == SourceStatus::ERROR
+                                   ? "GitHub: connection error" : "No GitHub data");
+        }
+        _dirty = false;
+    }
+
+    /* Beads summary — safe in-place label updates, fine offscreen */
     if (data.beads.status == SourceStatus::OK) {
         char buf[32];
         snprintf(buf, sizeof(buf), "Open: %d", data.beads.data.open_count);

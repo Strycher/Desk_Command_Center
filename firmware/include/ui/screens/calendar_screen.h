@@ -21,6 +21,7 @@ private:
     lv_obj_t* _lblEmpty     = nullptr;
 
     const DashboardData* _lastData = nullptr;
+    bool _dirty = false;
     int8_t _dayOffset = 0;  // 0 = today, +1 = tomorrow, etc.
 
     void rebuildEventList();

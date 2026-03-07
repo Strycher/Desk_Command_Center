@@ -303,7 +303,7 @@ void SettingsScreen::loadSettings() {
     /* Brightness */
     lv_slider_set_value(_sliderBright, _cfg.brightness, LV_ANIM_OFF);
     char buf[8];
-    snprintf(buf, sizeof(buf), "%d", _cfg.brightness);
+    snprintf(buf, sizeof(buf), "%d%%", _cfg.brightness);
     lv_label_set_text(_lblBrightVal, buf);
 
     /* 24h clock */

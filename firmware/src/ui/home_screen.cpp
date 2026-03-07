@@ -142,7 +142,7 @@ void HomeScreen::updateAppt(const DashboardData& data) {
             char startFmt[16], endFmt[16], timeBuf[40];
             fmtTime(ev.start_time, startFmt, sizeof(startFmt));
             fmtTime(ev.end_time, endFmt, sizeof(endFmt));
-            snprintf(timeBuf, sizeof(timeBuf), "%s – %s", startFmt, endFmt);
+            snprintf(timeBuf, sizeof(timeBuf), "%s - %s", startFmt, endFmt);
             lv_label_set_text(_lblApptTimes[i], timeBuf);
             lv_label_set_text(_lblApptTitles[i], ev.title);
         } else {
