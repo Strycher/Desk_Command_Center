@@ -269,7 +269,8 @@ void loop() {
     /* Logger: flush SD buffer + rotation check */
     Logger::tick();
 
-    /* Web serial monitor: process HTTP requests */
+    /* Web serial monitor: start when WiFi connects, then process HTTP */
+    WebSerial::init();  /* no-op if already started or no WiFi */
     WebSerial::handleClient();
 
     delay(5);
