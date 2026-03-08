@@ -32,7 +32,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install ruff mypy
+          pip install ruff mypy types-PyMySQL
           pip install -r bridge/requirements.txt
 
       - name: Lint with ruff
