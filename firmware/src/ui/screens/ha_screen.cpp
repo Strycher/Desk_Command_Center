@@ -2,6 +2,12 @@
  * Home Assistant Screen — HA-style tile widget cards.
  * Grid layout with domain-specific card renderers.
  * Tiles arranged in row-wrap flex (4 standard / 2 wide per row).
+ *
+ * Two rendering modes:
+ *   Label mode:  device-grouped cards — multi-entity devices get
+ *                consolidated wide tiles; single-entity devices use
+ *                domain-specific renderers.
+ *   Domain mode: legacy domain-sorted groups (climate, lights, etc.)
  */
 
 #include "ui/screens/ha_screen.h"
@@ -25,6 +31,7 @@ static const lv_color_t LIGHT_ON       = lv_color_hex(0xFFB84D);
 static const lv_color_t MEDIA_ACCENT   = lv_color_hex(0x00BCD4);
 static const lv_color_t SENSOR_ACCENT  = lv_color_hex(0x5C6BC0);
 static const lv_color_t PERSON_ACCENT  = lv_color_hex(0x66BB6A);
+static const lv_color_t DEVICE_ACCENT  = lv_color_hex(0x7E57C2);
 
 /* ── Layout constants ───────────────────────────────── */
 static constexpr int16_t CONTENT_Y   = 30;
@@ -32,6 +39,7 @@ static constexpr int16_t PAD         = 10;
 static constexpr int16_t TILE_W      = 180;
 static constexpr int16_t TILE_H      = 70;
 static constexpr int16_t TILE_WIDE   = 366;   /* 2 x TILE_W + gap */
+static constexpr int16_t TILE_FULL   = 760;   /* full content width */
 static constexpr int16_t TILE_TALL   = 90;
 static constexpr int16_t TILE_GAP    = 6;
 static constexpr int16_t TILE_R      = 10;
@@ -45,6 +53,7 @@ static const char* domainLabel(const char* d) {
     if (strcmp(d, "sensor") == 0)        return "Sensors";
     if (strcmp(d, "binary_sensor") == 0) return "Sensors";
     if (strcmp(d, "person") == 0)        return "People";
+    if (strcmp(d, "device_tracker") == 0) return "Trackers";
     if (strcmp(d, "cover") == 0)         return "Covers";
     if (strcmp(d, "fan") == 0)           return "Fans";
     if (strcmp(d, "lock") == 0)          return "Security";
@@ -59,6 +68,7 @@ static const char* domainIcon(const char* d) {
     if (strcmp(d, "binary_sensor") == 0) return LV_SYMBOL_GPS;
     if (strcmp(d, "media_player") == 0)  return LV_SYMBOL_AUDIO;
     if (strcmp(d, "person") == 0)        return LV_SYMBOL_HOME;
+    if (strcmp(d, "device_tracker") == 0) return LV_SYMBOL_HOME;
     if (strcmp(d, "cover") == 0)         return LV_SYMBOL_UP;
     if (strcmp(d, "fan") == 0)           return LV_SYMBOL_REFRESH;
     if (strcmp(d, "lock") == 0)          return LV_SYMBOL_CLOSE;
@@ -73,6 +83,7 @@ static lv_color_t domainAccent(const char* d) {
     if (strcmp(d, "sensor") == 0)        return SENSOR_ACCENT;
     if (strcmp(d, "binary_sensor") == 0) return SENSOR_ACCENT;
     if (strcmp(d, "person") == 0)        return PERSON_ACCENT;
+    if (strcmp(d, "device_tracker") == 0) return PERSON_ACCENT;
     return ACCENT;
 }
 
@@ -85,7 +96,8 @@ static uint8_t domainOrder(const char* d) {
     if (strcmp(d, "sensor") == 0)        return 4;
     if (strcmp(d, "binary_sensor") == 0) return 5;
     if (strcmp(d, "person") == 0)        return 6;
-    return 7;
+    if (strcmp(d, "device_tracker") == 0) return 7;
+    return 8;
 }
 
 /* ── Tile base helper ───────────────────────────────── */
@@ -324,7 +336,7 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
     }
 }
 
-/* ── Generic Tile (person, lock, cover, etc.) ───────── */
+/* ── Generic Tile (person, lock, cover, device_tracker, etc.) ── */
 void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e) {
     bool isPositive = (strcmp(e.state, "on") == 0 ||
                        strcmp(e.state, "home") == 0 ||
@@ -361,7 +373,198 @@ void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e) {
     lv_label_set_text(stLbl, buf);
 }
 
-/* ── Domain Group: header + tile grid ───────────────── */
+/* ═══════════════════════════════════════════════════════
+ *  Label Mode: Device-Grouped Rendering
+ * ═══════════════════════════════════════════════════════ */
+
+/* Consolidated device card — shows device name + all entity states
+   in a full-width tile. Used for devices with 2+ entities.
+
+   Layout:
+   ┌──────────────────────────────────────────────────────┐
+   │ ■ Device Name                                        │
+   │ Entity1: state   Entity2: state   Entity3: state ... │
+   └──────────────────────────────────────────────────────┘  */
+void HAScreen::addDeviceCard(lv_obj_t* parent, const HADeviceGroup& grp,
+                              const HAEntity* entities) {
+    /* Height scales with entity count: 2 rows for header + entity states */
+    int16_t h = 64;
+    if (grp.entity_count > 3) h = 86;  /* two lines of entity states */
+
+    lv_obj_t* tile = makeTile(parent, TILE_FULL, h);
+
+    /* Accent bar on left edge */
+    lv_obj_t* bar = lv_obj_create(tile);
+    lv_obj_set_size(bar, 4, h - 16);
+    lv_obj_set_style_bg_color(bar, DEVICE_ACCENT, 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(bar, 2, 0);
+    lv_obj_set_style_border_width(bar, 0, 0);
+    lv_obj_align(bar, LV_ALIGN_LEFT_MID, -4, 0);
+
+    /* Device name — header */
+    lv_obj_t* name = lv_label_create(tile);
+    lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(name, DEVICE_ACCENT, 0);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 6, 0);
+    lv_obj_set_width(name, TILE_FULL - 30);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+    lv_label_set_text(name, grp.device_name);
+
+    /* Entity states — compact flex row below the header */
+    lv_obj_t* row = lv_obj_create(tile);
+    lv_obj_set_size(row, TILE_FULL - 30, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
+    lv_obj_set_style_pad_all(row, 0, 0);
+    lv_obj_set_style_pad_column(row, 16, 0);
+    lv_obj_set_style_pad_row(row, 2, 0);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(row, LV_ALIGN_TOP_LEFT, 6, 22);
+
+    for (uint8_t i = 0; i < grp.entity_count; i++) {
+        const HAEntity& ent = entities[grp.entity_start + i];
+
+        /* Each entity gets a compact label: "Name: state [unit]" */
+        lv_obj_t* lbl = lv_label_create(row);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+
+        /* Determine display state color */
+        bool isPositive = (strcmp(ent.state, "on") == 0 ||
+                           strcmp(ent.state, "home") == 0 ||
+                           strcmp(ent.state, "locked") == 0);
+        bool isNegative = (strcmp(ent.state, "off") == 0 ||
+                           strcmp(ent.state, "not_home") == 0 ||
+                           strcmp(ent.state, "unavailable") == 0);
+        lv_color_t clr = isPositive ? STATE_ON
+                        : isNegative ? TEXT_DIM
+                        : TEXT_PRIMARY;
+        lv_obj_set_style_text_color(lbl, clr, 0);
+
+        /* Build compact state text */
+        char buf[80];
+        const char* fname = entityName(ent);
+
+        if (strcmp(ent.domain, "sensor") == 0 && ent.extra.sensor.unit[0]) {
+            snprintf(buf, sizeof(buf), "%s: %s %s",
+                     fname, ent.state, ent.extra.sensor.unit);
+        } else if (strcmp(ent.domain, "binary_sensor") == 0) {
+            const char* st = isPositive ? "On" : "Off";
+            snprintf(buf, sizeof(buf), "%s: %s", fname, st);
+        } else if (strcmp(ent.domain, "device_tracker") == 0) {
+            char stBuf[32];
+            strncpy(stBuf, ent.state, sizeof(stBuf) - 1);
+            stBuf[sizeof(stBuf) - 1] = '\0';
+            capitalizeFirst(stBuf);
+            snprintf(buf, sizeof(buf), "%s: %s", fname, stBuf);
+        } else {
+            char stBuf[32];
+            strncpy(stBuf, ent.state, sizeof(stBuf) - 1);
+            stBuf[sizeof(stBuf) - 1] = '\0';
+            capitalizeFirst(stBuf);
+            snprintf(buf, sizeof(buf), "%s: %s", fname, stBuf);
+        }
+
+        lv_label_set_text(lbl, buf);
+    }
+}
+
+/* Dispatch a single entity to its domain-specific renderer */
+void HAScreen::addSingleEntityTile(lv_obj_t* parent, const HAEntity& ent) {
+    if (strcmp(ent.domain, "climate") == 0)
+        addClimateCard(parent, ent);
+    else if (strcmp(ent.domain, "sensor") == 0 ||
+             strcmp(ent.domain, "binary_sensor") == 0)
+        addSensorRow(parent, ent);
+    else if (strcmp(ent.domain, "light") == 0 ||
+             strcmp(ent.domain, "switch") == 0 ||
+             strcmp(ent.domain, "fan") == 0)
+        addLightSwitchRow(parent, ent);
+    else if (strcmp(ent.domain, "media_player") == 0)
+        addMediaCard(parent, ent);
+    else
+        addGenericRow(parent, ent);
+}
+
+void HAScreen::rebuildDeviceGrouped(const HAData& ha) {
+    LOG_INFO("HA: rebuild label mode — %d devices, %d standalone, %d total",
+             ha.device_count,
+             ha.entity_count - ha.standalone_start,
+             ha.entity_count);
+
+    /* Multi-entity device groups → consolidated device cards */
+    /* Single-entity device groups → domain-specific tile */
+    /* Render devices first, then a tile grid for standalone entities */
+
+    /* ── Multi-entity device cards (full-width consolidated) ── */
+    for (uint8_t d = 0; d < ha.device_count; d++) {
+        const HADeviceGroup& grp = ha.devices[d];
+        if (grp.entity_count > 1) {
+            addDeviceCard(_entityList, grp, ha.entities);
+        }
+    }
+
+    /* ── Single-entity devices → shared row-wrap tile grid ── */
+    lv_obj_t* singleGrid = nullptr;
+    for (uint8_t d = 0; d < ha.device_count; d++) {
+        const HADeviceGroup& grp = ha.devices[d];
+        if (grp.entity_count == 1) {
+            if (!singleGrid) {
+                singleGrid = lv_obj_create(_entityList);
+                lv_obj_set_size(singleGrid, 760, LV_SIZE_CONTENT);
+                lv_obj_set_style_bg_opa(singleGrid, LV_OPA_TRANSP, 0);
+                lv_obj_set_style_border_width(singleGrid, 0, 0);
+                lv_obj_set_style_pad_all(singleGrid, 0, 0);
+                lv_obj_set_style_pad_column(singleGrid, TILE_GAP, 0);
+                lv_obj_set_style_pad_row(singleGrid, TILE_GAP, 0);
+                lv_obj_set_flex_flow(singleGrid, LV_FLEX_FLOW_ROW_WRAP);
+                lv_obj_clear_flag(singleGrid, LV_OBJ_FLAG_SCROLLABLE);
+            }
+            addSingleEntityTile(singleGrid, ha.entities[grp.entity_start]);
+        }
+    }
+
+    /* ── Standalone entities (no device) ── */
+    uint8_t standaloneCount = ha.entity_count - ha.standalone_start;
+    if (standaloneCount > 0) {
+        /* Section header for standalone */
+        lv_obj_t* hdr = lv_obj_create(_entityList);
+        lv_obj_set_size(hdr, 760, 26);
+        lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(hdr, 0, 0);
+        lv_obj_set_style_pad_all(hdr, 0, 0);
+        lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t* lblName = lv_label_create(hdr);
+        lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
+        lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 4, 0);
+        char hdrBuf[48];
+        snprintf(hdrBuf, sizeof(hdrBuf), "Other (%d)", standaloneCount);
+        lv_label_set_text(lblName, hdrBuf);
+
+        /* Tile grid for standalone */
+        lv_obj_t* grid = lv_obj_create(_entityList);
+        lv_obj_set_size(grid, 760, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(grid, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(grid, 0, 0);
+        lv_obj_set_style_pad_all(grid, 0, 0);
+        lv_obj_set_style_pad_column(grid, TILE_GAP, 0);
+        lv_obj_set_style_pad_row(grid, TILE_GAP, 0);
+        lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
+        lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
+
+        for (uint8_t i = ha.standalone_start; i < ha.entity_count; i++) {
+            addSingleEntityTile(grid, ha.entities[i]);
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════
+ *  Domain Mode: Legacy Grouped-by-Domain Rendering
+ * ═══════════════════════════════════════════════════════ */
+
 void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
                                const uint8_t* indices, uint8_t count) {
     lv_color_t accent = domainAccent(domain);
@@ -402,38 +605,11 @@ void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
     /* Dispatch to domain-specific tile renderers */
     for (uint8_t i = 0; i < count; i++) {
         const HAEntity& ent = entities[indices[i]];
-        if (strcmp(domain, "climate") == 0)
-            addClimateCard(grid, ent);
-        else if (strcmp(domain, "sensor") == 0 ||
-                 strcmp(domain, "binary_sensor") == 0)
-            addSensorRow(grid, ent);
-        else if (strcmp(domain, "light") == 0 ||
-                 strcmp(domain, "switch") == 0 ||
-                 strcmp(domain, "fan") == 0)
-            addLightSwitchRow(grid, ent);
-        else if (strcmp(domain, "media_player") == 0)
-            addMediaCard(grid, ent);
-        else
-            addGenericRow(grid, ent);
+        addSingleEntityTile(grid, ent);
     }
 }
 
-/* ── Rebuild entity list with sorted domains ────────── */
-void HAScreen::rebuildEntityList(const HAData& ha) {
-    LOG_INFO("HA: rebuild — entity_count=%d", ha.entity_count);
-    lv_obj_clean(_entityList);
-
-    if (ha.entity_count == 0) {
-        lv_obj_t* lbl = lv_label_create(_entityList);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
-        lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
-        lv_label_set_text(lbl, "No Home Assistant entities");
-        lv_obj_set_width(lbl, 760);
-        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_pad_top(lbl, 60, 0);
-        return;
-    }
-
+void HAScreen::rebuildDomainGrouped(const HAData& ha) {
     /* Discover unique domains */
     char domains[16][16];
     uint8_t domainCount = 0;
@@ -475,6 +651,33 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
                 indices[count++] = i;
         }
         addDomainGroup(domains[d], ha.entities, indices, count);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════
+ *  Public API
+ * ═══════════════════════════════════════════════════════ */
+
+void HAScreen::rebuildEntityList(const HAData& ha) {
+    LOG_INFO("HA: rebuild — entity_count=%d label_mode=%d",
+             ha.entity_count, ha.label_mode ? 1 : 0);
+    lv_obj_clean(_entityList);
+
+    if (ha.entity_count == 0) {
+        lv_obj_t* lbl = lv_label_create(_entityList);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
+        lv_label_set_text(lbl, "No Home Assistant entities");
+        lv_obj_set_width(lbl, 760);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_pad_top(lbl, 60, 0);
+        return;
+    }
+
+    if (ha.label_mode) {
+        rebuildDeviceGrouped(ha);
+    } else {
+        rebuildDomainGrouped(ha);
     }
 }
 

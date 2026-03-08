@@ -12,6 +12,7 @@ static constexpr uint8_t MAX_TASKS  = 20;
 static constexpr uint8_t MAX_REPOS  = 10;
 static constexpr uint8_t MAX_HA_ENTITIES = 40;
 static constexpr uint8_t MAX_HA_PER_DOMAIN = 6;
+static constexpr uint8_t MAX_HA_DEVICES = 16;
 static constexpr uint8_t MAX_HOURLY = 12;
 static constexpr uint8_t MAX_DAILY  = 5;
 
@@ -91,9 +92,19 @@ struct GitHubData {
     uint8_t    repo_count;
 };
 
+struct HADeviceGroup {
+    char    device_name[64];
+    uint8_t entity_start;   // first index in HAData::entities[]
+    uint8_t entity_count;   // number of entities in this group
+};
+
 struct HAData {
-    HAEntity entities[MAX_HA_ENTITIES];
-    uint8_t  entity_count;
+    HAEntity       entities[MAX_HA_ENTITIES];
+    uint8_t        entity_count;
+    HADeviceGroup  devices[MAX_HA_DEVICES];
+    uint8_t        device_count;
+    uint8_t        standalone_start;  // index where standalone entities begin
+    bool           label_mode;        // true = DCC label filtering active
 };
 
 struct BeadsData {
