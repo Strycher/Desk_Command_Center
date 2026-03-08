@@ -64,6 +64,34 @@ static void parseSourceMeta(JsonObjectConst src, SourceBlock<T>& block) {
     copyStr(block.last_updated, sizeof(block.last_updated), src["last_updated"]);
 }
 
+static void parseHAEntity(JsonObjectConst e, HAEntity& ent) {
+    memset(&ent, 0, sizeof(ent));
+    copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
+    copyStr(ent.friendly_name, sizeof(ent.friendly_name), e["friendly_name"]);
+    copyStr(ent.state, sizeof(ent.state), e["state"]);
+    copyStr(ent.domain, sizeof(ent.domain), e["domain"]);
+
+    const char* dom = ent.domain;
+    if (strcmp(dom, "climate") == 0) {
+        ent.extra.climate.current_temp = e["current_temp"] | 0.0f;
+        ent.extra.climate.target_temp  = e["target_temp"]  | 0.0f;
+        copyStr(ent.extra.climate.hvac_action,
+                sizeof(ent.extra.climate.hvac_action), e["hvac_action"]);
+        copyStr(ent.extra.climate.preset_mode,
+                sizeof(ent.extra.climate.preset_mode), e["preset_mode"]);
+    } else if (strcmp(dom, "sensor") == 0 || strcmp(dom, "binary_sensor") == 0) {
+        copyStr(ent.extra.sensor.unit,
+                sizeof(ent.extra.sensor.unit), e["unit"]);
+        copyStr(ent.extra.sensor.device_class,
+                sizeof(ent.extra.sensor.device_class), e["device_class"]);
+    } else if (strcmp(dom, "media_player") == 0) {
+        copyStr(ent.extra.media.media_title,
+                sizeof(ent.extra.media.media_title), e["media_title"]);
+        copyStr(ent.extra.media.app_name,
+                sizeof(ent.extra.media.app_name), e["app_name"]);
+    }
+}
+
 void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
     /* No memset — preserve stale data for sources the bridge omits.
      * Each source section fully overwrites its block when present,
@@ -211,45 +239,87 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.github.status = SourceStatus::MISSING;
     }
 
-    /* Home Assistant — bridge: data.domains is dict of domain→[entity,...] */
+    /* Home Assistant — supports two formats:
+       label_mode=true:  data.devices[].entities[] + data.standalone[]
+       label_mode=false: data.domains{domain: [entity,...]}  (legacy) */
     JsonObjectConst ha = sources["home_assistant"];
     if (!ha.isNull()) {
         parseSourceMeta(ha, out.home_assistant);
         JsonObjectConst haData = ha["data"];
         out.home_assistant.data.entity_count = 0;
+        out.home_assistant.data.device_count = 0;
+        out.home_assistant.data.standalone_start = 0;
+        out.home_assistant.data.label_mode = false;
+
         if (!haData.isNull()) {
-            JsonObjectConst domains = haData["domains"];
-            for (JsonPairConst domKv : domains) {
-                const char* domainName = domKv.key().c_str();
-                JsonArrayConst entities = domKv.value();
-                uint8_t domCount = 0;
-                for (JsonObjectConst e : entities) {
+            bool labelMode = haData["label_mode"] | false;
+            out.home_assistant.data.label_mode = labelMode;
+
+            if (labelMode) {
+                /* ── Label mode: device-grouped entities ── */
+                JsonArrayConst devArr = haData["devices"];
+                for (JsonObjectConst dev : devArr) {
+                    if (out.home_assistant.data.device_count >= MAX_HA_DEVICES) break;
                     if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
-                    if (domCount >= MAX_HA_PER_DOMAIN) break;
-                    HAEntity& ent = out.home_assistant.data.entities[out.home_assistant.data.entity_count];
-                    memset(&ent, 0, sizeof(ent));
-                    copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
-                    copyStr(ent.friendly_name, sizeof(ent.friendly_name), e["friendly_name"]);
-                    copyStr(ent.state, sizeof(ent.state), e["state"]);
-                    copyStr(ent.domain, sizeof(ent.domain), domainName);
 
-                    /* Domain-specific attributes */
-                    if (strcmp(domainName, "climate") == 0) {
-                        ent.extra.climate.current_temp = e["current_temp"] | 0.0f;
-                        ent.extra.climate.target_temp  = e["target_temp"]  | 0.0f;
-                        copyStr(ent.extra.climate.hvac_action, sizeof(ent.extra.climate.hvac_action), e["hvac_action"]);
-                        copyStr(ent.extra.climate.preset_mode, sizeof(ent.extra.climate.preset_mode), e["preset_mode"]);
-                    } else if (strcmp(domainName, "sensor") == 0 || strcmp(domainName, "binary_sensor") == 0) {
-                        copyStr(ent.extra.sensor.unit, sizeof(ent.extra.sensor.unit), e["unit"]);
-                        copyStr(ent.extra.sensor.device_class, sizeof(ent.extra.sensor.device_class), e["device_class"]);
-                    } else if (strcmp(domainName, "media_player") == 0) {
-                        copyStr(ent.extra.media.media_title, sizeof(ent.extra.media.media_title), e["media_title"]);
-                        copyStr(ent.extra.media.app_name, sizeof(ent.extra.media.app_name), e["app_name"]);
+                    HADeviceGroup& grp = out.home_assistant.data.devices[out.home_assistant.data.device_count];
+                    copyStr(grp.device_name, sizeof(grp.device_name), dev["device_name"]);
+                    grp.entity_start = out.home_assistant.data.entity_count;
+                    grp.entity_count = 0;
+
+                    JsonArrayConst entities = dev["entities"];
+                    for (JsonObjectConst e : entities) {
+                        if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
+                        parseHAEntity(e, out.home_assistant.data.entities[out.home_assistant.data.entity_count]);
+                        grp.entity_count++;
+                        out.home_assistant.data.entity_count++;
                     }
-
-                    out.home_assistant.data.entity_count++;
-                    domCount++;
+                    out.home_assistant.data.device_count++;
                 }
+
+                /* Standalone entities (no device association) */
+                out.home_assistant.data.standalone_start = out.home_assistant.data.entity_count;
+                JsonArrayConst standalone = haData["standalone"];
+                for (JsonObjectConst e : standalone) {
+                    if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
+                    parseHAEntity(e, out.home_assistant.data.entities[out.home_assistant.data.entity_count]);
+                    out.home_assistant.data.entity_count++;
+                }
+            } else {
+                /* ── Domain mode: legacy grouped-by-domain ── */
+                JsonObjectConst domains = haData["domains"];
+                for (JsonPairConst domKv : domains) {
+                    const char* domainName = domKv.key().c_str();
+                    JsonArrayConst entities = domKv.value();
+                    uint8_t domCount = 0;
+                    for (JsonObjectConst e : entities) {
+                        if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
+                        if (domCount >= MAX_HA_PER_DOMAIN) break;
+                        HAEntity& ent = out.home_assistant.data.entities[out.home_assistant.data.entity_count];
+                        memset(&ent, 0, sizeof(ent));
+                        copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
+                        copyStr(ent.friendly_name, sizeof(ent.friendly_name), e["friendly_name"]);
+                        copyStr(ent.state, sizeof(ent.state), e["state"]);
+                        copyStr(ent.domain, sizeof(ent.domain), domainName);
+
+                        if (strcmp(domainName, "climate") == 0) {
+                            ent.extra.climate.current_temp = e["current_temp"] | 0.0f;
+                            ent.extra.climate.target_temp  = e["target_temp"]  | 0.0f;
+                            copyStr(ent.extra.climate.hvac_action, sizeof(ent.extra.climate.hvac_action), e["hvac_action"]);
+                            copyStr(ent.extra.climate.preset_mode, sizeof(ent.extra.climate.preset_mode), e["preset_mode"]);
+                        } else if (strcmp(domainName, "sensor") == 0 || strcmp(domainName, "binary_sensor") == 0) {
+                            copyStr(ent.extra.sensor.unit, sizeof(ent.extra.sensor.unit), e["unit"]);
+                            copyStr(ent.extra.sensor.device_class, sizeof(ent.extra.sensor.device_class), e["device_class"]);
+                        } else if (strcmp(domainName, "media_player") == 0) {
+                            copyStr(ent.extra.media.media_title, sizeof(ent.extra.media.media_title), e["media_title"]);
+                            copyStr(ent.extra.media.app_name, sizeof(ent.extra.media.app_name), e["app_name"]);
+                        }
+
+                        out.home_assistant.data.entity_count++;
+                        domCount++;
+                    }
+                }
+                out.home_assistant.data.standalone_start = out.home_assistant.data.entity_count;
             }
         }
     } else {
