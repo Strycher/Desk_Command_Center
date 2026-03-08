@@ -1,6 +1,6 @@
 /**
  * Navigation Bar — Implementation
- * 800 x 50px bottom bar with 5 icons. "More" opens submenu.
+ * 800 x 50px bottom bar with 8 icons. "More" opens submenu.
  */
 
 #include "ui/nav_bar.h"
@@ -12,8 +12,8 @@ static const lv_color_t ICON_NORMAL  = lv_color_hex(0x888899);
 static const lv_color_t ICON_ACTIVE  = lv_color_hex(0x6C63FF);
 
 static constexpr int16_t BAR_HEIGHT  = 50;
-static constexpr int16_t BTN_WIDTH   = 160;
-static constexpr uint8_t NUM_MAIN    = 5;
+static constexpr int16_t BTN_WIDTH   = 100;
+static constexpr uint8_t NUM_MAIN    = 8;
 
 struct NavItem {
     const char* icon;
@@ -21,24 +21,24 @@ struct NavItem {
 };
 
 static const NavItem mainItems[] = {
-    { LV_SYMBOL_HOME,  ScreenId::HOME     },
-    { LV_SYMBOL_BELL,  ScreenId::CALENDAR },
-    { LV_SYMBOL_LIST,  ScreenId::TASKS    },
-    { LV_SYMBOL_TINT,  ScreenId::WEATHER  },
-    { LV_SYMBOL_BARS,  ScreenId::_COUNT   },  // "More" — hamburger menu
+    { LV_SYMBOL_HOME,     ScreenId::HOME     },
+    { LV_SYMBOL_BELL,     ScreenId::CALENDAR },
+    { LV_SYMBOL_LIST,     ScreenId::TASKS    },
+    { LV_SYMBOL_TINT,     ScreenId::WEATHER  },
+    { LV_SYMBOL_CHARGE,   ScreenId::HA       },  // Home Assistant
+    { LV_SYMBOL_LOOP,     ScreenId::DEVOPS   },  // DevOps
+    { LV_SYMBOL_SETTINGS, ScreenId::SETTINGS },
+    { LV_SYMBOL_BARS,     ScreenId::_COUNT   },  // "More" — hamburger menu
 };
 
-/* Submenu items for "More" */
+/* Submenu items for "More" — only screens not on the main bar */
 struct SubItem {
     const char* label;
     ScreenId    id;
 };
 
 static const SubItem moreItems[] = {
-    { "DevOps",      ScreenId::DEVOPS      },
     { "Claude",      ScreenId::CLAUDE      },
-    { "Home Asst",   ScreenId::HA          },
-    { "Settings",    ScreenId::SETTINGS    },
     { "Diagnostics", ScreenId::DIAGNOSTICS },
 };
 static constexpr uint8_t MORE_COUNT = sizeof(moreItems) / sizeof(moreItems[0]);
@@ -104,7 +104,7 @@ static void showMoreMenu() {
 
 static void onNavClick(lv_event_t* e) {
     auto idx = (uintptr_t)lv_event_get_user_data(e);
-    if (idx == 4) {
+    if (idx == NUM_MAIN - 1) {       // Last icon is always "More"
         showMoreMenu();
         return;
     }
@@ -153,14 +153,14 @@ void NavBar::create() {
 
 void NavBar::setActive(ScreenId id) {
     _activeId = id;
+    /* Highlight matching main-bar icons (skip last = "More") */
     for (uint8_t i = 0; i < NUM_MAIN - 1; i++) {
         lv_color_t color = (mainItems[i].id == id) ? ICON_ACTIVE : ICON_NORMAL;
         lv_obj_set_style_text_color(btnIcons[i], color, 0);
     }
     /* "More" icon highlights if active screen is in submenu */
-    bool moreActive = (id == ScreenId::DEVOPS || id == ScreenId::CLAUDE ||
-                       id == ScreenId::HA || id == ScreenId::SETTINGS ||
+    bool moreActive = (id == ScreenId::CLAUDE ||
                        id == ScreenId::DIAGNOSTICS);
-    lv_obj_set_style_text_color(btnIcons[4],
+    lv_obj_set_style_text_color(btnIcons[NUM_MAIN - 1],
                                 moreActive ? ICON_ACTIVE : ICON_NORMAL, 0);
 }
