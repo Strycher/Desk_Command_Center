@@ -75,6 +75,14 @@ struct HAEntity {
     char friendly_name[64];
     char state[32];
     char domain[16];
+
+    /* Domain-specific extras (union keeps memory compact) */
+    union {
+        struct { float current_temp; float target_temp;
+                 char hvac_action[16]; char preset_mode[16]; } climate;
+        struct { char unit[16]; char device_class[16]; } sensor;
+        struct { char media_title[48]; char app_name[24]; } media;
+    } extra;
 };
 
 struct GitHubData {

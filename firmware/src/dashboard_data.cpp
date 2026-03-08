@@ -225,10 +225,26 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                 for (JsonObjectConst e : entities) {
                     if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
                     HAEntity& ent = out.home_assistant.data.entities[out.home_assistant.data.entity_count];
+                    memset(&ent, 0, sizeof(ent));
                     copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
                     copyStr(ent.friendly_name, sizeof(ent.friendly_name), e["friendly_name"]);
                     copyStr(ent.state, sizeof(ent.state), e["state"]);
                     copyStr(ent.domain, sizeof(ent.domain), domainName);
+
+                    /* Domain-specific attributes */
+                    if (strcmp(domainName, "climate") == 0) {
+                        ent.extra.climate.current_temp = e["current_temp"] | 0.0f;
+                        ent.extra.climate.target_temp  = e["target_temp"]  | 0.0f;
+                        copyStr(ent.extra.climate.hvac_action, sizeof(ent.extra.climate.hvac_action), e["hvac_action"]);
+                        copyStr(ent.extra.climate.preset_mode, sizeof(ent.extra.climate.preset_mode), e["preset_mode"]);
+                    } else if (strcmp(domainName, "sensor") == 0 || strcmp(domainName, "binary_sensor") == 0) {
+                        copyStr(ent.extra.sensor.unit, sizeof(ent.extra.sensor.unit), e["unit"]);
+                        copyStr(ent.extra.sensor.device_class, sizeof(ent.extra.sensor.device_class), e["device_class"]);
+                    } else if (strcmp(domainName, "media_player") == 0) {
+                        copyStr(ent.extra.media.media_title, sizeof(ent.extra.media.media_title), e["media_title"]);
+                        copyStr(ent.extra.media.app_name, sizeof(ent.extra.media.app_name), e["app_name"]);
+                    }
+
                     out.home_assistant.data.entity_count++;
                 }
             }

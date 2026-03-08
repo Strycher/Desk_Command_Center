@@ -1,6 +1,6 @@
 /**
- * Home Assistant Screen — Entity groups by domain.
- * Dynamic domain grouping from bridge entity data.
+ * Home Assistant Screen — Domain-specific widget cards.
+ * Climate thermostat, sensor values, light/switch toggles, media cards.
  */
 
 #pragma once
@@ -20,5 +20,11 @@ private:
     void rebuildEntityList(const HAData& ha);
     void addDomainGroup(const char* domain, const HAEntity* entities,
                         const uint8_t* indices, uint8_t count);
-    void addEntityRow(lv_obj_t* parent, const HAEntity& entity);
+
+    /* Domain-specific card renderers */
+    void addClimateCard(lv_obj_t* parent, const HAEntity& entity);
+    void addSensorRow(lv_obj_t* parent, const HAEntity& entity);
+    void addLightSwitchRow(lv_obj_t* parent, const HAEntity& entity);
+    void addMediaCard(lv_obj_t* parent, const HAEntity& entity);
+    void addGenericRow(lv_obj_t* parent, const HAEntity& entity);
 };
