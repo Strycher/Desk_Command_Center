@@ -108,7 +108,7 @@ class WeatherAdapter(BaseAdapter):
             hourly.append({
                 "time": entry["dt"],
                 "temp": entry["main"]["temp"],
-                "condition": entry["weather"][0]["main"],
+                "condition": entry["weather"][0]["description"].title(),
                 "icon": entry["weather"][0]["icon"],
                 "precip_chance": round(pop * 100),
             })
@@ -145,7 +145,7 @@ class WeatherAdapter(BaseAdapter):
                 "temp_high": round(max(temps), 1),
                 "temp_low": round(min(temps), 1),
                 "icon": midday["weather"][0]["icon"],
-                "condition": midday["weather"][0]["main"],
+                "condition": midday["weather"][0]["description"].title(),
                 "precip_chance": round(max(pops) * 100),
             })
 
@@ -160,8 +160,7 @@ class WeatherAdapter(BaseAdapter):
                 "temp": cur["main"]["temp"],
                 "feels_like": cur["main"]["feels_like"],
                 "humidity": cur["main"]["humidity"],
-                "condition": cur["weather"][0]["main"],
-                "description": cur["weather"][0]["description"],
+                "condition": cur["weather"][0]["description"].title(),
                 "icon": cur["weather"][0]["icon"],
                 "wind_speed": cur.get("wind", {}).get("speed"),
                 "precip_chance": round(hourly[0].get("precip_chance", 0)) if hourly else 0,

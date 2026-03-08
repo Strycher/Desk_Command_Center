@@ -19,6 +19,23 @@ static constexpr int16_t NAV_HEIGHT = 50;
 
 static const char* DAY_LABELS[] = {"Today", "Tomorrow", "In 2 days", "In 3 days"};
 
+/* ---- Date helpers for per-day event filtering ---- */
+
+/* Write the local date for (today + offset) as "YYYY-MM-DD". */
+static void dateForOffset(int offset, char* out, size_t outLen) {
+    time_t now = time(nullptr);
+    now += offset * 86400;
+    struct tm ti;
+    localtime_r(&now, &ti);
+    snprintf(out, outLen, "%04d-%02d-%02d",
+             ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday);
+}
+
+/* Compare first 10 chars of an ISO timestamp against a YYYY-MM-DD date. */
+static bool eventDateMatches(const char* isoStart, const char* dateYmd) {
+    return (strlen(isoStart) >= 10 && strncmp(isoStart, dateYmd, 10) == 0);
+}
+
 /* Extract HH:MM from ISO 8601 "2026-03-06T15:00:00-05:00" → "15:00" */
 static void fmtTime(const char* iso, char* out, size_t outLen) {
     const char* t = strchr(iso, 'T');
@@ -185,13 +202,16 @@ void CalendarScreen::rebuildEventList() {
         lv_label_set_text_fmt(_lblDayTitle, "In %d days", _dayOffset);
     }
 
-    /* Merge Google + Microsoft events */
-    /* For v1: show all events (no date filtering on device — bridge sends today's events) */
+    /* Merge Google + Microsoft events, filtered by selected day */
+    char targetDate[12];
+    dateForOffset(_dayOffset, targetDate, sizeof(targetDate));
+
     uint8_t count = 0;
 
     if (_lastData->google_calendar.status == SourceStatus::OK) {
         for (uint8_t i = 0; i < _lastData->google_calendar_count; i++) {
             const CalendarEvent& ev = _lastData->google_calendar.data[i];
+            if (!eventDateMatches(ev.start_time, targetDate)) continue;
             char startFmt[16], endFmt[16], timeBuf[48];
             fmtTime(ev.start_time, startFmt, sizeof(startFmt));
             fmtTime(ev.end_time, endFmt, sizeof(endFmt));
@@ -204,6 +224,7 @@ void CalendarScreen::rebuildEventList() {
     if (_lastData->microsoft_calendar.status == SourceStatus::OK) {
         for (uint8_t i = 0; i < _lastData->microsoft_calendar_count; i++) {
             const CalendarEvent& ev = _lastData->microsoft_calendar.data[i];
+            if (!eventDateMatches(ev.start_time, targetDate)) continue;
             char startFmt[16], endFmt[16], timeBuf[48];
             fmtTime(ev.start_time, startFmt, sizeof(startFmt));
             fmtTime(ev.end_time, endFmt, sizeof(endFmt));
