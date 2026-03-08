@@ -79,7 +79,7 @@ public:
             cfg.hsync_polarity    = 0;
             cfg.hsync_front_porch = 8;
             cfg.hsync_pulse_width = 4;
-            cfg.hsync_back_porch  = 43;
+            cfg.hsync_back_porch  = 50;   /* 43→50: extra margin for PSRAM bus contention */
             cfg.vsync_polarity    = 0;
             cfg.vsync_front_porch = 8;
             cfg.vsync_pulse_width = 4;
