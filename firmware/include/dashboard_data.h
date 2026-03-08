@@ -10,7 +10,8 @@
 static constexpr uint8_t MAX_EVENTS = 20;
 static constexpr uint8_t MAX_TASKS  = 20;
 static constexpr uint8_t MAX_REPOS  = 10;
-static constexpr uint8_t MAX_HA_ENTITIES = 20;
+static constexpr uint8_t MAX_HA_ENTITIES = 40;
+static constexpr uint8_t MAX_HA_PER_DOMAIN = 6;
 static constexpr uint8_t MAX_HOURLY = 12;
 static constexpr uint8_t MAX_DAILY  = 5;
 

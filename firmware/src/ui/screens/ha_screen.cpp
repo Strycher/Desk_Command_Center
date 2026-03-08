@@ -395,6 +395,7 @@ void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
 }
 
 void HAScreen::rebuildEntityList(const HAData& ha) {
+    LOG_INFO("HA: rebuild — entity_count=%d", ha.entity_count);
     lv_obj_clean(_entityList);
 
     if (ha.entity_count == 0) {
@@ -427,6 +428,11 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
         }
     }
 
+    LOG_INFO("HA: found %d domains", domainCount);
+    for (uint8_t d = 0; d < domainCount; d++) {
+        LOG_DEBUG("HA: domain[%d]='%s'", d, domains[d]);
+    }
+
     /* For each domain, collect indices and create group */
     for (uint8_t d = 0; d < domainCount; d++) {
         uint8_t indices[MAX_HA_ENTITIES];
@@ -441,7 +447,14 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
 }
 
 void HAScreen::onShow() {
-    if (!_lastData) return;
+    LOG_INFO("HA: onShow() _lastData=%p dirty=%d", _lastData, _dirty);
+    if (!_lastData) {
+        LOG_WARN("HA: onShow() — no data yet");
+        return;
+    }
+    LOG_INFO("HA: onShow() status=%d entities=%d",
+             (int)_lastData->home_assistant.status,
+             _lastData->home_assistant.data.entity_count);
     if (_lastData->home_assistant.status == SourceStatus::OK) {
         rebuildEntityList(_lastData->home_assistant.data);
     } else {
@@ -463,6 +476,10 @@ void HAScreen::onShow() {
 void HAScreen::update(const DashboardData& data) {
     _lastData = &data;
     _dirty = true;
+    LOG_INFO("HA: update() status=%d entities=%d active=%d",
+             (int)data.home_assistant.status,
+             data.home_assistant.data.entity_count,
+             (lv_scr_act() == _screen) ? 1 : 0);
     /* Rebuild only if we're the currently-visible screen.
        Offscreen rebuilds create dirty LVGL layout trees that hang Core 1
        when the screen becomes visible via lv_scr_load_anim(). */

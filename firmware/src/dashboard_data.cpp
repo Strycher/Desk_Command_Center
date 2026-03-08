@@ -222,8 +222,10 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
             for (JsonPairConst domKv : domains) {
                 const char* domainName = domKv.key().c_str();
                 JsonArrayConst entities = domKv.value();
+                uint8_t domCount = 0;
                 for (JsonObjectConst e : entities) {
                     if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
+                    if (domCount >= MAX_HA_PER_DOMAIN) break;
                     HAEntity& ent = out.home_assistant.data.entities[out.home_assistant.data.entity_count];
                     memset(&ent, 0, sizeof(ent));
                     copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
@@ -246,6 +248,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                     }
 
                     out.home_assistant.data.entity_count++;
+                    domCount++;
                 }
             }
         }
