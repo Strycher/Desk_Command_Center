@@ -162,6 +162,26 @@ static const char* shortEntityName(const HAEntity& e, const char* deviceName) {
     return buf;
 }
 
+/* Format a sensor state value: if it's a float with many decimals,
+ * truncate to 2 decimal places. "927.123456" → "927.12"
+ * Non-numeric states pass through unchanged. */
+static void formatSensorValue(char* out, size_t outLen, const char* state) {
+    /* Check if state looks like a float with a decimal point */
+    const char* dot = strchr(state, '.');
+    if (dot) {
+        /* Count digits after dot */
+        int fracLen = strlen(dot + 1);
+        if (fracLen > 2) {
+            /* Parse and reformat to 2 decimal places */
+            double val = strtod(state, nullptr);
+            snprintf(out, outLen, "%.2f", val);
+            return;
+        }
+    }
+    strncpy(out, state, outLen - 1);
+    out[outLen - 1] = '\0';
+}
+
 static void capitalizeFirst(char* buf) {
     if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
 }
@@ -285,16 +305,18 @@ void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e, int16_t w) {
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
-    /* Value + unit — prominent */
+    /* Value + unit — prominent, with decimal truncation */
     lv_obj_t* val = lv_label_create(tile);
     lv_obj_set_style_text_font(val, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(val, TEXT_PRIMARY, 0);
     lv_obj_align(val, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     char buf[48];
+    char fmtVal[32];
+    formatSensorValue(fmtVal, sizeof(fmtVal), e.state);
     if (strcmp(e.domain, "sensor") == 0 && e.extra.sensor.unit[0])
-        snprintf(buf, sizeof(buf), "%s %s", e.state, e.extra.sensor.unit);
+        snprintf(buf, sizeof(buf), "%s %s", fmtVal, e.extra.sensor.unit);
     else
-        snprintf(buf, sizeof(buf), "%s", e.state);
+        snprintf(buf, sizeof(buf), "%s", fmtVal);
     lv_label_set_text(val, buf);
 }
 
@@ -570,15 +592,17 @@ void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
         lv_obj_set_style_text_color(lbl, clr, 0);
 
         char buf[64];
-        const char* dot = isOn ? LV_SYMBOL_OK : isUnavail ? LV_SYMBOL_WARNING
-                         : LV_SYMBOL_CLOSE;
+        const char* symb = isOn ? LV_SYMBOL_OK : isUnavail ? LV_SYMBOL_WARNING
+                          : LV_SYMBOL_CLOSE;
         if (strcmp(ent.domain, "sensor") == 0 && ent.extra.sensor.unit[0]) {
-            snprintf(buf, sizeof(buf), "%s: %s %s", sname, ent.state,
+            char fv[32];
+            formatSensorValue(fv, sizeof(fv), ent.state);
+            snprintf(buf, sizeof(buf), "%s: %s %s", sname, fv,
                      ent.extra.sensor.unit);
         } else if (strcmp(ent.domain, "binary_sensor") == 0 ||
                    strcmp(ent.domain, "switch") == 0 ||
                    strcmp(ent.domain, "light") == 0) {
-            snprintf(buf, sizeof(buf), "%s: %s", sname, dot);
+            snprintf(buf, sizeof(buf), "%s: %s", sname, symb);
         } else {
             snprintf(buf, sizeof(buf), "%s: %s", sname, ent.state);
         }
@@ -595,20 +619,11 @@ void HAScreen::addSectionHeader(const char* domain, uint8_t count) {
     lv_color_t accent = domainAccent(domain);
 
     lv_obj_t* hdr = lv_obj_create(_entityList);
-    lv_obj_set_size(hdr, CONTENT_W, 28);
+    lv_obj_set_size(hdr, CONTENT_W, 24);
     lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
     lv_obj_set_style_pad_all(hdr, 0, 0);
     lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
-
-    /* Accent-colored divider line at bottom */
-    lv_obj_t* line = lv_obj_create(hdr);
-    lv_obj_set_size(line, CONTENT_W - 8, 1);
-    lv_obj_set_style_bg_color(line, accent, 0);
-    lv_obj_set_style_bg_opa(line, LV_OPA_40, 0);
-    lv_obj_set_style_border_width(line, 0, 0);
-    lv_obj_set_style_radius(line, 0, 0);
-    lv_obj_align(line, LV_ALIGN_BOTTOM_MID, 0, 0);
 
     lv_obj_t* lblIcon = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
@@ -877,6 +892,11 @@ void HAScreen::rebuildDomainGrouped(const HAData& ha) {
 void HAScreen::rebuildEntityList(const HAData& ha) {
     LOG_INFO("HA: rebuild — entity_count=%d label_mode=%d",
              ha.entity_count, ha.label_mode ? 1 : 0);
+
+    /* Preserve scroll position across rebuilds so the user doesn't
+     * lose their place when data refreshes every 30s. */
+    lv_coord_t scrollY = lv_obj_get_scroll_y(_entityList);
+
     lv_obj_clean(_entityList);
 
     if (ha.entity_count == 0) {
@@ -894,6 +914,14 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
         rebuildDeviceGrouped(ha);
     } else {
         rebuildDomainGrouped(ha);
+    }
+
+    /* Restore scroll — clamp to new content height to avoid overscroll */
+    if (scrollY > 0) {
+        lv_obj_update_layout(_entityList);  /* force layout calc first */
+        lv_coord_t maxScroll = lv_obj_get_scroll_bottom(_entityList);
+        if (scrollY > maxScroll) scrollY = maxScroll;
+        lv_obj_scroll_to_y(_entityList, scrollY, LV_ANIM_OFF);
     }
 }
 
