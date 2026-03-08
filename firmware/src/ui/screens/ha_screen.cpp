@@ -30,9 +30,9 @@ static const lv_color_t PERSON_ACCENT  = lv_color_hex(0x66BB6A);
 static constexpr int16_t CONTENT_Y   = 30;
 static constexpr int16_t PAD         = 10;
 static constexpr int16_t TILE_W      = 180;
-static constexpr int16_t TILE_H      = 64;
-static constexpr int16_t TILE_WIDE   = 366;   /* 2×TILE_W + gap */
-static constexpr int16_t TILE_TALL   = 80;
+static constexpr int16_t TILE_H      = 70;
+static constexpr int16_t TILE_WIDE   = 366;   /* 2 x TILE_W + gap */
+static constexpr int16_t TILE_TALL   = 90;
 static constexpr int16_t TILE_GAP    = 6;
 static constexpr int16_t TILE_R      = 10;
 
@@ -96,7 +96,7 @@ static lv_obj_t* makeTile(lv_obj_t* parent, int16_t w, int16_t h) {
     lv_obj_set_style_bg_opa(t, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(t, TILE_R, 0);
     lv_obj_set_style_border_width(t, 0, 0);
-    lv_obj_set_style_pad_all(t, 10, 0);
+    lv_obj_set_style_pad_all(t, 8, 0);
     lv_obj_clear_flag(t, LV_OBJ_FLAG_SCROLLABLE);
     return t;
 }
@@ -105,7 +105,6 @@ static const char* entityName(const HAEntity& e) {
     return e.friendly_name[0] ? e.friendly_name : e.entity_id;
 }
 
-/* Capitalize first letter in-place */
 static void capitalizeFirst(char* buf) {
     if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
 }
@@ -141,35 +140,35 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(icon, accent, 0);
     lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_label_set_text(icon, LV_SYMBOL_CHARGE);
 
     /* Name */
     lv_obj_t* name = lv_label_create(tile);
-    lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 24, 2);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 28, 2);
     lv_obj_set_width(name, 200);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
     /* Current temp — large, right side */
     lv_obj_t* cur = lv_label_create(tile);
-    lv_obj_set_style_text_font(cur, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_font(cur, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(cur, TEXT_PRIMARY, 0);
     lv_obj_align(cur, LV_ALIGN_TOP_RIGHT, 0, -4);
     char buf[16];
     if (e.extra.climate.current_temp > 0)
-        snprintf(buf, sizeof(buf), "%.0f\xC2\xB0", e.extra.climate.current_temp);
+        snprintf(buf, sizeof(buf), "%.0fF", e.extra.climate.current_temp);
     else
         snprintf(buf, sizeof(buf), "%s", e.state);
     lv_label_set_text(cur, buf);
 
     /* HVAC action — colored dot + text, bottom left */
     lv_obj_t* dot = lv_obj_create(tile);
-    lv_obj_set_size(dot, 8, 8);
+    lv_obj_set_size(dot, 10, 10);
     lv_obj_set_style_bg_color(dot, accent, 0);
     lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
@@ -177,9 +176,9 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, 0, -2);
 
     lv_obj_t* action = lv_label_create(tile);
-    lv_obj_set_style_text_font(action, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(action, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(action, accent, 0);
-    lv_obj_align(action, LV_ALIGN_BOTTOM_LEFT, 14, 0);
+    lv_obj_align(action, LV_ALIGN_BOTTOM_LEFT, 16, 0);
     const char* hvac = e.extra.climate.hvac_action;
     if (hvac[0]) {
         char abuf[16];
@@ -194,15 +193,15 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
     /* Target temp + preset — bottom right */
     if (e.extra.climate.target_temp > 0) {
         lv_obj_t* target = lv_label_create(tile);
-        lv_obj_set_style_text_font(target, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(target, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(target, TEXT_DIM, 0);
         lv_obj_align(target, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
         char tbuf[32];
         if (e.extra.climate.preset_mode[0])
-            snprintf(tbuf, sizeof(tbuf), "\xE2\x86\x92 %.0f\xC2\xB0 \xC2\xB7 %s",
+            snprintf(tbuf, sizeof(tbuf), "> %.0fF  %s",
                      e.extra.climate.target_temp, e.extra.climate.preset_mode);
         else
-            snprintf(tbuf, sizeof(tbuf), "\xE2\x86\x92 %.0f\xC2\xB0",
+            snprintf(tbuf, sizeof(tbuf), "> %.0fF",
                      e.extra.climate.target_temp);
         lv_label_set_text(target, tbuf);
     }
@@ -214,7 +213,7 @@ void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e) {
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(icon, SENSOR_ACCENT, 0);
     lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_label_set_text(icon, LV_SYMBOL_GPS);
@@ -223,14 +222,14 @@ void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 20, 0);
-    lv_obj_set_width(name, TILE_W - 44);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 22, 2);
+    lv_obj_set_width(name, TILE_W - 40);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
     /* Value + unit — prominent */
     lv_obj_t* val = lv_label_create(tile);
-    lv_obj_set_style_text_font(val, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(val, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(val, TEXT_PRIMARY, 0);
     lv_obj_align(val, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     char buf[48];
@@ -251,23 +250,23 @@ void HAScreen::addLightSwitchRow(lv_obj_t* parent, const HAEntity& e) {
 
     /* Icon — colored by state */
     lv_obj_t* icon = lv_label_create(tile);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(icon, stateClr, 0);
     lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_label_set_text(icon, domainIcon(e.domain));
 
     /* Name */
     lv_obj_t* name = lv_label_create(tile);
-    lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 22, 2);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
     lv_obj_set_width(name, TILE_W - 44);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
     /* State label — "On" / "Off" */
     lv_obj_t* st = lv_label_create(tile);
-    lv_obj_set_style_text_font(st, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(st, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(st, isOn ? stateClr : TEXT_DIM, 0);
     lv_obj_align(st, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_label_set_text(st, isOn ? "On" : "Off");
@@ -276,27 +275,27 @@ void HAScreen::addLightSwitchRow(lv_obj_t* parent, const HAEntity& e) {
 /* ── Media Card (wide tile) ─────────────────────────── */
 void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
     bool playing = (strcmp(e.state, "playing") == 0);
-    lv_obj_t* tile = makeTile(parent, TILE_WIDE, 70);
+    lv_obj_t* tile = makeTile(parent, TILE_WIDE, 76);
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(icon, playing ? MEDIA_ACCENT : TEXT_DIM, 0);
     lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_label_set_text(icon, LV_SYMBOL_AUDIO);
 
     /* Name */
     lv_obj_t* name = lv_label_create(tile);
-    lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 24, 2);
-    lv_obj_set_width(name, 240);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 28, 2);
+    lv_obj_set_width(name, 230);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
     /* State — top right, capitalized */
     lv_obj_t* stLbl = lv_label_create(tile);
-    lv_obj_set_style_text_font(stLbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(stLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(stLbl, playing ? MEDIA_ACCENT : TEXT_DIM, 0);
     lv_obj_align(stLbl, LV_ALIGN_TOP_RIGHT, 0, 2);
     char stBuf[32];
@@ -308,14 +307,14 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
     /* Now playing — bottom row */
     if (e.extra.media.media_title[0] || e.extra.media.app_name[0]) {
         lv_obj_t* info = lv_label_create(tile);
-        lv_obj_set_style_text_font(info, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(info, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(info, MEDIA_ACCENT, 0);
         lv_obj_align(info, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-        lv_obj_set_width(info, TILE_WIDE - 30);
+        lv_obj_set_width(info, TILE_WIDE - 24);
         lv_label_set_long_mode(info, LV_LABEL_LONG_DOT);
         char buf[80];
         if (e.extra.media.app_name[0] && e.extra.media.media_title[0])
-            snprintf(buf, sizeof(buf), "%s \xC2\xB7 %s",
+            snprintf(buf, sizeof(buf), "%s - %s",
                      e.extra.media.app_name, e.extra.media.media_title);
         else if (e.extra.media.media_title[0])
             snprintf(buf, sizeof(buf), "%s", e.extra.media.media_title);
@@ -336,23 +335,23 @@ void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e) {
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(icon, stateClr, 0);
     lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_label_set_text(icon, domainIcon(e.domain));
 
     /* Name */
     lv_obj_t* name = lv_label_create(tile);
-    lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 22, 2);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
     lv_obj_set_width(name, TILE_W - 44);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
     /* State — capitalized */
     lv_obj_t* stLbl = lv_label_create(tile);
-    lv_obj_set_style_text_font(stLbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(stLbl, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(stLbl, stateClr, 0);
     lv_obj_align(stLbl, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     char buf[32];
@@ -369,22 +368,22 @@ void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
 
     /* Section header */
     lv_obj_t* hdr = lv_obj_create(_entityList);
-    lv_obj_set_size(hdr, 760, 22);
+    lv_obj_set_size(hdr, 760, 26);
     lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
     lv_obj_set_style_pad_all(hdr, 0, 0);
     lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t* lblIcon = lv_label_create(hdr);
-    lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblIcon, accent, 0);
     lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, 4, 0);
     lv_label_set_text(lblIcon, domainIcon(domain));
 
     lv_obj_t* lblName = lv_label_create(hdr);
-    lv_obj_set_style_text_font(lblName, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
-    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 24, 0);
+    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 26, 0);
     char hdrBuf[48];
     snprintf(hdrBuf, sizeof(hdrBuf), "%s (%d)", domainLabel(domain), count);
     lv_label_set_text(lblName, hdrBuf);
@@ -426,7 +425,7 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
 
     if (ha.entity_count == 0) {
         lv_obj_t* lbl = lv_label_create(_entityList);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl, "No Home Assistant entities");
         lv_obj_set_width(lbl, 760);
@@ -495,7 +494,7 @@ void HAScreen::onShow() {
     } else {
         lv_obj_clean(_entityList);
         lv_obj_t* lbl = lv_label_create(_entityList);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl,
             _lastData->home_assistant.status == SourceStatus::ERROR
@@ -524,7 +523,7 @@ void HAScreen::update(const DashboardData& data) {
         } else {
             lv_obj_clean(_entityList);
             lv_obj_t* lbl = lv_label_create(_entityList);
-            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
             lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
             lv_label_set_text(lbl,
                 data.home_assistant.status == SourceStatus::ERROR
