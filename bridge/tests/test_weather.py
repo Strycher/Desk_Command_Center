@@ -41,9 +41,9 @@ OWM_CURRENT = {
 
 OWM_FORECAST = {
     "list": [
-        {"dt": 1700000000, "main": {"temp": 68.0}, "weather": [{"main": "Clouds", "icon": "03d"}]},
-        {"dt": 1700010800, "main": {"temp": 65.0}, "weather": [{"main": "Rain", "icon": "10d"}]},
-        {"dt": 1700021600, "main": {"temp": 74.0}, "weather": [{"main": "Clear", "icon": "01d"}]},
+        {"dt": 1700000000, "main": {"temp": 68.0}, "weather": [{"main": "Clouds", "description": "overcast clouds", "icon": "03d"}]},
+        {"dt": 1700010800, "main": {"temp": 65.0}, "weather": [{"main": "Rain", "description": "light rain", "icon": "10d"}]},
+        {"dt": 1700021600, "main": {"temp": 74.0}, "weather": [{"main": "Clear", "description": "clear sky", "icon": "01d"}]},
     ],
 }
 
@@ -95,7 +95,7 @@ class TestWeatherAdapterOWM:
         assert parsed["provider"] == "openweathermap"
         assert parsed["location"] == "Liberty Township"
         assert parsed["current"]["temp"] == 72.5
-        assert parsed["current"]["condition"] == "Clear"
+        assert parsed["current"]["condition"] == "Clear Sky"
         assert parsed["temp_unit"] == "F"
         assert parsed["high"] == 74.0
         assert parsed["low"] == 65.0
