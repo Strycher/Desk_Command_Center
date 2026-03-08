@@ -130,21 +130,100 @@ static void fmtTime(const char* iso, char* out, size_t outLen) {
     snprintf(out, outLen, "%02d:%02d", hh, mm);
 }
 
+/* ---- Date / time helpers for event filtering ---- */
+
+/* Get today's local date as "YYYY-MM-DD" from ESP32 RTC. */
+static void localDateStr(char* out, size_t outLen) {
+    time_t now = time(nullptr);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    snprintf(out, outLen, "%04d-%02d-%02d",
+             ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday);
+}
+
+/* Compare first 10 chars of an ISO timestamp against a YYYY-MM-DD date.
+   Returns true if the event's date portion matches. */
+static bool eventDateMatches(const char* isoStart, const char* dateYmd) {
+    return (strlen(isoStart) >= 10 && strncmp(isoStart, dateYmd, 10) == 0);
+}
+
+/* Return current local time as minutes since midnight. */
+static int nowMinutes() {
+    time_t now = time(nullptr);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    return ti.tm_hour * 60 + ti.tm_min;
+}
+
+/* Parse HH:MM from ISO end_time to minutes since midnight.
+   Returns -1 for all-day events (no 'T' separator). */
+static int isoEndMinutes(const char* iso) {
+    const char* t = strchr(iso, 'T');
+    if (!t) return -1;  /* all-day event: always visible */
+    int hh = 0, mm = 0;
+    sscanf(t + 1, "%d:%d", &hh, &mm);
+    return hh * 60 + mm;
+}
+
+/* Parse HH:MM from ISO start_time to minutes since midnight.
+   Returns 0 for all-day events. */
+static int isoStartMinutes(const char* iso) {
+    const char* t = strchr(iso, 'T');
+    if (!t) return 0;
+    int hh = 0, mm = 0;
+    sscanf(t + 1, "%d:%d", &hh, &mm);
+    return hh * 60 + mm;
+}
+
 void HomeScreen::updateAppt(const DashboardData& data) {
     if (!_cardAppt) return;
 
     /* Gather all events from Google + Microsoft into a flat list */
-    const CalendarEvent* events[MAX_EVENTS * 2];
-    uint8_t total = 0;
+    const CalendarEvent* raw[MAX_EVENTS * 2];
+    uint8_t rawCount = 0;
 
     if (data.google_calendar.status == SourceStatus::OK) {
-        for (uint8_t i = 0; i < data.google_calendar_count && total < MAX_EVENTS; i++) {
-            events[total++] = &data.google_calendar.data[i];
+        for (uint8_t i = 0; i < data.google_calendar_count && rawCount < MAX_EVENTS; i++) {
+            raw[rawCount++] = &data.google_calendar.data[i];
         }
     }
     if (data.microsoft_calendar.status == SourceStatus::OK) {
-        for (uint8_t i = 0; i < data.microsoft_calendar_count && total < MAX_EVENTS; i++) {
-            events[total++] = &data.microsoft_calendar.data[i];
+        for (uint8_t i = 0; i < data.microsoft_calendar_count && rawCount < MAX_EVENTS; i++) {
+            raw[rawCount++] = &data.microsoft_calendar.data[i];
+        }
+    }
+
+    /* ---- Filter: today only, drop past events ---- */
+    char today[12];
+    localDateStr(today, sizeof(today));
+    int curMin = nowMinutes();
+
+    const CalendarEvent* events[MAX_EVENTS * 2];
+    uint8_t total = 0;
+
+    for (uint8_t i = 0; i < rawCount; i++) {
+        const CalendarEvent& ev = *raw[i];
+
+        /* Keep only events whose date matches today */
+        if (!eventDateMatches(ev.start_time, today)) continue;
+
+        /* Drop events that have already ended (all-day → always visible) */
+        int endMin = isoEndMinutes(ev.end_time);
+        if (endMin >= 0 && endMin <= curMin) continue;
+
+        events[total++] = raw[i];
+    }
+
+    /* Sort by start time (bridge usually sends pre-sorted, but
+       merged Google + Microsoft sources may interleave) */
+    for (uint8_t i = 0; i < total; i++) {
+        for (uint8_t j = i + 1; j < total; j++) {
+            if (isoStartMinutes(events[j]->start_time)
+                < isoStartMinutes(events[i]->start_time)) {
+                const CalendarEvent* tmp = events[i];
+                events[i] = events[j];
+                events[j] = tmp;
+            }
         }
     }
 
