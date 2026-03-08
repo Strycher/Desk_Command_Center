@@ -152,15 +152,28 @@ void NavBar::create() {
 }
 
 void NavBar::setActive(ScreenId id) {
+    /* Skip if already active — prevents unnecessary LVGL dirty-rect
+       invalidation that causes the nav bar to flush independently of the
+       content area ("bump" on RGB panel with continuous DMA). */
+    if (id == _activeId) return;
+    ScreenId prevId = _activeId;
     _activeId = id;
-    /* Highlight matching main-bar icons (skip last = "More") */
+
+    /* Only touch the two icons that changed (old active → normal, new → active).
+       Setting all 8 icons unconditionally marks the entire nav bar dirty. */
     for (uint8_t i = 0; i < NUM_MAIN - 1; i++) {
-        lv_color_t color = (mainItems[i].id == id) ? ICON_ACTIVE : ICON_NORMAL;
-        lv_obj_set_style_text_color(btnIcons[i], color, 0);
+        if (mainItems[i].id == id || mainItems[i].id == prevId) {
+            lv_color_t color = (mainItems[i].id == id) ? ICON_ACTIVE : ICON_NORMAL;
+            lv_obj_set_style_text_color(btnIcons[i], color, 0);
+        }
     }
-    /* "More" icon highlights if active screen is in submenu */
+    /* "More" icon — highlight if active screen is in submenu */
     bool moreActive = (id == ScreenId::CLAUDE ||
                        id == ScreenId::DIAGNOSTICS);
-    lv_obj_set_style_text_color(btnIcons[NUM_MAIN - 1],
-                                moreActive ? ICON_ACTIVE : ICON_NORMAL, 0);
+    bool prevMore   = (prevId == ScreenId::CLAUDE ||
+                       prevId == ScreenId::DIAGNOSTICS);
+    if (moreActive != prevMore) {
+        lv_obj_set_style_text_color(btnIcons[NUM_MAIN - 1],
+                                    moreActive ? ICON_ACTIVE : ICON_NORMAL, 0);
+    }
 }

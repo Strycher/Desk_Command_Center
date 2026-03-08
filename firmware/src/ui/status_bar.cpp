@@ -26,6 +26,8 @@ static lv_obj_t* lblWifi   = nullptr;
 static lv_obj_t* lblSync   = nullptr;
 
 static bool _clock24h = false;
+static lv_color_t _prevWifiColor = {0};   // change-detection for style invalidation
+static lv_color_t _prevSyncColor = {0};
 
 static void timerCb(lv_timer_t* timer) {
     StatusBar::update();
@@ -115,10 +117,21 @@ void StatusBar::update() {
     if (strcmp(lv_label_get_text(lblWifi), icon) != 0) {
         lv_label_set_text(lblWifi, icon);
     }
+    /* WiFi color — only set when changed to avoid LVGL dirty-rect invalidation.
+       Unconditional set_style_text_color marks the widget area dirty every tick,
+       causing the status bar to flush independently of the content area → visible
+       "bump" on the RGB panel's continuous DMA scan. */
     lv_color_t wifiColor = (WifiManager::state() == WifiState::CONNECTED)
                            ? SYNC_OK : SYNC_ERROR;
-    lv_obj_set_style_text_color(lblWifi, wifiColor, 0);
+    if (_prevWifiColor.full != wifiColor.full) {
+        _prevWifiColor = wifiColor;
+        lv_obj_set_style_text_color(lblWifi, wifiColor, 0);
+    }
 
-    /* Sync */
-    lv_obj_set_style_text_color(lblSync, syncColor(), 0);
+    /* Sync color — same guard */
+    lv_color_t sc = syncColor();
+    if (_prevSyncColor.full != sc.full) {
+        _prevSyncColor = sc;
+        lv_obj_set_style_text_color(lblSync, sc, 0);
+    }
 }
