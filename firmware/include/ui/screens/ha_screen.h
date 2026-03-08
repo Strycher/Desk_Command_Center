@@ -20,11 +20,14 @@ private:
 
     void rebuildEntityList(const HAData& ha);
 
-    /* Label mode: device-grouped rendering */
+    /* Label mode: domain-sectioned card grid */
     void rebuildDeviceGrouped(const HAData& ha);
-    void addDeviceCard(lv_obj_t* parent, const HADeviceGroup& grp,
-                       const HAEntity* entities);
-    void addSingleEntityTile(lv_obj_t* parent, const HAEntity& entity);
+    void addSectionHeader(const char* domain, uint8_t count);
+    lv_obj_t* makeSectionGrid();
+    void addDeviceCardToGrid(lv_obj_t* grid, const HADeviceGroup& grp,
+                             const HAEntity* entities, bool wide);
+    void addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
+                            const HAEntity* entities, int16_t w);
 
     /* Domain mode: legacy grouped-by-domain rendering */
     void rebuildDomainGrouped(const HAData& ha);
@@ -33,8 +36,14 @@ private:
 
     /* Domain-specific card renderers (shared by both modes) */
     void addClimateCard(lv_obj_t* parent, const HAEntity& entity);
-    void addSensorRow(lv_obj_t* parent, const HAEntity& entity);
-    void addLightSwitchRow(lv_obj_t* parent, const HAEntity& entity);
-    void addMediaCard(lv_obj_t* parent, const HAEntity& entity);
-    void addGenericRow(lv_obj_t* parent, const HAEntity& entity);
+    void addSensorRow(lv_obj_t* parent, const HAEntity& entity,
+                      int16_t w = 0);
+    void addLightSwitchRow(lv_obj_t* parent, const HAEntity& entity,
+                           int16_t w = 0, const char* displayName = nullptr);
+    void addMediaCard(lv_obj_t* parent, const HAEntity& entity,
+                      int16_t w = 0);
+    void addPersonCard(lv_obj_t* parent, const HADeviceGroup& grp,
+                       const HAEntity* entities);
+    void addGenericRow(lv_obj_t* parent, const HAEntity& entity,
+                       int16_t w = 0);
 };

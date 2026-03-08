@@ -64,6 +64,21 @@ static void parseSourceMeta(JsonObjectConst src, SourceBlock<T>& block) {
     copyStr(block.last_updated, sizeof(block.last_updated), src["last_updated"]);
 }
 
+/* Domain priority for device section assignment (lower = higher priority) */
+static uint8_t domainPriority(const char* d) {
+    if (strcmp(d, "climate") == 0)       return 0;
+    if (strcmp(d, "media_player") == 0)  return 1;
+    if (strcmp(d, "light") == 0)         return 2;
+    if (strcmp(d, "switch") == 0)        return 3;
+    if (strcmp(d, "cover") == 0)         return 4;
+    if (strcmp(d, "fan") == 0)           return 5;
+    if (strcmp(d, "lock") == 0)          return 6;
+    if (strcmp(d, "device_tracker") == 0) return 7;
+    if (strcmp(d, "sensor") == 0)        return 8;
+    if (strcmp(d, "binary_sensor") == 0) return 9;
+    return 10;
+}
+
 static void parseHAEntity(JsonObjectConst e, HAEntity& ent) {
     memset(&ent, 0, sizeof(ent));
     copyStr(ent.entity_id, sizeof(ent.entity_id), e["entity_id"]);
@@ -264,13 +279,23 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
 
                     HADeviceGroup& grp = out.home_assistant.data.devices[out.home_assistant.data.device_count];
                     copyStr(grp.device_name, sizeof(grp.device_name), dev["device_name"]);
+                    grp.domain[0] = '\0';
                     grp.entity_start = out.home_assistant.data.entity_count;
                     grp.entity_count = 0;
 
                     JsonArrayConst entities = dev["entities"];
+                    uint8_t bestPri = 255;
                     for (JsonObjectConst e : entities) {
                         if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
                         parseHAEntity(e, out.home_assistant.data.entities[out.home_assistant.data.entity_count]);
+                        /* Track highest-priority domain for section assignment */
+                        uint8_t pri = domainPriority(
+                            out.home_assistant.data.entities[out.home_assistant.data.entity_count].domain);
+                        if (pri < bestPri) {
+                            bestPri = pri;
+                            copyStr(grp.domain, sizeof(grp.domain),
+                                    out.home_assistant.data.entities[out.home_assistant.data.entity_count].domain);
+                        }
                         grp.entity_count++;
                         out.home_assistant.data.entity_count++;
                     }

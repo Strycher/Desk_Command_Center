@@ -36,13 +36,20 @@ static const lv_color_t DEVICE_ACCENT  = lv_color_hex(0x7E57C2);
 /* ── Layout constants ───────────────────────────────── */
 static constexpr int16_t CONTENT_Y   = 30;
 static constexpr int16_t PAD         = 10;
-static constexpr int16_t TILE_W      = 180;
-static constexpr int16_t TILE_H      = 70;
-static constexpr int16_t TILE_WIDE   = 366;   /* 2 x TILE_W + gap */
-static constexpr int16_t TILE_FULL   = 760;   /* full content width */
-static constexpr int16_t TILE_TALL   = 90;
+static constexpr int16_t CARD_STD    = 250;   /* 3 per row: 250*3 + 6*2 = 762 */
+static constexpr int16_t CARD_WIDE   = 380;   /* 2 per row: 380*2 + 6   = 766 */
+static constexpr int16_t CARD_H      = 80;    /* standard card height */
+static constexpr int16_t CARD_H_TALL = 100;   /* climate / info-dense cards */
+static constexpr int16_t CARD_H_MULTI = 90;   /* multi-entity device cards */
 static constexpr int16_t TILE_GAP    = 6;
 static constexpr int16_t TILE_R      = 10;
+static constexpr int16_t CONTENT_W   = 780;   /* scrollable area width */
+/* Legacy aliases for domain-mode renderers */
+static constexpr int16_t TILE_W      = CARD_STD;
+static constexpr int16_t TILE_H      = CARD_H;
+static constexpr int16_t TILE_WIDE   = CARD_WIDE;
+static constexpr int16_t TILE_FULL   = 760;
+static constexpr int16_t TILE_TALL   = CARD_H_TALL;
 
 /* ── Domain helpers ─────────────────────────────────── */
 static const char* domainLabel(const char* d) {
@@ -87,7 +94,9 @@ static lv_color_t domainAccent(const char* d) {
     return ACCENT;
 }
 
-/* Sort priority: lower = rendered first */
+/* Sort priority: lower = rendered first.
+ * "network" is a virtual section for router/printer devices
+ * whose primary domain is binary_sensor/sensor. */
 static uint8_t domainOrder(const char* d) {
     if (strcmp(d, "climate") == 0)       return 0;
     if (strcmp(d, "light") == 0)         return 1;
@@ -98,6 +107,21 @@ static uint8_t domainOrder(const char* d) {
     if (strcmp(d, "person") == 0)        return 6;
     if (strcmp(d, "device_tracker") == 0) return 7;
     return 8;
+}
+
+/* Map a device's primary domain to a visual section key.
+ * This collapses binary_sensor into sensor, and device_tracker
+ * with GPS source_type into "person" (handled at a higher level). */
+static const char* sectionKey(const char* domain) {
+    if (strcmp(domain, "binary_sensor") == 0) return "sensor";
+    return domain;
+}
+
+/* Should this device use a wide card? */
+static bool needsWideCard(const char* sectionDomain, uint8_t entityCount) {
+    if (strcmp(sectionDomain, "climate") == 0) return true;
+    if (entityCount >= 3) return true;
+    return false;
 }
 
 /* ── Tile base helper ───────────────────────────────── */
@@ -115,6 +139,27 @@ static lv_obj_t* makeTile(lv_obj_t* parent, int16_t w, int16_t h) {
 
 static const char* entityName(const HAEntity& e) {
     return e.friendly_name[0] ? e.friendly_name : e.entity_id;
+}
+
+/* Strip device name prefix from entity friendly_name to avoid redundancy.
+ * "RT-AX82U Primary Router Download speed" → "Download speed"
+ * Returns pointer into a static buffer. */
+static const char* shortEntityName(const HAEntity& e, const char* deviceName) {
+    static char buf[64];
+    const char* fname = entityName(e);
+    size_t devLen = strlen(deviceName);
+    if (devLen > 0 && strncmp(fname, deviceName, devLen) == 0) {
+        const char* rest = fname + devLen;
+        while (*rest == ' ') rest++;  /* trim leading space */
+        if (*rest) {
+            strncpy(buf, rest, sizeof(buf) - 1);
+            buf[sizeof(buf) - 1] = '\0';
+            return buf;
+        }
+    }
+    strncpy(buf, fname, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    return buf;
 }
 
 static void capitalizeFirst(char* buf) {
@@ -219,9 +264,10 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
     }
 }
 
-/* ── Sensor Tile (standard size) ────────────────────── */
-void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e) {
-    lv_obj_t* tile = makeTile(parent, TILE_W, TILE_H);
+/* ── Sensor Tile ───────────────────────────────────── */
+void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e, int16_t w) {
+    if (w <= 0) w = CARD_STD;
+    lv_obj_t* tile = makeTile(parent, w, CARD_H);
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
@@ -235,7 +281,7 @@ void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
     lv_obj_align(name, LV_ALIGN_TOP_LEFT, 22, 2);
-    lv_obj_set_width(name, TILE_W - 40);
+    lv_obj_set_width(name, w - 40);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -252,12 +298,16 @@ void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e) {
     lv_label_set_text(val, buf);
 }
 
-/* ── Light / Switch / Fan Tile (standard size) ──────── */
-void HAScreen::addLightSwitchRow(lv_obj_t* parent, const HAEntity& e) {
+/* ── Light / Switch / Fan Card ──────────────────────── */
+void HAScreen::addLightSwitchRow(lv_obj_t* parent, const HAEntity& e,
+                                  int16_t w, const char* displayName) {
+    if (w <= 0) w = CARD_STD;
     bool isOn = (strcmp(e.state, "on") == 0);
-    lv_color_t stateClr = isOn ? domainAccent(e.domain) : STATE_OFF;
+    bool isUnavail = (strcmp(e.state, "unavailable") == 0);
+    lv_color_t stateClr = isOn ? domainAccent(e.domain)
+                         : isUnavail ? lv_color_hex(0x996600) : STATE_OFF;
 
-    lv_obj_t* tile = makeTile(parent, TILE_W, TILE_H);
+    lv_obj_t* tile = makeTile(parent, w, CARD_H);
     if (isOn) lv_obj_set_style_bg_color(tile, TILE_BG_ON, 0);
 
     /* Icon — colored by state */
@@ -272,22 +322,26 @@ void HAScreen::addLightSwitchRow(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
     lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
-    lv_obj_set_width(name, TILE_W - 44);
+    lv_obj_set_width(name, w - 44);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-    lv_label_set_text(name, entityName(e));
+    lv_label_set_text(name, displayName ? displayName : entityName(e));
 
-    /* State label — "On" / "Off" */
+    /* State label */
     lv_obj_t* st = lv_label_create(tile);
     lv_obj_set_style_text_font(st, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(st, isOn ? stateClr : TEXT_DIM, 0);
     lv_obj_align(st, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-    lv_label_set_text(st, isOn ? "On" : "Off");
+    if (isUnavail)
+        lv_label_set_text(st, LV_SYMBOL_WARNING " Unavail.");
+    else
+        lv_label_set_text(st, isOn ? LV_SYMBOL_OK " On" : LV_SYMBOL_CLOSE " Off");
 }
 
-/* ── Media Card (wide tile) ─────────────────────────── */
-void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
+/* ── Media Card ────────────────────────────────────── */
+void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e, int16_t w) {
+    if (w <= 0) w = CARD_STD;
     bool playing = (strcmp(e.state, "playing") == 0);
-    lv_obj_t* tile = makeTile(parent, TILE_WIDE, 76);
+    lv_obj_t* tile = makeTile(parent, w, CARD_H);
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
@@ -301,7 +355,7 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
     lv_obj_align(name, LV_ALIGN_TOP_LEFT, 28, 2);
-    lv_obj_set_width(name, 230);
+    lv_obj_set_width(name, w - 120);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -322,7 +376,7 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
         lv_obj_set_style_text_font(info, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(info, MEDIA_ACCENT, 0);
         lv_obj_align(info, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-        lv_obj_set_width(info, TILE_WIDE - 24);
+        lv_obj_set_width(info, w - 24);
         lv_label_set_long_mode(info, LV_LABEL_LONG_DOT);
         char buf[80];
         if (e.extra.media.app_name[0] && e.extra.media.media_title[0])
@@ -337,13 +391,14 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e) {
 }
 
 /* ── Generic Tile (person, lock, cover, device_tracker, etc.) ── */
-void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e) {
+void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e, int16_t w) {
+    if (w <= 0) w = CARD_STD;
     bool isPositive = (strcmp(e.state, "on") == 0 ||
                        strcmp(e.state, "home") == 0 ||
                        strcmp(e.state, "locked") == 0);
     lv_color_t stateClr = isPositive ? domainAccent(e.domain) : TEXT_DIM;
 
-    lv_obj_t* tile = makeTile(parent, TILE_W, TILE_H);
+    lv_obj_t* tile = makeTile(parent, w, CARD_H);
 
     /* Icon */
     lv_obj_t* icon = lv_label_create(tile);
@@ -357,7 +412,7 @@ void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
     lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
-    lv_obj_set_width(name, TILE_W - 44);
+    lv_obj_set_width(name, w - 44);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -373,118 +428,255 @@ void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e) {
     lv_label_set_text(stLbl, buf);
 }
 
-/* ═══════════════════════════════════════════════════════
- *  Label Mode: Device-Grouped Rendering
- * ═══════════════════════════════════════════════════════ */
-
-/* Consolidated device card — shows device name + all entity states
-   in a full-width tile. Used for devices with 2+ entities.
-
-   Layout:
-   ┌──────────────────────────────────────────────────────┐
-   │ ■ Device Name                                        │
-   │ Entity1: state   Entity2: state   Entity3: state ... │
-   └──────────────────────────────────────────────────────┘  */
-void HAScreen::addDeviceCard(lv_obj_t* parent, const HADeviceGroup& grp,
+/* ── Person Card (standard: name + location + battery) ── */
+void HAScreen::addPersonCard(lv_obj_t* parent, const HADeviceGroup& grp,
                               const HAEntity* entities) {
-    /* Height scales with entity count: 2 rows for header + entity states */
-    int16_t h = 64;
-    if (grp.entity_count > 3) h = 86;  /* two lines of entity states */
+    lv_obj_t* tile = makeTile(parent, CARD_STD, CARD_H);
 
-    lv_obj_t* tile = makeTile(parent, TILE_FULL, h);
+    /* Extract person name: strip phone model suffix if present */
+    char pname[32];
+    const char* src = grp.device_name;
+    /* Try to use just the first word (person's name) */
+    const char* space = strchr(src, ' ');
+    if (space && (strstr(src, "Samsung") || strstr(src, "Galaxy") ||
+                  strstr(src, "iPhone") || strstr(src, "Pixel"))) {
+        size_t len = space - src;
+        if (len >= sizeof(pname)) len = sizeof(pname) - 1;
+        memcpy(pname, src, len);
+        pname[len] = '\0';
+    } else {
+        strncpy(pname, src, sizeof(pname) - 1);
+        pname[sizeof(pname) - 1] = '\0';
+    }
+    /* Strip trailing 's if present (e.g. "Mari's") */
+    size_t plen = strlen(pname);
+    if (plen >= 2 && pname[plen - 2] == '\'' && pname[plen - 1] == 's') {
+        pname[plen - 2] = '\0';
+    }
 
-    /* Accent bar on left edge */
-    lv_obj_t* bar = lv_obj_create(tile);
-    lv_obj_set_size(bar, 4, h - 16);
-    lv_obj_set_style_bg_color(bar, DEVICE_ACCENT, 0);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(bar, 2, 0);
-    lv_obj_set_style_border_width(bar, 0, 0);
-    lv_obj_align(bar, LV_ALIGN_LEFT_MID, -4, 0);
+    /* Icon */
+    lv_obj_t* icon = lv_label_create(tile);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(icon, PERSON_ACCENT, 0);
+    lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_label_set_text(icon, LV_SYMBOL_HOME);
 
-    /* Device name — header */
+    /* Person name */
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(name, DEVICE_ACCENT, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 6, 0);
-    lv_obj_set_width(name, TILE_FULL - 30);
+    lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
+    lv_label_set_text(name, pname);
+
+    /* Find tracker and battery sensor */
+    const char* location = nullptr;
+    int battery = -1;
+    for (uint8_t i = 0; i < grp.entity_count; i++) {
+        const HAEntity& ent = entities[grp.entity_start + i];
+        if (strcmp(ent.domain, "device_tracker") == 0) {
+            location = ent.state;
+        } else if (strcmp(ent.domain, "sensor") == 0 &&
+                   strcmp(ent.extra.sensor.device_class, "battery") == 0) {
+            battery = atoi(ent.state);
+        }
+    }
+
+    /* Location — with home icon */
+    if (location) {
+        bool home = (strcmp(location, "home") == 0);
+        lv_obj_t* loc = lv_label_create(tile);
+        lv_obj_set_style_text_font(loc, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(loc, home ? PERSON_ACCENT : TEXT_DIM, 0);
+        lv_obj_align(loc, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        char lbuf[32];
+        char locCap[16];
+        strncpy(locCap, location, sizeof(locCap) - 1);
+        locCap[sizeof(locCap) - 1] = '\0';
+        capitalizeFirst(locCap);
+        snprintf(lbuf, sizeof(lbuf), "%s %s",
+                 home ? LV_SYMBOL_HOME : LV_SYMBOL_GPS, locCap);
+        lv_label_set_text(loc, lbuf);
+    }
+
+    /* Battery — bottom right */
+    if (battery >= 0) {
+        lv_obj_t* bat = lv_label_create(tile);
+        lv_obj_set_style_text_font(bat, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(bat, battery > 20 ? TEXT_SECONDARY
+                                         : lv_color_hex(0xFF4444), 0);
+        lv_obj_align(bat, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+        char bbuf[16];
+        snprintf(bbuf, sizeof(bbuf), "%s %d%%", LV_SYMBOL_CHARGE, battery);
+        lv_label_set_text(bat, bbuf);
+    }
+}
+
+/* ── Multi-Entity Device Card (wide: device name + entity grid) ── */
+void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
+                                   const HAEntity* entities, int16_t w) {
+    int16_t h = CARD_H_MULTI;
+    if (grp.entity_count > 4) h = 110;
+
+    lv_obj_t* tile = makeTile(parent, w, h);
+
+    /* Domain icon */
+    lv_obj_t* icon = lv_label_create(tile);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
+    lv_color_t accent = domainAccent(grp.domain);
+    lv_obj_set_style_text_color(icon, accent, 0);
+    lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_label_set_text(icon, domainIcon(grp.domain));
+
+    /* Device name as title */
+    lv_obj_t* name = lv_label_create(tile);
+    lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
+    lv_obj_set_width(name, w - 44);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, grp.device_name);
 
-    /* Entity states — compact flex row below the header */
+    /* Entity states — compact flex row */
     lv_obj_t* row = lv_obj_create(tile);
-    lv_obj_set_size(row, TILE_FULL - 30, LV_SIZE_CONTENT);
+    lv_obj_set_size(row, w - 24, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(row, 0, 0);
     lv_obj_set_style_pad_all(row, 0, 0);
-    lv_obj_set_style_pad_column(row, 16, 0);
+    lv_obj_set_style_pad_column(row, 12, 0);
     lv_obj_set_style_pad_row(row, 2, 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(row, LV_ALIGN_TOP_LEFT, 6, 22);
+    lv_obj_align(row, LV_ALIGN_TOP_LEFT, 4, 24);
 
     for (uint8_t i = 0; i < grp.entity_count; i++) {
         const HAEntity& ent = entities[grp.entity_start + i];
 
-        /* Each entity gets a compact label: "Name: state [unit]" */
+        /* Skip device_tracker entities with router source_type */
+        if (strcmp(ent.domain, "device_tracker") == 0) continue;
+
+        const char* sname = shortEntityName(ent, grp.device_name);
+
         lv_obj_t* lbl = lv_label_create(row);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
 
-        /* Determine display state color */
-        bool isPositive = (strcmp(ent.state, "on") == 0 ||
-                           strcmp(ent.state, "home") == 0 ||
-                           strcmp(ent.state, "locked") == 0);
-        bool isNegative = (strcmp(ent.state, "off") == 0 ||
-                           strcmp(ent.state, "not_home") == 0 ||
-                           strcmp(ent.state, "unavailable") == 0);
-        lv_color_t clr = isPositive ? STATE_ON
-                        : isNegative ? TEXT_DIM
+        bool isOn = (strcmp(ent.state, "on") == 0 ||
+                     strcmp(ent.state, "home") == 0);
+        bool isOff = (strcmp(ent.state, "off") == 0);
+        bool isUnavail = (strcmp(ent.state, "unavailable") == 0);
+        lv_color_t clr = isOn ? STATE_ON
+                        : isUnavail ? lv_color_hex(0x996600)
+                        : isOff ? TEXT_DIM
                         : TEXT_PRIMARY;
         lv_obj_set_style_text_color(lbl, clr, 0);
 
-        /* Build compact state text */
-        char buf[80];
-        const char* fname = entityName(ent);
-
+        char buf[64];
+        const char* dot = isOn ? LV_SYMBOL_OK : isUnavail ? LV_SYMBOL_WARNING
+                         : LV_SYMBOL_CLOSE;
         if (strcmp(ent.domain, "sensor") == 0 && ent.extra.sensor.unit[0]) {
-            snprintf(buf, sizeof(buf), "%s: %s %s",
-                     fname, ent.state, ent.extra.sensor.unit);
-        } else if (strcmp(ent.domain, "binary_sensor") == 0) {
-            const char* st = isPositive ? "On" : "Off";
-            snprintf(buf, sizeof(buf), "%s: %s", fname, st);
-        } else if (strcmp(ent.domain, "device_tracker") == 0) {
-            char stBuf[32];
-            strncpy(stBuf, ent.state, sizeof(stBuf) - 1);
-            stBuf[sizeof(stBuf) - 1] = '\0';
-            capitalizeFirst(stBuf);
-            snprintf(buf, sizeof(buf), "%s: %s", fname, stBuf);
+            snprintf(buf, sizeof(buf), "%s: %s %s", sname, ent.state,
+                     ent.extra.sensor.unit);
+        } else if (strcmp(ent.domain, "binary_sensor") == 0 ||
+                   strcmp(ent.domain, "switch") == 0 ||
+                   strcmp(ent.domain, "light") == 0) {
+            snprintf(buf, sizeof(buf), "%s: %s", sname, dot);
         } else {
-            char stBuf[32];
-            strncpy(stBuf, ent.state, sizeof(stBuf) - 1);
-            stBuf[sizeof(stBuf) - 1] = '\0';
-            capitalizeFirst(stBuf);
-            snprintf(buf, sizeof(buf), "%s: %s", fname, stBuf);
+            snprintf(buf, sizeof(buf), "%s: %s", sname, ent.state);
         }
-
         lv_label_set_text(lbl, buf);
     }
 }
 
-/* Dispatch a single entity to its domain-specific renderer */
-void HAScreen::addSingleEntityTile(lv_obj_t* parent, const HAEntity& ent) {
+/* ═══════════════════════════════════════════════════════
+ *  Label Mode: Domain-Sectioned Card Grid
+ * ═══════════════════════════════════════════════════════ */
+
+/* ── Section Header: domain icon + label + count + divider ── */
+void HAScreen::addSectionHeader(const char* domain, uint8_t count) {
+    lv_color_t accent = domainAccent(domain);
+
+    lv_obj_t* hdr = lv_obj_create(_entityList);
+    lv_obj_set_size(hdr, CONTENT_W, 28);
+    lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(hdr, 0, 0);
+    lv_obj_set_style_pad_all(hdr, 0, 0);
+    lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
+
+    /* Accent-colored divider line at bottom */
+    lv_obj_t* line = lv_obj_create(hdr);
+    lv_obj_set_size(line, CONTENT_W - 8, 1);
+    lv_obj_set_style_bg_color(line, accent, 0);
+    lv_obj_set_style_bg_opa(line, LV_OPA_40, 0);
+    lv_obj_set_style_border_width(line, 0, 0);
+    lv_obj_set_style_radius(line, 0, 0);
+    lv_obj_align(line, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    lv_obj_t* lblIcon = lv_label_create(hdr);
+    lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblIcon, accent, 0);
+    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, 4, -2);
+    lv_label_set_text(lblIcon, domainIcon(domain));
+
+    lv_obj_t* lblName = lv_label_create(hdr);
+    lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
+    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 26, -2);
+    char buf[48];
+    snprintf(buf, sizeof(buf), "%s (%d)", domainLabel(domain), count);
+    lv_label_set_text(lblName, buf);
+}
+
+/* ── Section Grid: row-wrap flex container for cards ── */
+lv_obj_t* HAScreen::makeSectionGrid() {
+    lv_obj_t* grid = lv_obj_create(_entityList);
+    lv_obj_set_size(grid, CONTENT_W, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(grid, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(grid, 0, 0);
+    lv_obj_set_style_pad_all(grid, 0, 0);
+    lv_obj_set_style_pad_column(grid, TILE_GAP, 0);
+    lv_obj_set_style_pad_row(grid, TILE_GAP, 0);
+    lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
+    return grid;
+}
+
+/* Render a device into a grid — dispatches to correct card type */
+void HAScreen::addDeviceCardToGrid(lv_obj_t* grid, const HADeviceGroup& grp,
+                                    const HAEntity* entities, bool wide) {
+    int16_t w = wide ? CARD_WIDE : CARD_STD;
+    const char* dom = grp.domain;
+
+    /* Person cards get special rendering */
+    if (strcmp(dom, "device_tracker") == 0) {
+        addPersonCard(grid, grp, entities);
+        return;
+    }
+
+    /* Multi-entity devices → multi-entity card */
+    if (grp.entity_count > 1) {
+        /* Climate devices with sensors → climate card (first climate entity) */
+        if (strcmp(dom, "climate") == 0) {
+            addClimateCard(grid, entities[grp.entity_start]);
+            return;
+        }
+        addMultiEntityCard(grid, grp, entities, w);
+        return;
+    }
+
+    /* Single-entity devices → domain-specific card */
+    const HAEntity& ent = entities[grp.entity_start];
     if (strcmp(ent.domain, "climate") == 0)
-        addClimateCard(parent, ent);
+        addClimateCard(grid, ent);
     else if (strcmp(ent.domain, "sensor") == 0 ||
              strcmp(ent.domain, "binary_sensor") == 0)
-        addSensorRow(parent, ent);
+        addSensorRow(grid, ent, w);
     else if (strcmp(ent.domain, "light") == 0 ||
              strcmp(ent.domain, "switch") == 0 ||
              strcmp(ent.domain, "fan") == 0)
-        addLightSwitchRow(parent, ent);
+        addLightSwitchRow(grid, ent, w);
     else if (strcmp(ent.domain, "media_player") == 0)
-        addMediaCard(parent, ent);
+        addMediaCard(grid, ent, w);
     else
-        addGenericRow(parent, ent);
+        addGenericRow(grid, ent, w);
 }
 
 void HAScreen::rebuildDeviceGrouped(const HAData& ha) {
@@ -493,70 +685,82 @@ void HAScreen::rebuildDeviceGrouped(const HAData& ha) {
              ha.entity_count - ha.standalone_start,
              ha.entity_count);
 
-    /* Multi-entity device groups → consolidated device cards */
-    /* Single-entity device groups → domain-specific tile */
-    /* Render devices first, then a tile grid for standalone entities */
+    /* ── Discover unique domain sections from devices ── */
+    char sections[10][16];
+    uint8_t sectionCount = 0;
 
-    /* ── Multi-entity device cards (full-width consolidated) ── */
     for (uint8_t d = 0; d < ha.device_count; d++) {
-        const HADeviceGroup& grp = ha.devices[d];
-        if (grp.entity_count > 1) {
-            addDeviceCard(_entityList, grp, ha.entities);
+        const char* sec = sectionKey(ha.devices[d].domain);
+        bool found = false;
+        for (uint8_t s = 0; s < sectionCount; s++) {
+            if (strcmp(sections[s], sec) == 0) { found = true; break; }
+        }
+        if (!found && sectionCount < 10) {
+            strncpy(sections[sectionCount], sec, 15);
+            sections[sectionCount][15] = '\0';
+            sectionCount++;
         }
     }
 
-    /* ── Single-entity devices → shared row-wrap tile grid ── */
-    lv_obj_t* singleGrid = nullptr;
-    for (uint8_t d = 0; d < ha.device_count; d++) {
-        const HADeviceGroup& grp = ha.devices[d];
-        if (grp.entity_count == 1) {
-            if (!singleGrid) {
-                singleGrid = lv_obj_create(_entityList);
-                lv_obj_set_size(singleGrid, 760, LV_SIZE_CONTENT);
-                lv_obj_set_style_bg_opa(singleGrid, LV_OPA_TRANSP, 0);
-                lv_obj_set_style_border_width(singleGrid, 0, 0);
-                lv_obj_set_style_pad_all(singleGrid, 0, 0);
-                lv_obj_set_style_pad_column(singleGrid, TILE_GAP, 0);
-                lv_obj_set_style_pad_row(singleGrid, TILE_GAP, 0);
-                lv_obj_set_flex_flow(singleGrid, LV_FLEX_FLOW_ROW_WRAP);
-                lv_obj_clear_flag(singleGrid, LV_OBJ_FLAG_SCROLLABLE);
+    /* Sort sections by domain priority */
+    for (uint8_t i = 0; i < sectionCount; i++) {
+        for (uint8_t j = i + 1; j < sectionCount; j++) {
+            if (domainOrder(sections[j]) < domainOrder(sections[i])) {
+                char tmp[16];
+                memcpy(tmp, sections[i], 16);
+                memcpy(sections[i], sections[j], 16);
+                memcpy(sections[j], tmp, 16);
             }
-            addSingleEntityTile(singleGrid, ha.entities[grp.entity_start]);
+        }
+    }
+
+    /* ── Render each domain section ── */
+    for (uint8_t s = 0; s < sectionCount; s++) {
+        const char* sec = sections[s];
+
+        /* Collect device indices for this section */
+        uint8_t devIdx[MAX_HA_DEVICES];
+        uint8_t devCount = 0;
+        for (uint8_t d = 0; d < ha.device_count; d++) {
+            if (strcmp(sectionKey(ha.devices[d].domain), sec) == 0) {
+                devIdx[devCount++] = d;
+            }
+        }
+        if (devCount == 0) continue;
+
+        /* Section header */
+        addSectionHeader(sec, devCount);
+
+        /* Card grid */
+        lv_obj_t* grid = makeSectionGrid();
+
+        /* Render each device as a card */
+        for (uint8_t i = 0; i < devCount; i++) {
+            const HADeviceGroup& grp = ha.devices[devIdx[i]];
+            bool wide = needsWideCard(sec, grp.entity_count);
+            addDeviceCardToGrid(grid, grp, ha.entities, wide);
         }
     }
 
     /* ── Standalone entities (no device) ── */
     uint8_t standaloneCount = ha.entity_count - ha.standalone_start;
     if (standaloneCount > 0) {
-        /* Section header for standalone */
-        lv_obj_t* hdr = lv_obj_create(_entityList);
-        lv_obj_set_size(hdr, 760, 26);
-        lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(hdr, 0, 0);
-        lv_obj_set_style_pad_all(hdr, 0, 0);
-        lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
-
-        lv_obj_t* lblName = lv_label_create(hdr);
-        lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
-        lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
-        lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 4, 0);
-        char hdrBuf[48];
-        snprintf(hdrBuf, sizeof(hdrBuf), "Other (%d)", standaloneCount);
-        lv_label_set_text(lblName, hdrBuf);
-
-        /* Tile grid for standalone */
-        lv_obj_t* grid = lv_obj_create(_entityList);
-        lv_obj_set_size(grid, 760, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(grid, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(grid, 0, 0);
-        lv_obj_set_style_pad_all(grid, 0, 0);
-        lv_obj_set_style_pad_column(grid, TILE_GAP, 0);
-        lv_obj_set_style_pad_row(grid, TILE_GAP, 0);
-        lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
-        lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
-
+        addSectionHeader("sensor", standaloneCount);
+        lv_obj_t* grid = makeSectionGrid();
         for (uint8_t i = ha.standalone_start; i < ha.entity_count; i++) {
-            addSingleEntityTile(grid, ha.entities[i]);
+            const HAEntity& ent = ha.entities[i];
+            if (strcmp(ent.domain, "climate") == 0)
+                addClimateCard(grid, ent);
+            else if (strcmp(ent.domain, "sensor") == 0 ||
+                     strcmp(ent.domain, "binary_sensor") == 0)
+                addSensorRow(grid, ent, CARD_STD);
+            else if (strcmp(ent.domain, "light") == 0 ||
+                     strcmp(ent.domain, "switch") == 0)
+                addLightSwitchRow(grid, ent, CARD_STD);
+            else if (strcmp(ent.domain, "media_player") == 0)
+                addMediaCard(grid, ent, CARD_STD);
+            else
+                addGenericRow(grid, ent, CARD_STD);
         }
     }
 }
@@ -605,7 +809,19 @@ void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
     /* Dispatch to domain-specific tile renderers */
     for (uint8_t i = 0; i < count; i++) {
         const HAEntity& ent = entities[indices[i]];
-        addSingleEntityTile(grid, ent);
+        if (strcmp(ent.domain, "climate") == 0)
+            addClimateCard(grid, ent);
+        else if (strcmp(ent.domain, "sensor") == 0 ||
+                 strcmp(ent.domain, "binary_sensor") == 0)
+            addSensorRow(grid, ent, CARD_STD);
+        else if (strcmp(ent.domain, "light") == 0 ||
+                 strcmp(ent.domain, "switch") == 0 ||
+                 strcmp(ent.domain, "fan") == 0)
+            addLightSwitchRow(grid, ent, CARD_STD);
+        else if (strcmp(ent.domain, "media_player") == 0)
+            addMediaCard(grid, ent, CARD_STD);
+        else
+            addGenericRow(grid, ent, CARD_STD);
     }
 }
 

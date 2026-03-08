@@ -94,8 +94,9 @@ struct GitHubData {
 
 struct HADeviceGroup {
     char    device_name[64];
-    uint8_t entity_start;   // first index in HAData::entities[]
-    uint8_t entity_count;   // number of entities in this group
+    char    domain[16];      // primary domain for section grouping
+    uint8_t entity_start;    // first index in HAData::entities[]
+    uint8_t entity_count;    // number of entities in this group
 };
 
 struct HAData {
