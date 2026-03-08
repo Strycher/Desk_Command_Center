@@ -361,13 +361,26 @@ This is a daily-use desktop display — it must look polished, not terminal-like
 
 #### Home Assistant Screen
 
-- **Entity groups** — configurable in bridge, displayed as card sections
-  - Climate: indoor temp, outdoor temp, thermostat setpoint + mode
-  - Lights: on/off state per light entity
-  - Security: lock/door state
-  - Energy: daily usage, solar production
-- **Entities configured per group in bridge** — add/remove without reflash
-- Specific entities evaluated when HA setup is more complete
+**Design direction: Cards-style dashboard (HA Lovelace / Alexa Smart Home)**
+
+- **Card grid layout** — device cards in 2-3 per row grid (250px standard,
+  380px wide for info-dense devices), NOT full-width rows
+- **Domain sections** — grouped by domain type with section headers:
+  - Climate: thermostat card with large temp, HVAC action, target, humidity
+  - Lights: compact on/off card with lightbulb icon, state-colored accent
+  - Switches: compact on/off card with power icon
+  - Media: card with playback state, app name when playing
+  - Network: wide card with WAN status, IP, up/down speeds
+  - People: card with home/away status, battery level
+- **Domain icons** — prominent, colored icons per domain (not just text)
+- **Device name as card title** — entity attributes listed below without
+  repeating the device name prefix
+- **DCC label filtering** — only entities labeled "DCC" in HA are shown
+- **Device grouping** — entities sharing an HA device render as one card
+- **Visual hierarchy** — 16px name, 20px state, 36px temperatures
+- **ON-state highlighting** — brighter card background for active devices
+- See `docs/plans/ha-screen-redesign.md` for full card anatomy and mockups
+- **GH #145** tracks the implementation
 
 #### Claude Activity Screen
 
