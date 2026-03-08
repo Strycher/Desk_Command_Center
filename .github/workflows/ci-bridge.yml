@@ -15,6 +15,7 @@ on:
     paths:
       - 'bridge/**'
       - 'pyproject.toml'
+      - '.github/workflows/ci-bridge.yml'
 
 jobs:
   lint:
