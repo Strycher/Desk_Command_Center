@@ -274,6 +274,15 @@ class HomeAssistantAdapter(BaseAdapter):
         # Sort devices by name for stable ordering
         devices.sort(key=lambda d: d["device_name"].lower())
 
+        # Build backward-compatible domains dict (flat domain grouping)
+        # so older firmware that only knows about domains{} still works
+        by_domain: dict[str, list[dict]] = {}
+        for d in devices:
+            for ent in d["entities"]:
+                by_domain.setdefault(ent["domain"], []).append(ent)
+        for ent in standalone:
+            by_domain.setdefault(ent["domain"], []).append(ent)
+
         total = sum(len(d["entities"]) for d in devices) + len(standalone)
         logger.info("HA: label mode — %d devices, %d standalone, %d total",
                      len(devices), len(standalone), total)
@@ -283,6 +292,7 @@ class HomeAssistantAdapter(BaseAdapter):
             "label": self.label_name,
             "devices": devices,
             "standalone": standalone,
+            "domains": by_domain,
             "total_entities": total,
             "total_devices": len(devices),
         }
