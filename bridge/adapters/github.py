@@ -138,7 +138,7 @@ class GitHubAdapter(BaseAdapter):
                 {
                     "number": i["number"],
                     "title": i["title"],
-                    "labels": [l["name"] for l in i.get("labels", [])],
+                    "labels": [lbl["name"] for lbl in i.get("labels", [])],
                     "assignee": i["assignee"]["login"] if i.get("assignee") else None,
                     "created_at": i["created_at"],
                 }

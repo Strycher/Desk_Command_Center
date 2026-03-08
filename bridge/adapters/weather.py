@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -183,7 +183,6 @@ class WeatherAdapter(BaseAdapter):
             points.raise_for_status()
             point_data = points.json()
 
-            forecast_url = point_data["properties"]["forecast"]
             hourly_url = point_data["properties"]["forecastHourly"]
 
             # Step 2: Get current observations from nearest station

@@ -1,5 +1,5 @@
 /**
- * Navigation Bar — Persistent 5-icon bottom bar.
+ * Navigation Bar — Persistent 8-icon bottom bar.
  * Created on LVGL top layer, persists across screen transitions.
  */
 

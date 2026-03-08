@@ -47,7 +47,7 @@ def main() -> None:
     })
     auth_url = f"{installed['auth_uri']}?{auth_params}"
 
-    print(f"\nOpening browser for Google authorization...")
+    print("\nOpening browser for Google authorization...")
     print(f"If the browser doesn't open, visit:\n{auth_url}\n")
     webbrowser.open(auth_url)
 
