@@ -7,6 +7,7 @@
 
 #include "ui/home_screen.h"
 #include "ui/weather_icon.h"
+#include "ui/task_priority.h"
 #include "ntp_time.h"
 #include "config_store.h"
 #include "logger.h"
@@ -16,12 +17,6 @@ static const lv_color_t CARD_BG      = lv_color_hex(0x1a1a2e);
 static const lv_color_t TEXT_PRIMARY  = lv_color_hex(0xE0E0FF);
 static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT       = lv_color_hex(0x6C63FF);
-
-/* Task priority dot colors */
-static const lv_color_t PRIO_HIGH    = lv_color_hex(0xFF4444);
-static const lv_color_t PRIO_MED     = lv_color_hex(0xFFAA00);
-static const lv_color_t PRIO_LOW     = lv_color_hex(0x44AA44);
-static const lv_color_t PRIO_NONE    = lv_color_hex(0x555577);
 
 static constexpr int16_t CONTENT_Y   = 30;
 static constexpr int16_t CONTENT_H   = 400;
@@ -358,18 +353,6 @@ void HomeScreen::createTasksCard(lv_obj_t* parent) {
     _taskItemCount = 0;
 }
 
-/* Sort key: priority 1 (high) first, 2, 3, then 0 (none) last. */
-static uint8_t prioSortKey(uint8_t p) { return p == 0 ? 4 : p; }
-
-static lv_color_t prioColor(uint8_t p) {
-    switch (p) {
-        case 1:  return PRIO_HIGH;
-        case 2:  return PRIO_MED;
-        case 3:  return PRIO_LOW;
-        default: return PRIO_NONE;
-    }
-}
-
 void HomeScreen::updateTasks(const DashboardData& data) {
     if (!_cardTasks) return;
 
@@ -377,7 +360,7 @@ void HomeScreen::updateTasks(const DashboardData& data) {
     struct MergedTask {
         const char* title;
         const char* due;
-        uint8_t priority;
+        const char* priority;
         const char* source;
     };
 
@@ -405,11 +388,11 @@ void HomeScreen::updateTasks(const DashboardData& data) {
         }
     }
 
-    /* Sort by priority: high(1) → med(2) → low(3) → none(0) */
+    /* Sort by priority rank: Critical(0) → High(1) → Med(2) → Low(3) → none(99) */
     for (uint8_t i = 0; i < count; i++) {
         for (uint8_t j = i + 1; j < count; j++) {
-            if (prioSortKey(merged[j].priority)
-                < prioSortKey(merged[i].priority)) {
+            if (taskPrioRank(merged[j].priority, merged[j].source)
+                < taskPrioRank(merged[i].priority, merged[i].source)) {
                 MergedTask tmp = merged[i];
                 merged[i] = merged[j];
                 merged[j] = tmp;
@@ -421,7 +404,7 @@ void HomeScreen::updateTasks(const DashboardData& data) {
     for (uint8_t i = 0; i < 5; i++) {
         if (i < show) {
             /* Color dot */
-            lv_obj_set_style_bg_color(_taskDots[i], prioColor(merged[i].priority), 0);
+            lv_obj_set_style_bg_color(_taskDots[i], taskPrioColor(merged[i].priority, merged[i].source), 0);
             lv_obj_clear_flag(_taskDots[i], LV_OBJ_FLAG_HIDDEN);
 
             /* Task text — no more text-based priority prefix */

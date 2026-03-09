@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/tasks_screen.h"
+#include "ui/task_priority.h"
 #include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
@@ -12,10 +13,6 @@ static const lv_color_t TEXT_PRIMARY   = lv_color_hex(0xE0E0FF);
 static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT         = lv_color_hex(0x6C63FF);
 static const lv_color_t BTN_BG        = lv_color_hex(0x252540);
-static const lv_color_t PRIO_HIGH     = lv_color_hex(0xFF4444);
-static const lv_color_t PRIO_MED      = lv_color_hex(0xFFAA00);
-static const lv_color_t PRIO_LOW      = lv_color_hex(0x44AA44);
-static const lv_color_t PRIO_NONE     = lv_color_hex(0x555577);
 static const lv_color_t COMPLETED_CLR = lv_color_hex(0x336633);
 
 static constexpr int16_t CONTENT_Y = 30;
@@ -122,7 +119,7 @@ void TasksScreen::create(lv_obj_t* parent) {
 /* --- Task card --- */
 
 void TasksScreen::addTaskCard(const char* title, const char* due,
-                               uint8_t priority, const char* source,
+                               const char* priority, const char* source,
                                bool completed) {
     lv_obj_t* card = lv_obj_create(_taskList);
     lv_obj_set_size(card, 760, LV_SIZE_CONTENT);
@@ -135,13 +132,7 @@ void TasksScreen::addTaskCard(const char* title, const char* due,
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     /* Priority stripe */
-    lv_color_t stripeColor;
-    switch (priority) {
-        case 1:  stripeColor = PRIO_HIGH; break;
-        case 2:  stripeColor = PRIO_MED;  break;
-        case 3:  stripeColor = PRIO_LOW;  break;
-        default: stripeColor = PRIO_NONE; break;
-    }
+    lv_color_t stripeColor = taskPrioColor(priority, source);
 
     lv_obj_t* stripe = lv_obj_create(card);
     lv_obj_set_size(stripe, 4, lv_pct(100));
@@ -195,7 +186,7 @@ void TasksScreen::rebuildTaskList() {
     struct MergedTask {
         const char* title;
         const char* due;
-        uint8_t priority;
+        const char* priority;
         const char* source;
         bool completed;
     };
@@ -213,7 +204,7 @@ void TasksScreen::rebuildTaskList() {
              count < MAX_TASKS * 2; i++) {
             const TaskItem& t = _lastData->unfocused_tasks.data[i];
             merged[count++] = {t.title, t.due_date, t.priority,
-                               "Unfocused", t.completed};
+                               t.source, t.completed};
         }
     }
 
@@ -222,20 +213,20 @@ void TasksScreen::rebuildTaskList() {
              count < MAX_TASKS * 2; i++) {
             const TaskItem& t = _lastData->monday_tasks.data[i];
             merged[count++] = {t.title, t.due_date, t.priority,
-                               "Monday", t.completed};
+                               t.source, t.completed};
         }
     }
 
-    /* Sort: incomplete first, then by priority (1=high first) */
+    /* Sort: incomplete first, then by priority rank */
     for (uint8_t i = 0; i < count; i++) {
         for (uint8_t j = i + 1; j < count; j++) {
             bool swap = false;
             if (merged[i].completed && !merged[j].completed) {
                 swap = true;
             } else if (merged[i].completed == merged[j].completed) {
-                uint8_t pi = merged[i].priority == 0 ? 99 : merged[i].priority;
-                uint8_t pj = merged[j].priority == 0 ? 99 : merged[j].priority;
-                if (pj < pi) swap = true;
+                uint8_t ri = taskPrioRank(merged[i].priority, merged[i].source);
+                uint8_t rj = taskPrioRank(merged[j].priority, merged[j].source);
+                if (rj < ri) swap = true;
             }
             if (swap) {
                 MergedTask tmp = merged[i];
