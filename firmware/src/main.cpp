@@ -20,6 +20,7 @@
 #include "web_serial.h"
 #include "data_service.h"
 #include "ha_command.h"
+#include "ui/ha_control_modal.h"
 #include "dashboard_data.h"
 #include "staleness_tracker.h"
 #include "error_state.h"
@@ -57,7 +58,7 @@ static CalendarScreen       calendarScreen;
 static TasksScreen          tasksScreen;
 static WeatherScreen        weatherScreen;
 static DevOpsScreen         devopsScreen;
-static HAScreen             haScreen;
+HAScreen                    haScreen;
 static ClaudeScreen         claudeScreen;
 static WifiSettingsScreen   wifiSettingsScreen;
 static SettingsScreen       settingsScreen;
@@ -221,6 +222,10 @@ void setup() {
     StalenessTracker::init();
     DataService::init(cfg.bridge_url, cfg.poll_interval_sec);
     HACommand::init(cfg.bridge_url);
+    HACommand::onResult([](bool success, const char* entityId,
+                           const char* newState, const char* error) {
+        HAControlModal::onCommandResult(success, newState, error);
+    });
     DataService::onData(onBridgeData);
     DataService::startTask();  /* Launch background network task on Core 0 */
 

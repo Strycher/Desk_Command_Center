@@ -11,6 +11,7 @@
  */
 
 #include "ui/screens/ha_screen.h"
+#include "ui/ha_control_modal.h"
 #include <cstring>
 #include "logger.h"
 
@@ -124,6 +125,14 @@ static bool needsWideCard(const char* sectionDomain, uint8_t entityCount) {
     return false;
 }
 
+/* ── Controllability check ──────────────────────────── */
+static bool isControllable(const char* domain) {
+    return strcmp(domain, "sensor") != 0 &&
+           strcmp(domain, "binary_sensor") != 0 &&
+           strcmp(domain, "device_tracker") != 0 &&
+           strcmp(domain, "person") != 0;
+}
+
 /* ── Tile base helper ───────────────────────────────── */
 static lv_obj_t* makeTile(lv_obj_t* parent, int16_t w, int16_t h) {
     lv_obj_t* t = lv_obj_create(parent);
@@ -184,6 +193,31 @@ static void formatSensorValue(char* out, size_t outLen, const char* state) {
 
 static void capitalizeFirst(char* buf) {
     if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
+}
+
+/* ── Click handler — extern access to haScreen in main.cpp ── */
+extern HAScreen haScreen;
+
+void HAScreen::onCardClick(lv_event_t* e) {
+    uintptr_t entityIdx = (uintptr_t)lv_event_get_user_data(e);
+
+    if (!haScreen._lastData) return;
+    const HAData& ha = haScreen._lastData->home_assistant.data;
+    if (entityIdx >= ha.entity_count) return;
+
+    const HAEntity& entity = ha.entities[entityIdx];
+
+    /* Find device name for this entity */
+    const char* devName = entity.friendly_name;
+    for (uint8_t d = 0; d < ha.device_count; d++) {
+        if (ha.devices[d].entity_start <= entityIdx &&
+            entityIdx < ha.devices[d].entity_start + ha.devices[d].entity_count) {
+            devName = ha.devices[d].device_name;
+            break;
+        }
+    }
+
+    HAControlModal::show(entity, devName);
 }
 
 /* ── Screen create ──────────────────────────────────── */
@@ -660,38 +694,51 @@ void HAScreen::addDeviceCardToGrid(lv_obj_t* grid, const HADeviceGroup& grp,
     int16_t w = wide ? CARD_WIDE : CARD_STD;
     const char* dom = grp.domain;
 
+    /* Capture child count before renderer adds a tile */
+    uint32_t childBefore = lv_obj_get_child_cnt(grid);
+
     /* Person cards get special rendering */
     if (strcmp(dom, "device_tracker") == 0) {
         addPersonCard(grid, grp, entities);
-        return;
     }
-
     /* Multi-entity devices → multi-entity card */
-    if (grp.entity_count > 1) {
+    else if (grp.entity_count > 1) {
         /* Climate devices with sensors → climate card (first climate entity) */
         if (strcmp(dom, "climate") == 0) {
             addClimateCard(grid, entities[grp.entity_start]);
-            return;
+        } else {
+            addMultiEntityCard(grid, grp, entities, w);
         }
-        addMultiEntityCard(grid, grp, entities, w);
-        return;
+    }
+    /* Single-entity devices → domain-specific card */
+    else {
+        const HAEntity& ent = entities[grp.entity_start];
+        if (strcmp(ent.domain, "climate") == 0)
+            addClimateCard(grid, ent);
+        else if (strcmp(ent.domain, "sensor") == 0 ||
+                 strcmp(ent.domain, "binary_sensor") == 0)
+            addSensorRow(grid, ent, w);
+        else if (strcmp(ent.domain, "light") == 0 ||
+                 strcmp(ent.domain, "switch") == 0 ||
+                 strcmp(ent.domain, "fan") == 0)
+            addLightSwitchRow(grid, ent, w);
+        else if (strcmp(ent.domain, "media_player") == 0)
+            addMediaCard(grid, ent, w);
+        else
+            addGenericRow(grid, ent, w);
     }
 
-    /* Single-entity devices → domain-specific card */
-    const HAEntity& ent = entities[grp.entity_start];
-    if (strcmp(ent.domain, "climate") == 0)
-        addClimateCard(grid, ent);
-    else if (strcmp(ent.domain, "sensor") == 0 ||
-             strcmp(ent.domain, "binary_sensor") == 0)
-        addSensorRow(grid, ent, w);
-    else if (strcmp(ent.domain, "light") == 0 ||
-             strcmp(ent.domain, "switch") == 0 ||
-             strcmp(ent.domain, "fan") == 0)
-        addLightSwitchRow(grid, ent, w);
-    else if (strcmp(ent.domain, "media_player") == 0)
-        addMediaCard(grid, ent, w);
-    else
-        addGenericRow(grid, ent, w);
+    /* Attach click handler to the tile just added (if controllable) */
+    const char* primaryDomain = grp.domain;
+    if (grp.entity_count == 1) primaryDomain = entities[grp.entity_start].domain;
+
+    uint32_t childAfter = lv_obj_get_child_cnt(grid);
+    if (childAfter > childBefore && isControllable(primaryDomain)) {
+        lv_obj_t* tile = lv_obj_get_child(grid, childAfter - 1);
+        lv_obj_add_flag(tile, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(tile, onCardClick, LV_EVENT_CLICKED,
+                            (void*)(uintptr_t)grp.entity_start);
+    }
 }
 
 void HAScreen::rebuildDeviceGrouped(const HAData& ha) {

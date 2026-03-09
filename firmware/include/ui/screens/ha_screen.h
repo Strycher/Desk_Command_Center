@@ -18,6 +18,8 @@ private:
     const DashboardData* _lastData = nullptr;
     bool _dirty = false;
 
+    static void onCardClick(lv_event_t* e);
+
     void rebuildEntityList(const HAData& ha);
 
     /* Label mode: domain-sectioned card grid */
