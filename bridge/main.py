@@ -8,6 +8,7 @@ Endpoints:
   GET  /api/config          — current config (secrets masked)
   PUT  /api/config          — partial config update
   GET  /api/dashboard       — merged data for display (single poll)
+  POST /api/ha/command      — send a whitelisted command to Home Assistant
   POST /calendar/ms         — ingest Outlook calendar JSON (push)
   GET  /calendar/ms         — retrieve latest calendar snapshot
   POST /calendar/google     — ingest Google calendar JSON (push)
@@ -42,12 +43,24 @@ _cfg = config.get_all(mask_secrets=False)
 scheduler.register(WeatherAdapter(_cfg))
 scheduler.register(GitHubAdapter(_cfg))
 scheduler.register(BeadsAdapter(_cfg))
-scheduler.register(HomeAssistantAdapter(_cfg))
+ha_adapter = HomeAssistantAdapter(_cfg)
+scheduler.register(ha_adapter)
 scheduler.register(GoogleCalendarAdapter(_cfg))
 scheduler.register(UnfocusedTasksAdapter(_cfg))
 
 # Default TTL for push-ingested data (10 minutes)
 PUSH_TTL = 600
+
+# Allowed HA service calls — security boundary for device control
+ALLOWED_SERVICES: dict[str, set[str]] = {
+    "light": {"turn_on", "turn_off", "toggle"},
+    "switch": {"turn_on", "turn_off", "toggle"},
+    "fan": {"turn_on", "turn_off", "toggle"},
+    "lock": {"lock", "unlock"},
+    "cover": {"open_cover", "close_cover", "stop_cover"},
+    "climate": {"set_temperature", "set_hvac_mode", "set_preset_mode"},
+    "media_player": {"media_play_pause", "volume_up", "volume_down", "volume_set"},
+}
 
 # Known data sources — the dashboard merges all of these.
 # Each entry: cache_key -> human-readable label
@@ -183,3 +196,53 @@ async def get_google_calendar():
     if data is None:
         return JSONResponse(status_code=404, content={"error": "no data yet"})
     return data
+
+
+# --- HA device control -------------------------------------------------------
+
+@app.post("/api/ha/command")
+async def ha_command(request: Request):
+    body = await request.json()
+    entity_id = body.get("entity_id")
+    service = body.get("service")
+    data = body.get("data", {})
+
+    # Validate required fields
+    if not entity_id or not service:
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "error": "entity_id and service are required",
+        })
+
+    # Extract domain and validate against whitelist
+    domain = entity_id.split(".")[0]
+    allowed = ALLOWED_SERVICES.get(domain)
+    if allowed is None:
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "error": f"Domain '{domain}' is not controllable",
+        })
+    if service not in allowed:
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "error": f"Service '{service}' not allowed for domain '{domain}'",
+        })
+
+    # Call HA service
+    try:
+        await ha_adapter.call_service(entity_id, service, data or None)
+    except Exception as exc:
+        logger.error("HA command failed: %s", exc)
+        return JSONResponse(status_code=502, content={
+            "success": False,
+            "error": f"Service call failed: {exc}",
+        })
+
+    # Re-fetch entity state
+    try:
+        entity = await ha_adapter.get_entity_state(entity_id)
+    except Exception as exc:
+        logger.warning("HA state refetch failed: %s", exc)
+        return {"success": True, "entity": None, "warning": "State refetch failed"}
+
+    return {"success": True, "entity": entity}
