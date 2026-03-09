@@ -19,6 +19,7 @@
 #include "sd_manager.h"
 #include "web_serial.h"
 #include "data_service.h"
+#include "ha_command.h"
 #include "dashboard_data.h"
 #include "staleness_tracker.h"
 #include "error_state.h"
@@ -219,6 +220,7 @@ void setup() {
     lv_timer_handler();
     StalenessTracker::init();
     DataService::init(cfg.bridge_url, cfg.poll_interval_sec);
+    HACommand::init(cfg.bridge_url);
     DataService::onData(onBridgeData);
     DataService::startTask();  /* Launch background network task on Core 0 */
 
@@ -265,6 +267,7 @@ void loop() {
 
     /* Check for new data from background network task (non-blocking) */
     DataService::checkReady();
+    HACommand::checkResult();
 
     /* Logger: flush SD buffer + rotation check */
     Logger::tick();

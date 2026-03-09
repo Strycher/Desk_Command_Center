@@ -14,6 +14,7 @@
 #include "data_service.h"
 #include "logger.h"
 #include "ntp_time.h"
+#include "ha_command.h"
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
@@ -124,23 +125,37 @@ static void networkTask(void* param) {
     vTaskDelay(pdMS_TO_TICKS(5000));
 
     for (;;) {
-        /* Fetch bridge data */
         doFetch();
-
-        /* NTP re-sync (non-critical, runs in background) */
         NtpTime::backgroundResync();
 
-        /* Log heap for monitoring */
+        /* Process any pending HA commands immediately */
+        HACommand::processQueue();
+
         LOG_DEBUG("DATA: heap=%lu PSRAM=%lu",
                   ESP.getFreeHeap(), ESP.getFreePsram());
 
-        /* Sleep until next poll (or wake early on forcePoll) */
         uint32_t sleepMs = _intervalMs;
         if (_forcePoll) {
             _forcePoll = false;
-            sleepMs = 100;  /* Short delay to avoid tight loop */
+            sleepMs = 100;
         }
-        vTaskDelay(pdMS_TO_TICKS(sleepMs));
+
+        /* During sleep, wake periodically to check for commands */
+        uint32_t slept = 0;
+        while (slept < sleepMs) {
+            uint32_t chunk = (sleepMs - slept > 200) ? 200 : (sleepMs - slept);
+            vTaskDelay(pdMS_TO_TICKS(chunk));
+            slept += chunk;
+
+            /* Check for commands between polls — provides <200ms latency */
+            if (HACommand::processQueue()) {
+                LOG_INFO("DATA: processed command during poll sleep");
+            }
+            if (_forcePoll) {
+                _forcePoll = false;
+                break;  /* exit sleep early for forced poll */
+            }
+        }
     }
 }
 
