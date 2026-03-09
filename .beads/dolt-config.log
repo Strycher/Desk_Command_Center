@@ -1,4 +1,2 @@
-2026-03-05T23:48:21Z actor=unknown key=host value=127.0.0.1 beads_dir=C:\Dev\Desk_Command_Center\.beads
-2026-03-05T23:48:22Z actor=unknown key=port value=3310 beads_dir=C:\Dev\Desk_Command_Center\.beads
-2026-03-05T23:48:22Z actor=unknown key=database value=beads_DCC beads_dir=C:\Dev\Desk_Command_Center\.beads
-2026-03-05T23:48:22Z actor=unknown key=user value=root beads_dir=C:\Dev\Desk_Command_Center\.beads
+2026-03-09T07:30:29Z actor=unknown key=database value=beads_DCC beads_dir=C:\dev\Desk_Command_Center\.beads
+2026-03-09T07:32:40Z actor=unknown key=database value=Desk_Command_Center beads_dir=C:\dev\Desk_Command_Center\.beads
