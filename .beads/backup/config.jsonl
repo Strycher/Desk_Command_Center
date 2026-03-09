@@ -9,4 +9,3 @@
 {"key":"compaction_enabled","value":"false"}
 {"key":"issue_prefix","value":"Desk_Command_Center"}
 {"key":"schema_version","value":"6"}
-{"key":"status.custom","value":"todo,backlog,ready,testing,done"}
