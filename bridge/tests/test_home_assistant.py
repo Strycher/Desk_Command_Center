@@ -1,6 +1,6 @@
 """Tests for Home Assistant adapter — parsing and poll-once with mocked data."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -154,3 +154,54 @@ class TestHomeAssistantAdapter:
         assert "climate" in result["domains"]
         assert adapter.state.status == AdapterStatus.OK
         assert cache.get("home_assistant") is not None
+
+    @pytest.mark.asyncio
+    async def test_call_service_light_toggle(self):
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = lambda: None
+
+        with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
+            result = await adapter.call_service("light.office", "turn_off")
+            assert result is True
+            mock_post.assert_called_once()
+            call_url = mock_post.call_args[0][0]
+            assert "/api/services/light/turn_off" in call_url
+
+    @pytest.mark.asyncio
+    async def test_call_service_climate_set_temp(self):
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = lambda: None
+
+        with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
+            result = await adapter.call_service(
+                "climate.living_room", "set_temperature",
+                {"temperature": 72}
+            )
+            assert result is True
+            call_kwargs = mock_post.call_args
+            body = call_kwargs[1].get("json", {}) if call_kwargs[1] else {}
+            assert body.get("temperature") == 72
+
+    @pytest.mark.asyncio
+    async def test_get_entity_state(self):
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "entity_id": "light.office",
+            "state": "off",
+            "attributes": {"friendly_name": "Office Light"},
+        }
+        mock_response.raise_for_status = lambda: None
+
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            entity = await adapter.get_entity_state("light.office")
+            assert entity["entity_id"] == "light.office"
+            assert entity["state"] == "off"
+            assert entity["domain"] == "light"

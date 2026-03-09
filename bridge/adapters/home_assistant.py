@@ -62,6 +62,42 @@ class HomeAssistantAdapter(BaseAdapter):
         self._registry: dict[str, Any] | None = None
         self._registry_ts: float = 0
 
+    # ── Service calls & entity state ─────────────────────────────
+
+    async def call_service(
+        self, entity_id: str, service: str, data: dict[str, Any] | None = None,
+    ) -> bool:
+        """Call a Home Assistant service (e.g., light/turn_off)."""
+        domain = entity_id.split(".")[0]
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+        }
+        payload: dict[str, Any] = {"entity_id": entity_id}
+        if data:
+            payload.update(data)
+
+        async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
+            resp = await client.post(
+                f"{self.url}/api/services/{domain}/{service}",
+                json=payload,
+            )
+            resp.raise_for_status()
+            return True
+
+    async def get_entity_state(self, entity_id: str) -> dict[str, Any]:
+        """Fetch a single entity's current state and parse it."""
+        domain = entity_id.split(".")[0]
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
+            resp = await client.get(f"{self.url}/api/states/{entity_id}")
+            resp.raise_for_status()
+            raw = resp.json()
+            return self._parse_entity(raw, domain)
+
     # ── WebSocket registry helpers ────────────────────────────────
 
     async def _ws_command(self, ws: Any, msg_id: int, msg_type: str) -> dict:
