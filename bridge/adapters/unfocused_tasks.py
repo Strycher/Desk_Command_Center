@@ -11,36 +11,10 @@ from .base import AdapterConfig, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
-# Map Unfocused priority strings to firmware uint8_t values.
-# Firmware: 0=none, 1=high, 2=medium, 3=low
-_PRIORITY_MAP = {
-    # Pn prefix format (e.g. "P1 - High")
-    "P0": 1,  # Critical → high
-    "P1": 1,  # High
-    "P2": 2,  # Medium
-    "P3": 3,  # Low
-    # Plain word format (e.g. "High", "Medium", "Low")
-    "High": 1,
-    "Medium": 2,
-    "Low": 3,
-}
-
 # Statuses considered "active" (shown in task list)
 _ACTIVE_STATUSES = {"not_started", "in_progress"}
 # Statuses considered "deferred" (counted but not shown)
 _DEFERRED_STATUSES = {"on_hold"}
-
-
-def _parse_priority(priority_str: str | None) -> int:
-    """Map priority from 'P2 - Medium', 'High', 'Medium', etc."""
-    if not priority_str:
-        return 0
-    # Try exact match first (handles "High", "Medium", "Low")
-    if priority_str in _PRIORITY_MAP:
-        return _PRIORITY_MAP[priority_str]
-    # Try Pn prefix (handles "P2 - Medium" format)
-    prefix = priority_str[:2]
-    return _PRIORITY_MAP.get(prefix, 0)
 
 
 class UnfocusedTasksAdapter(BaseAdapter):
@@ -103,7 +77,7 @@ class UnfocusedTasksAdapter(BaseAdapter):
             tasks.append({
                 "title": t.get("title", ""),
                 "due_date": t.get("due_date", ""),
-                "priority": _parse_priority(t.get("priority")),
+                "priority": t.get("priority", ""),
                 "source": "unfocused",
                 "completed": status == "completed",
             })
