@@ -161,6 +161,20 @@ class GitHubAdapter(BaseAdapter):
                     "created_at": run.get("created_at"),
                 })
 
+            # Derive summary CI status for firmware display.
+            # "failing" if any workflow failed, "pending" if any in-progress,
+            # "passing" if all succeeded, empty if no runs.
+            ci_status = ""
+            if ci_runs:
+                has_failure = any(r["conclusion"] == "failure" for r in ci_runs)
+                has_pending = any(r["status"] != "completed" for r in ci_runs)
+                if has_failure:
+                    ci_status = "failing"
+                elif has_pending:
+                    ci_status = "pending"
+                else:
+                    ci_status = "passing"
+
             repos[repo_name] = {
                 "status": "ok",
                 "open_prs": len(prs),
@@ -168,6 +182,7 @@ class GitHubAdapter(BaseAdapter):
                 "prs": prs,
                 "issues": issues,
                 "ci": ci_runs,
+                "ci_status": ci_status,
             }
 
         return {"repos": repos}

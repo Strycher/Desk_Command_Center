@@ -61,7 +61,7 @@ class BeadsAdapter(BaseAdapter):
                     cur.execute(
                         "SELECT id, title, status, priority, assignee, external_ref, issue_type "
                         "FROM issues "
-                        "WHERE status IN ('open', 'in_progress') "
+                        "WHERE status IN ('open', 'in_progress', 'blocked') "
                         "ORDER BY priority ASC, created_at ASC "
                         "LIMIT 50",
                     )
@@ -110,6 +110,7 @@ class BeadsAdapter(BaseAdapter):
         projects = {}
         total_open = 0
         total_in_progress = 0
+        total_blocked = 0
 
         for project_name, tasks in raw.get("projects", {}).items():
             # Check for error entries
@@ -123,8 +124,10 @@ class BeadsAdapter(BaseAdapter):
 
             open_tasks = [t for t in tasks if t["status"] == "open"]
             in_progress = [t for t in tasks if t["status"] == "in_progress"]
+            blocked = [t for t in tasks if t["status"] == "blocked"]
             total_open += len(open_tasks)
             total_in_progress += len(in_progress)
+            total_blocked += len(blocked)
 
             # Clean up project name for display (strip beads_ prefix)
             display_name = project_name
@@ -136,6 +139,7 @@ class BeadsAdapter(BaseAdapter):
                 "display_name": display_name,
                 "open": len(open_tasks),
                 "in_progress": len(in_progress),
+                "blocked": len(blocked),
                 "tasks": tasks,
             }
 
@@ -143,4 +147,5 @@ class BeadsAdapter(BaseAdapter):
             "projects": projects,
             "total_open": total_open,
             "total_in_progress": total_in_progress,
+            "blocked_count": total_blocked,
         }

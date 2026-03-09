@@ -245,8 +245,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                 JsonObjectConst r = kv.value();
                 rs.open_prs = r["open_prs"] | 0;
                 rs.open_issues = r["open_issues"] | 0;
-                const char* ci = r["ci"];
-                copyStr(rs.ci_status, sizeof(rs.ci_status), ci);
+                copyStr(rs.ci_status, sizeof(rs.ci_status), r["ci_status"]);
                 out.github.data.repo_count++;
             }
         }
