@@ -208,7 +208,8 @@ void CalendarScreen::rebuildEventList() {
 
     uint8_t count = 0;
 
-    if (_lastData->google_calendar.status == SourceStatus::OK) {
+    if (_lastData->google_calendar.status == SourceStatus::OK ||
+        _lastData->google_calendar.status == SourceStatus::STALE) {
         for (uint8_t i = 0; i < _lastData->google_calendar_count; i++) {
             const CalendarEvent& ev = _lastData->google_calendar.data[i];
             if (!eventDateMatches(ev.start_time, targetDate)) continue;
@@ -221,7 +222,8 @@ void CalendarScreen::rebuildEventList() {
         }
     }
 
-    if (_lastData->microsoft_calendar.status == SourceStatus::OK) {
+    if (_lastData->microsoft_calendar.status == SourceStatus::OK ||
+        _lastData->microsoft_calendar.status == SourceStatus::STALE) {
         for (uint8_t i = 0; i < _lastData->microsoft_calendar_count; i++) {
             const CalendarEvent& ev = _lastData->microsoft_calendar.data[i];
             if (!eventDateMatches(ev.start_time, targetDate)) continue;

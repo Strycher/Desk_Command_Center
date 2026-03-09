@@ -49,8 +49,10 @@ scheduler.register(ha_adapter)
 scheduler.register(GoogleCalendarAdapter(_cfg))
 scheduler.register(UnfocusedTasksAdapter(_cfg))
 
-# Default TTL for push-ingested data (10 minutes)
-PUSH_TTL = 600
+# Default TTL for push-ingested data.
+# Calendar data is stable — a missed push shouldn't blank the display.
+# After TTL expires, data shows as "stale" (not "missing") — still rendered.
+PUSH_TTL = 604800  # 7 days — calendar data is stable; survives a full weekend
 
 # Allowed HA service calls — security boundary for device control
 ALLOWED_SERVICES: dict[str, set[str]] = {

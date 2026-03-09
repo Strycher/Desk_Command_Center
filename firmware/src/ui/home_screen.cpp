@@ -177,12 +177,14 @@ void HomeScreen::updateAppt(const DashboardData& data) {
     const CalendarEvent* raw[MAX_EVENTS * 2];
     uint8_t rawCount = 0;
 
-    if (data.google_calendar.status == SourceStatus::OK) {
+    if (data.google_calendar.status == SourceStatus::OK ||
+        data.google_calendar.status == SourceStatus::STALE) {
         for (uint8_t i = 0; i < data.google_calendar_count && rawCount < MAX_EVENTS; i++) {
             raw[rawCount++] = &data.google_calendar.data[i];
         }
     }
-    if (data.microsoft_calendar.status == SourceStatus::OK) {
+    if (data.microsoft_calendar.status == SourceStatus::OK ||
+        data.microsoft_calendar.status == SourceStatus::STALE) {
         for (uint8_t i = 0; i < data.microsoft_calendar_count && rawCount < MAX_EVENTS; i++) {
             raw[rawCount++] = &data.microsoft_calendar.data[i];
         }

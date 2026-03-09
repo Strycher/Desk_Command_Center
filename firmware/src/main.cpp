@@ -109,9 +109,11 @@ static void onBridgeData(JsonDocument& doc) {
     dashData.last_updated_ms = millis();
 
     /* Mark all sources that have data as updated */
-    if (dashData.google_calendar.status == SourceStatus::OK)
+    if (dashData.google_calendar.status == SourceStatus::OK ||
+        dashData.google_calendar.status == SourceStatus::STALE)
         StalenessTracker::markUpdated(DataSource::GOOGLE_CALENDAR);
-    if (dashData.microsoft_calendar.status == SourceStatus::OK)
+    if (dashData.microsoft_calendar.status == SourceStatus::OK ||
+        dashData.microsoft_calendar.status == SourceStatus::STALE)
         StalenessTracker::markUpdated(DataSource::MICROSOFT_CALENDAR);
     if (dashData.weather.status == SourceStatus::OK)
         StalenessTracker::markUpdated(DataSource::WEATHER);
