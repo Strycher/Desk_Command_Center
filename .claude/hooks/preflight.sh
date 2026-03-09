@@ -94,6 +94,21 @@ else
     warn "Git hooks not configured — run: git config core.hookspath .claude/hooks"
 fi
 
+# 5. Send Claude heartbeat to bridge
+BRIDGE_URL="http://192.168.50.24:8080"
+AGENT_NAME=""
+if [ -f "$CLAUDE_PROJECT_DIR/.agent-identity" ]; then
+    AGENT_NAME=$(cat "$CLAUDE_PROJECT_DIR/.agent-identity" 2>/dev/null | tr -d '[:space:]')
+fi
+if [ -z "$AGENT_NAME" ]; then
+    AGENT_NAME="Claude-$$"
+fi
+
+curl -sf --max-time 3 -X POST "$BRIDGE_URL/api/claude/heartbeat" \
+    -H "Content-Type: application/json" \
+    -d "{\"agent\": \"$AGENT_NAME\", \"task\": \"Session starting\", \"program\": \"claude-code\"}" \
+    >/dev/null 2>&1 && pass "Claude heartbeat sent ($AGENT_NAME)" || warn "Claude heartbeat failed (non-blocking)"
+
 echo "─── Preflight complete ───"
 
 if [ "$BLOCKING" -eq 1 ]; then

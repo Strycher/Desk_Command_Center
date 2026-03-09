@@ -16,6 +16,7 @@ Endpoints:
 """
 
 import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -72,6 +73,7 @@ DASHBOARD_SOURCES = {
     "beads": "Beads Tasks",
     "home_assistant": "Home Assistant",
     "unfocused_tasks": "Unfocused Tasks",
+    "claude": "Claude Agents",
 }
 
 
@@ -246,3 +248,72 @@ async def ha_command(request: Request):
         return {"success": True, "entity": None, "warning": "State refetch failed"}
 
     return {"success": True, "entity": entity}
+
+
+# --- Claude agent heartbeat ------------------------------------------------
+
+# In-memory registry: {agent_name: {task, program, model, last_seen}}
+_claude_sessions: dict[str, dict] = {}
+CLAUDE_SESSION_TTL = 300  # 5 minutes — session is stale if no heartbeat
+
+
+@app.post("/api/claude/heartbeat")
+async def claude_heartbeat(request: Request):
+    """Register or refresh a Claude agent session.
+
+    Body: {agent: "name", task: "description", program: "claude-code", model: "opus-4.6"}
+    """
+    body = await request.json()
+    agent = body.get("agent", "unknown")
+    _claude_sessions[agent] = {
+        "task": body.get("task", ""),
+        "program": body.get("program", "claude-code"),
+        "model": body.get("model", ""),
+        "last_seen": time.monotonic(),
+    }
+    _refresh_claude_cache()
+    return {"accepted": True, "agent": agent}
+
+
+@app.delete("/api/claude/heartbeat")
+async def claude_goodbye(request: Request):
+    """Remove a Claude agent session (clean shutdown)."""
+    body = await request.json()
+    agent = body.get("agent", "")
+    _claude_sessions.pop(agent, None)
+    _refresh_claude_cache()
+    return {"removed": True, "agent": agent}
+
+
+def _refresh_claude_cache():
+    """Rebuild claude cache entry from active sessions."""
+    now = time.monotonic()
+    # Prune stale sessions
+    stale = [k for k, v in _claude_sessions.items()
+             if now - v["last_seen"] > CLAUDE_SESSION_TTL]
+    for k in stale:
+        del _claude_sessions[k]
+
+    active = [
+        {**v, "agent": k}
+        for k, v in _claude_sessions.items()
+    ]
+
+    if active:
+        # Pick most recently seen for the summary fields
+        latest = max(active, key=lambda s: s["last_seen"])
+        status = "active"
+        current_task = latest["task"]
+    else:
+        status = "offline"
+        current_task = ""
+
+    cache.set("claude", {
+        "status": status,
+        "current_task": current_task,
+        "active_count": len(active),
+        "sessions": [
+            {"agent": s["agent"], "task": s["task"], "program": s["program"]}
+            for s in active
+        ],
+    }, CLAUDE_SESSION_TTL * 2)
