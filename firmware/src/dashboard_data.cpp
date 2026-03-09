@@ -51,7 +51,7 @@ static void parseTaskItems(JsonArrayConst arr, TaskItem* items,
         TaskItem& t = items[count];
         copyStr(t.title, sizeof(t.title), obj["title"]);
         copyStr(t.due_date, sizeof(t.due_date), obj["due_date"]);
-        t.priority = obj["priority"] | 0;
+        copyStr(t.priority, sizeof(t.priority), obj["priority"]);
         copyStr(t.source, sizeof(t.source), obj["source"]);
         t.completed = obj["completed"] | false;
         count++;

@@ -26,7 +26,7 @@ private:
 
     void rebuildTaskList();
     void addTaskCard(const char* title, const char* due,
-                     uint8_t priority, const char* source, bool completed);
+                     const char* priority, const char* source, bool completed);
     void setActiveTab(TabFilter tab);
     void styleTabBtn(lv_obj_t* btn, bool active);
 

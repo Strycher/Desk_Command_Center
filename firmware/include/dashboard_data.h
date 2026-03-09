@@ -31,7 +31,7 @@ struct CalendarEvent {
 struct TaskItem {
     char    title[128];
     char    due_date[25];
-    uint8_t priority;       // 0=none, 1=high, 2=med, 3=low
+    char    priority[16];   // raw string from source ("Critical", "High", etc.)
     char    source[16];
     bool    completed;
 };
