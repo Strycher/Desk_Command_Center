@@ -58,15 +58,16 @@ class BeadsAdapter(BaseAdapter):
                 )
                 try:
                     cur = conn.cursor()
+                    # Active issues (open + in_progress)
                     cur.execute(
                         "SELECT id, title, status, priority, assignee, external_ref, issue_type "
                         "FROM issues "
-                        "WHERE status IN ('open', 'in_progress', 'blocked') "
+                        "WHERE status IN ('open', 'in_progress') "
                         "ORDER BY priority ASC, created_at ASC "
                         "LIMIT 50",
                     )
                     rows = cur.fetchall()
-                    results[db_name] = [
+                    tasks = [
                         {
                             "id": row[0],
                             "title": row[1],
@@ -78,12 +79,23 @@ class BeadsAdapter(BaseAdapter):
                         }
                         for row in rows
                     ]
+                    # Blocked count from dependency-based view
+                    blocked_count = 0
+                    try:
+                        cur.execute("SELECT COUNT(*) FROM blocked_issues")
+                        blocked_count = cur.fetchone()[0]
+                    except Exception:
+                        pass  # View may not exist in older schemas
+                    results[db_name] = {
+                        "tasks": tasks,
+                        "blocked_count": blocked_count,
+                    }
                     cur.close()
                 finally:
                     conn.close()
             except Exception as exc:
                 logger.warning("Beads: failed to query %s: %s", db_name, exc)
-                results[db_name] = [{"error": str(exc)}]
+                results[db_name] = {"error": str(exc)}
 
         return {"projects": results}
 
@@ -112,22 +124,24 @@ class BeadsAdapter(BaseAdapter):
         total_in_progress = 0
         total_blocked = 0
 
-        for project_name, tasks in raw.get("projects", {}).items():
+        for project_name, project_data in raw.get("projects", {}).items():
             # Check for error entries
-            if tasks and isinstance(tasks[0], dict) and "error" in tasks[0]:
+            if "error" in project_data:
                 projects[project_name] = {
                     "status": "error",
-                    "error": tasks[0]["error"],
+                    "error": project_data["error"],
                     "tasks": [],
                 }
                 continue
 
+            tasks = project_data.get("tasks", [])
+            blocked_count = project_data.get("blocked_count", 0)
+
             open_tasks = [t for t in tasks if t["status"] == "open"]
             in_progress = [t for t in tasks if t["status"] == "in_progress"]
-            blocked = [t for t in tasks if t["status"] == "blocked"]
             total_open += len(open_tasks)
             total_in_progress += len(in_progress)
-            total_blocked += len(blocked)
+            total_blocked += blocked_count
 
             # Clean up project name for display (strip beads_ prefix)
             display_name = project_name
@@ -139,7 +153,7 @@ class BeadsAdapter(BaseAdapter):
                 "display_name": display_name,
                 "open": len(open_tasks),
                 "in_progress": len(in_progress),
-                "blocked": len(blocked),
+                "blocked": blocked_count,
                 "tasks": tasks,
             }
 
