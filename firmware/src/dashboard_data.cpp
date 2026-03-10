@@ -148,11 +148,28 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.google_calendar.status = SourceStatus::MISSING;
     }
 
-    /* Microsoft Calendar — bridge key: calendar_ms */
+    /* Microsoft Calendar — bridge key: calendar_ms
+       Outlook push data is flat: data.events[] with {subject, start, end, location, all_day} */
     JsonObjectConst mc = sources["calendar_ms"];
     if (!mc.isNull()) {
         parseSourceMeta(mc, out.microsoft_calendar);
-        /* Same nested structure as Google if/when implemented */
+        JsonObjectConst mcData = mc["data"];
+        out.microsoft_calendar_count = 0;
+        if (!mcData.isNull()) {
+            JsonArrayConst events = mcData["events"];
+            for (JsonObjectConst ev : events) {
+                if (out.microsoft_calendar_count >= MAX_EVENTS) break;
+                CalendarEvent& e = out.microsoft_calendar.data[out.microsoft_calendar_count];
+                copyStr(e.title, sizeof(e.title), ev["subject"]);
+                copyStr(e.location, sizeof(e.location), ev["location"]);
+                copyStr(e.start_time, sizeof(e.start_time), ev["start"]);
+                copyStr(e.end_time, sizeof(e.end_time), ev["end"]);
+                e.color = 0x0078D4;  // Outlook blue
+                copyStr(e.source, sizeof(e.source), "outlook");
+                e.all_day = ev["all_day"] | false;
+                out.microsoft_calendar_count++;
+            }
+        }
     } else {
         out.microsoft_calendar.status = SourceStatus::MISSING;
     }
