@@ -159,19 +159,25 @@ def main():
     data = read_outlook_calendar(hours_ahead=args.hours, store_hint=args.store)
     json_str = json.dumps(data, indent=2)
 
+    did_output = False
+
+    if args.file:
+        import os
+        os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+        with open(OUTPUT_FILE, "w") as f:
+            f.write(json_str)
+        print(f"Wrote {data['count']} events to {OUTPUT_FILE}")
+        did_output = True
+
     if args.push:
         if not HAS_REQUESTS:
             print("ERROR: pip install requests", file=sys.stderr)
             sys.exit(1)
         resp = requests.post(args.push, json=data, timeout=10)
         print(f"Pushed {data['count']} events -> {resp.status_code}")
-    elif args.file:
-        import os
-        os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-        with open(OUTPUT_FILE, "w") as f:
-            f.write(json_str)
-        print(f"Wrote {data['count']} events to {OUTPUT_FILE}")
-    else:
+        did_output = True
+
+    if not did_output:
         print(json_str)
 
 
