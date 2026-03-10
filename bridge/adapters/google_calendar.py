@@ -68,8 +68,11 @@ class GoogleCalendarAdapter(BaseAdapter):
             access_token = await self._get_access_token(client)
             headers = {"Authorization": f"Bearer {access_token}"}
 
-            # Time window: now through end of tomorrow
+            # Time window: start of today (UTC) through end of tomorrow.
+            # Using start-of-day ensures in-progress events still appear —
+            # timeMin=now would exclude any event whose start is in the past.
             now = datetime.now(timezone.utc)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             tomorrow_end = (now + timedelta(days=2)).replace(
                 hour=0, minute=0, second=0, microsecond=0,
             )
@@ -81,7 +84,7 @@ class GoogleCalendarAdapter(BaseAdapter):
                         f"{CALENDAR_API}/calendars/{cal_id}/events",
                         headers=headers,
                         params={
-                            "timeMin": now.isoformat(),
+                            "timeMin": today_start.isoformat(),
                             "timeMax": tomorrow_end.isoformat(),
                             "singleEvents": "true",
                             "orderBy": "startTime",
