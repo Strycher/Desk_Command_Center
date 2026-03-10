@@ -27,7 +27,8 @@ except ImportError:
     HAS_REQUESTS = False
 
 OUTPUT_FILE = "C:/Dev/Desk_Command_Center/.cache/ms_calendar.json"
-HOURS_AHEAD = 24
+BRIDGE_URL = "http://192.168.50.24:8080/calendar/ms"
+HOURS_AHEAD = 168  # 7 days — covers a full work week even if run on Sunday
 MAX_EVENTS = 50
 
 
@@ -143,8 +144,13 @@ def main():
         help=f"Write JSON to {OUTPUT_FILE}",
     )
     parser.add_argument(
-        "--push", type=str, metavar="URL",
-        help="POST JSON to bridge endpoint (e.g. http://192.168.50.24:8080/calendar/ms)",
+        "--push", type=str, nargs="?", const=BRIDGE_URL, default=BRIDGE_URL,
+        metavar="URL",
+        help=f"POST JSON to bridge endpoint (default: {BRIDGE_URL}). Use --no-push to disable.",
+    )
+    parser.add_argument(
+        "--no-push", action="store_true",
+        help="Disable pushing to bridge",
     )
     parser.add_argument(
         "--hours", type=int, default=HOURS_AHEAD,
@@ -169,7 +175,7 @@ def main():
         print(f"Wrote {data['count']} events to {OUTPUT_FILE}")
         did_output = True
 
-    if args.push:
+    if args.push and not args.no_push:
         if not HAS_REQUESTS:
             print("ERROR: pip install requests", file=sys.stderr)
             sys.exit(1)
