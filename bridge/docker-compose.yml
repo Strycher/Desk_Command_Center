@@ -9,6 +9,7 @@ services:
       - dcc-net
     volumes:
       - ./bridge_config.json:/app/bridge_config.json
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
       interval: 30s
