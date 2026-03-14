@@ -1,7 +1,7 @@
 # Auto-promote dependencies: when an issue closes, check if blocked
 # issues now have all dependencies resolved and label them beads:ready.
 #
-# Trigger: issue closed + weekly cron sweep
+# Trigger: issue closed + 4-hour cron fallback sweep
 # API: REST only (no GraphQL / gh project)
 name: Auto-promote Dependencies
 
@@ -9,7 +9,7 @@ on:
   issues:
     types: [closed]
   schedule:
-    - cron: "0 7 * * 1"  # Monday 7am UTC
+    - cron: '0 */4 * * *'  # Every 4 hours (fallback sweep)
   workflow_dispatch:
 
 permissions:
