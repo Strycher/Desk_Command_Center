@@ -243,6 +243,41 @@ Implement a resource mutex if both features are needed.
 
 ---
 
+## Pi 5 Access (MANDATORY — Read Before Every SSH)
+
+| Field       | Value                                                    |
+|-------------|----------------------------------------------------------|
+| Host        | `192.168.50.24`                                          |
+| Username    | **`strycher`** (NOT `stryc`, NOT `pi`, NOT `unfocused`)  |
+| Auth        | Ed25519 key: `C:/Users/stryc/.ssh/id_ed25519`           |
+| SSH command | `ssh -i C:/Users/stryc/.ssh/id_ed25519 strycher@192.168.50.24` |
+
+**Services on Pi 5:**
+
+| Service          | Container Name   | Port  | Management                       |
+|------------------|------------------|-------|----------------------------------|
+| Home Assistant   | `homeassistant`  | 8123  | `docker restart homeassistant`   |
+| DCC Bridge       | `dcc-bridge`     | 8080  | `docker restart dcc-bridge`      |
+
+**NEVER use password auth.** NEVER guess the username. It is `strycher`. Always.
+
+---
+
+## Dolt Server (Hetzner Docker)
+
+| Field        | Value                                                     |
+|--------------|-----------------------------------------------------------|
+| Container    | `dolt-beads` on Hetzner (`46.224.181.82`)                 |
+| Database     | `Desk_Command_Center`                                     |
+| Host port    | `127.0.0.1:3307` (localhost only, SSH tunnel required)    |
+| SSH          | `ssh unfocused@46.224.181.82`                             |
+| Tunnel       | `ssh -fNL 3307:127.0.0.1:3307 unfocused@46.224.181.82`   |
+| BD_DSN       | `root:@tcp(127.0.0.1:3307)/Desk_Command_Center`          |
+
+The preflight hook (`.claude/hooks/preflight.sh`) auto-starts the tunnel and verifies Beads connectivity. No manual tunnel management needed.
+
+---
+
 ## Infrastructure Health
 
 If any of the following are unreachable, **STOP and alert the user:**
@@ -255,9 +290,65 @@ coordinated multi-agent development.
 
 ---
 
+## Session State Management (Compaction Recovery)
+
+> **Applies ONLY in Worker mode (`/work` invoked). In Interactive mode, ignore this section entirely.**
+
+**Problem:** Context compaction erases the agent's working memory — what task it's on, which epic, what branch. This causes duplicate tasks, phantom closures, and scope drift.
+
+**Solution:** A persistent session state file (`.claude/agent-session.json`) that lives in the primary repo and is gitignored. The preflight hook reads it and outputs the state as a system reminder, which survives compaction.
+
+**Key files:**
+- `.claude/agent-session.json` — persisted session state (epic queue, current task, budget, PR history)
+- `.claude/hooks/session-state.sh` — management script with subcommands (init, read, update-task, check-budget, etc.)
+- `.claude/hooks/preflight.sh` Section 7 — outputs session state as system reminder
+
+**How it works:**
+1. `/work` initializes the session file via `session-state.sh init`
+2. Each task claim, close, and PR creation updates the file
+3. On compaction → new SessionStart → preflight reads the file → agent sees its state
+4. `session-state.sh init` refuses to overwrite an existing session (exit 1) → agent knows to recover instead of re-init
+5. Budget enforcement: `check-budget` returns exit 2 (HARD STOP) when exhausted
+6. Epic queue: `advance-epic` returns exit 2 when all epics processed
+
+---
+
+## GitHub Board Sync (Label-Based)
+
+**Board status and priority are set via labels, not GraphQL commands.**
+
+A GitHub Action (`.github/workflows/sync-labels-to-board.yml`) watches for `board:*` and `priority:*` labels and syncs them to the Project V2 board fields. Agents NEVER run `gh project` commands.
+
+**How agents update the board:**
+```bash
+# Set status (REST — zero GraphQL cost from agent)
+gh issue edit 42 --add-label "board:in-progress"
+
+# Set priority (REST — zero GraphQL cost from agent)
+gh issue edit 42 --add-label "priority:P2"
+
+# Combine in one call
+gh issue edit 42 --add-label "board:ready,priority:P2"
+```
+
+**Available labels:**
+| Label | Board Column |
+|-------|-------------|
+| `board:backlog` | Backlog |
+| `board:ready` | Ready |
+| `board:in-progress` | In progress |
+| `board:testing` | In review |
+| `board:on-hold` | Deferred |
+| `board:done` | Done |
+| `priority:P0` through `priority:P3` | Priority field |
+
+Labels are mutually exclusive within their group — the Action auto-removes old labels.
+
+---
+
 ## GitHub API Budget
 
 - Use `gh` CLI (REST API) for issues/PRs — separate 5,000/hr budget
-- **Never** use `gh project` commands (GraphQL, shared 5,000 pt/hr budget)
+- **NEVER** use `gh project` commands (GraphQL, shared 5,000 pt/hr budget). Use labels instead (see Label-Based Board Sync above).
 - Never query GitHub to find work — use `bd ready`
 - No polling loops against GitHub API
