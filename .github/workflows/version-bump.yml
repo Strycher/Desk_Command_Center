@@ -1,5 +1,15 @@
-# Version Bump: Semantic versioning on merge to main
-# Creates a new tag when a PR is merged, based on conventional commit prefixes.
+# =============================================================================
+# Version Bump — increment version tag on every merge to main
+# =============================================================================
+# Reads the commit prefix (feat/fix/chore/etc.) and bumps semver accordingly.
+# Tag-only (no version file to update).
+#
+# Safety:
+#   - Concurrency group queues concurrent runs (no cancel)
+#   - ref:main + fetch-tags + pull --rebase ensures latest state
+#   - Tag-exists check prevents duplicate tag errors
+#   - actor guard prevents infinite loop from its own push
+# =============================================================================
 
 name: Version Bump
 
@@ -7,68 +17,84 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
+concurrency:
+  group: auto-version-bump
+  cancel-in-progress: false  # queue, don't cancel — every merge needs a bump
 
 jobs:
   bump:
     runs-on: ubuntu-latest
-    # Skip non-code commits (version bumps, beads backups, merges) + fork guard
     if: >-
       github.repository == 'Strycher/Desk_Command_Center'
+      && github.actor != 'github-actions[bot]'
       && !startsWith(github.event.head_commit.message, 'chore: bump version')
       && !startsWith(github.event.head_commit.message, 'bd:')
       && !startsWith(github.event.head_commit.message, 'Merge')
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+          fetch-tags: true
 
-      - name: Configure git identity
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Pull latest main (in case queued behind another bump)
+        run: git pull origin main --rebase
+
       - name: Get latest tag
-        id: latest_tag
+        id: current
         run: |
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Latest tag: $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Current tag: $TAG"
 
       - name: Determine bump type
         id: bump
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          if echo "$COMMIT_MSG" | grep -qiE "^feat(\(|:)"; then
-            echo "type=minor" >> $GITHUB_OUTPUT
-          elif echo "$COMMIT_MSG" | grep -qiE "^fix(\(|:)"; then
-            echo "type=patch" >> $GITHUB_OUTPUT
-          elif echo "$COMMIT_MSG" | grep -qiE "BREAKING CHANGE"; then
-            echo "type=major" >> $GITHUB_OUTPUT
+          MSG=$(git log -1 --pretty=%s)
+          echo "Commit message: $MSG"
+          PREFIX=$(echo "$MSG" | grep -oP '^\w+' | head -1)
+
+          if [ "$PREFIX" = "feat" ]; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+            echo "Bump type: MINOR (new feature)"
           else
-            echo "type=patch" >> $GITHUB_OUTPUT
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+            echo "Bump type: PATCH ($PREFIX)"
           fi
 
-      - name: Bump version
-        id: new_version
+      - name: Calculate new version
+        id: new
         run: |
-          TAG="${{ steps.latest_tag.outputs.tag }}"
+          TAG="${{ steps.current.outputs.tag }}"
           VERSION="${TAG#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
 
           case "${{ steps.bump.outputs.type }}" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
             minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
+            *)     PATCH=$((PATCH + 1)) ;;
           esac
 
-          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
-          echo "New version: $NEW_TAG"
+          NEW="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "tag=$NEW" >> "$GITHUB_OUTPUT"
+          echo "New version: $NEW"
 
-      - name: Create tag
+      - name: Tag and push
         run: |
-          git tag -a ${{ steps.new_version.outputs.tag }} -m "Release ${{ steps.new_version.outputs.tag }}"
-          git push origin ${{ steps.new_version.outputs.tag }}
+          NEW="${{ steps.new.outputs.tag }}"
+
+          # If tag already exists, a concurrent run already bumped — skip
+          if git rev-parse "$NEW" >/dev/null 2>&1; then
+            echo "⏭️ Tag $NEW already exists — another run handled this bump"
+            exit 0
+          fi
+
+          git tag -a "$NEW" -m "$NEW"
+          git push origin "$NEW"
+          echo "✅ Version bumped: ${{ steps.current.outputs.tag }} → $NEW"
