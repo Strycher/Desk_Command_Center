@@ -62,23 +62,37 @@ peripheral communication.
 
 ---
 
-## Task Management — Beads
+## Task Management — GitHub + Beads
 
-**Beads is the sole source of truth for agent work.** Do not use GitHub issues to
-find or track work.
+**GitHub is the definitive source of truth.** Every task, bug, feature, and epic
+MUST exist as a GitHub Issue first. Beads is the secondary workflow system that
+drives agent task execution.
 
-### GitHub Issue Sync (MANDATORY)
+### GitHub-First Workflow (MANDATORY)
 
-Beads tasks reference GitHub issues via `(GH #N)` in their title. **When closing
-a Beads task, you MUST also close the corresponding GitHub issue.** The user
-tracks progress via GitHub — Beads-only updates are invisible to them.
+**The pattern for ALL work:**
 
-- **Closing:** `gh issue close <N> --comment "Completed — <brief description>."`
-- **Creating:** When creating a Beads task for new work, also create a GitHub
-  issue and reference it in the Beads title: `bd create --title="Description (GH #N)"`
-- **Status sync:** If a Beads task moves to `in_progress`, add a comment on the
-  GitHub issue: `gh issue comment <N> --body "In progress."`
-- **Never use `gh project` commands** — they consume the shared GraphQL budget.
+1. **Epic** — Create a GitHub Issue for the epic with checklist of stories
+2. **Beads Epic** — Create a matching Beads epic: `bd create --title="Epic title (GH #N)"`
+3. **Story Issues** — During breakdown, create a GitHub Issue for EVERY story/task
+4. **Sub-issue links** — Link each story as a tracked sub-issue of the epic
+   (use `gh api graphql` with `addSubIssue` mutation)
+5. **Beads tasks** — Create matching Beads tasks: `bd create --title="Story title (GH #N)"`
+6. **Dependency chain** — Wire Beads dependencies: `bd dep add <task> <depends-on>`
+
+**EVERY Beads task MUST have a corresponding GitHub Issue. NO EXCEPTIONS.**
+**EVERY GitHub Issue for a story MUST be linked as a sub-issue of its parent epic.**
+
+### Sync Rules (MANDATORY)
+
+- **Creating work:** GitHub Issue FIRST → then Beads task with `(GH #N)` in title
+- **Starting work:** `bd update <id> --status=in_progress` AND
+  `gh issue edit <N> --add-label "board:in-progress"`
+- **Closing work:** `bd close <id>` AND `gh issue close <N> --comment "Completed."`
+  AND update epic body checkbox to `[x]`
+- **Board status:** Use `board:*` labels (see Label-Based Board Sync below)
+- **Never use `gh project` commands** — they consume the shared GraphQL budget
+- **Never skip the GitHub Issue** — if it doesn't exist in GitHub, it's wrong
 
 ### Commands
 
@@ -286,18 +300,31 @@ ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --restore
 
 ---
 
-## Dolt Server (Hetzner Docker)
+## Dolt Servers
+
+### Pi 5 Dolt (DCC Beads — canonical for BOTH `bd` CLI and bridge)
+
+| Field        | Value                                                     |
+|--------------|-----------------------------------------------------------|
+| Container    | `dcc-dolt` on Pi 5 (`192.168.50.24`)                      |
+| Database     | `beads_DCC`                                               |
+| Port         | `3306`                                                    |
+| Used by      | `bd` CLI (via `.beads/metadata.json`) AND bridge adapter  |
+
+`.beads/metadata.json` points to `192.168.50.24` with `dolt_database: beads_DCC`.
+There is NO local embedded Dolt for DCC. A legacy `.beads/dolt/` directory may
+exist but is unused and deprecated.
+
+### Hetzner Dolt (Unfocused/FC Beads — NOT for DCC)
 
 | Field        | Value                                                     |
 |--------------|-----------------------------------------------------------|
 | Container    | `dolt-beads` on Hetzner (`46.224.181.82`)                 |
-| Database     | `Desk_Command_Center`                                     |
-| Host port    | `127.0.0.1:3307` (localhost only, SSH tunnel required)    |
-| SSH          | `ssh unfocused@46.224.181.82`                             |
+| Databases    | `beads_Unfocused`, `beads_FC`                             |
 | Tunnel       | `ssh -fNL 3307:127.0.0.1:3307 unfocused@46.224.181.82`   |
-| BD_DSN       | `root:@tcp(127.0.0.1:3307)/Desk_Command_Center`          |
+| Used by      | Unfocused and Field Compass projects ONLY                 |
 
-The preflight hook (`.claude/hooks/preflight.sh`) auto-starts the tunnel and verifies Beads connectivity. No manual tunnel management needed.
+**DCC has NO database on Hetzner.** Do not point DCC `bd` commands at Hetzner.
 
 ---
 
