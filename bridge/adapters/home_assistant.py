@@ -111,12 +111,14 @@ class HomeAssistantAdapter(BaseAdapter):
             # Skip unsolicited messages (events, pings, etc.)
 
     async def _fetch_registries(self) -> dict[str, Any] | None:
-        """Fetch label, entity, and device registries via HA WebSocket API.
+        """Fetch label, entity, device, and area registries via HA WebSocket API.
 
         Returns a dict with:
           dcc_entity_ids: set of entity_id strings with the DCC label
-          entity_info: {entity_id: {"device_id": str|None}} for DCC entities
+          entity_info: {entity_id: {"device_id": str|None, "area_id": str|None}}
           device_names: {device_id: str} mapping
+          device_areas: {device_id: str|None} — area_id per device
+          area_names: {area_id: str} mapping
         Or None if the DCC label doesn't exist or WebSocket fails.
         """
         try:
@@ -146,10 +148,11 @@ class HomeAssistantAdapter(BaseAdapter):
                     logger.error("HA WS: auth failed — %s", msg.get("message", "unknown"))
                     return None
 
-                # Step 3: Fetch all three registries
+                # Step 3: Fetch all four registries
                 labels_resp = await self._ws_command(ws, 1, "config/label_registry/list")
                 entities_resp = await self._ws_command(ws, 2, "config/entity_registry/list")
                 devices_resp = await self._ws_command(ws, 3, "config/device_registry/list")
+                areas_resp = await self._ws_command(ws, 4, "config/area_registry/list")
 
             # Find the DCC label ID
             dcc_label_id = None
@@ -163,6 +166,13 @@ class HomeAssistantAdapter(BaseAdapter):
                             self.label_name)
                 return None
 
+            # Build area_id→name mapping
+            area_names: dict[str, str] = {}
+            for area in areas_resp.get("result", []):
+                aid = area.get("area_id")
+                if aid:
+                    area_names[aid] = area.get("name", aid)
+
             # Build entity→info mapping for DCC-labeled entities
             dcc_entity_ids: set[str] = set()
             entity_info: dict[str, dict] = {}
@@ -173,23 +183,30 @@ class HomeAssistantAdapter(BaseAdapter):
                     dcc_entity_ids.add(eid)
                     entity_info[eid] = {
                         "device_id": entry.get("device_id"),
+                        "area_id": entry.get("area_id"),
                     }
 
-            # Build device_id→name mapping
+            # Build device_id→name and device_id→area_id mappings
             device_names: dict[str, str] = {}
+            device_areas: dict[str, str | None] = {}
             for device in devices_resp.get("result", []):
                 did = device.get("id")
                 name = (device.get("name_by_user")
                         or device.get("name")
                         or "Unknown Device")
                 device_names[did] = name
+                device_areas[did] = device.get("area_id")
 
-            logger.info("HA: registry fetched — %d DCC entities, %d devices",
-                        len(dcc_entity_ids), len(device_names))
+            logger.info(
+                "HA: registry fetched — %d DCC entities, %d devices, %d areas",
+                len(dcc_entity_ids), len(device_names), len(area_names),
+            )
             return {
                 "dcc_entity_ids": dcc_entity_ids,
                 "entity_info": entity_info,
                 "device_names": device_names,
+                "device_areas": device_areas,
+                "area_names": area_names,
             }
 
         except Exception as exc:
@@ -271,6 +288,29 @@ class HomeAssistantAdapter(BaseAdapter):
 
         return parsed
 
+    def _resolve_area_name(
+        self, device_id: str | None, entity_area_id: str | None,
+        registry: dict,
+    ) -> str | None:
+        """Resolve area name for a device/entity.
+
+        Priority: entity-level area_id > device-level area_id > None.
+        """
+        area_names = registry.get("area_names", {})
+        device_areas = registry.get("device_areas", {})
+
+        # Entity-level override takes priority
+        if entity_area_id:
+            return area_names.get(entity_area_id)
+
+        # Fall back to device-level area
+        if device_id:
+            dev_area_id = device_areas.get(device_id)
+            if dev_area_id:
+                return area_names.get(dev_area_id)
+
+        return None
+
     def _parse_label_mode(self, states: list, registry: dict) -> dict[str, Any]:
         """Parse with DCC label filtering and device grouping."""
         dcc_ids = registry["dcc_entity_ids"]
@@ -296,14 +336,28 @@ class HomeAssistantAdapter(BaseAdapter):
             if device_id:
                 device_groups.setdefault(device_id, []).append(parsed)
             else:
+                # Standalone entity — resolve area from entity-level area_id
+                area_name = self._resolve_area_name(
+                    None, info.get("area_id"), registry,
+                )
+                parsed["area_name"] = area_name
                 standalone.append(parsed)
 
-        # Build devices list with names
+        # Build devices list with names and area
         devices = []
         for did, entities in device_groups.items():
+            # Pick area: check if any entity has an area override,
+            # otherwise use the device-level area
+            first_entity_info = entity_info.get(
+                entities[0]["entity_id"], {},
+            )
+            area_name = self._resolve_area_name(
+                did, first_entity_info.get("area_id"), registry,
+            )
             devices.append({
                 "device_name": device_names.get(did, "Unknown Device"),
                 "device_id": did,
+                "area_name": area_name,
                 "entities": entities,
             })
 
