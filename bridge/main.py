@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 cache = TTLCache()
 scheduler = AdapterScheduler(cache=cache)
 config = BridgeConfig()
-push_store = PushStore()
+push_store: PushStore | None = None  # initialized in lifespan (avoids mkdir at import)
 
 # Register poll-based adapters
 _cfg = config.get_all(mask_secrets=False)
@@ -84,6 +84,9 @@ DASHBOARD_SOURCES = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global push_store
+    push_store = PushStore()  # deferred — mkdir only at startup, not import
+
     # Restore push data from disk so it survives restarts
     for key, data in push_store.load_all().items():
         cache.set(key, data, PUSH_TTL)
@@ -181,7 +184,8 @@ async def ingest_ms_calendar(request: Request):
     data = await request.json()
     data["received_at"] = datetime.now(timezone.utc).isoformat()
     cache.set("calendar_ms", data, PUSH_TTL)
-    push_store.save("calendar_ms", data)
+    if push_store:
+        push_store.save("calendar_ms", data)
     count = data.get("count", "?")
     return {"accepted": True, "event_count": count}
 
@@ -199,7 +203,8 @@ async def ingest_google_calendar(request: Request):
     data = await request.json()
     data["received_at"] = datetime.now(timezone.utc).isoformat()
     cache.set("calendar_google", data, PUSH_TTL)
-    push_store.save("calendar_google", data)
+    if push_store:
+        push_store.save("calendar_google", data)
     count = data.get("count", "?")
     return {"accepted": True, "event_count": count}
 

@@ -19,32 +19,35 @@ BEADS_CONFIG = {
 
 SAMPLE_RAW = {
     "projects": {
-        "beads_DCC": [
-            {
-                "id": "Desk_Command_Center-kom",
-                "title": "10.8 Beads/Dolt tasks adapter (GH #58)",
-                "status": "in_progress",
-                "priority": 2,
-                "assignee": "Strycher",
-                "external_ref": "GH #58",
-                "type": "task",
-            },
-            {
-                "id": "Desk_Command_Center-abc",
-                "title": "Some open task",
-                "status": "open",
-                "priority": 1,
-                "assignee": None,
-                "external_ref": None,
-                "type": "feature",
-            },
-        ],
+        "beads_DCC": {
+            "tasks": [
+                {
+                    "id": "Desk_Command_Center-kom",
+                    "title": "10.8 Beads/Dolt tasks adapter (GH #58)",
+                    "status": "in_progress",
+                    "priority": 2,
+                    "assignee": "Strycher",
+                    "external_ref": "GH #58",
+                    "type": "task",
+                },
+                {
+                    "id": "Desk_Command_Center-abc",
+                    "title": "Some open task",
+                    "status": "open",
+                    "priority": 1,
+                    "assignee": None,
+                    "external_ref": None,
+                    "type": "feature",
+                },
+            ],
+            "blocked_count": 0,
+        },
     },
 }
 
 SAMPLE_RAW_ERROR = {
     "projects": {
-        "beads_DCC": [{"error": "tunnel down"}],
+        "beads_DCC": {"error": "tunnel down"},
     },
 }
 
