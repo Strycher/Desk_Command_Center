@@ -261,6 +261,29 @@ Implement a resource mutex if both features are needed.
 
 **NEVER use password auth.** NEVER guess the username. It is `strycher`. Always.
 
+### Bridge Config Updates (CRITICAL)
+
+`bridge_config.json` on the Pi contains secrets (API keys, tokens) that do NOT
+exist in the local repo copy. **NEVER SCP the full file to the Pi.**
+
+**Safe update process:**
+```bash
+# Update individual fields via the merge script:
+ssh strycher@192.168.50.24 'echo '"'"'{"google_calendar": {"refresh_token": "NEW"}}'"'"' | /home/strycher/dcc-bridge/update_config.sh'
+
+# Show backups:
+ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --show-backups'
+
+# Emergency restore:
+ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --restore'
+```
+
+**Rules:**
+- `update_config.sh` deep-merges patches — unmentioned keys are preserved
+- Automatic backup before every write (10 rotations kept)
+- **NEVER** run `scp bridge_config.json strycher@...` — it overwrites secrets
+- After config update: `docker restart dcc-bridge`
+
 ---
 
 ## Dolt Server (Hetzner Docker)
