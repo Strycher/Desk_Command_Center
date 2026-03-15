@@ -45,7 +45,7 @@ class BeadsAdapter(BaseAdapter):
         if not databases:
             databases = self._discover_databases()
 
-        results: dict[str, list[dict]] = {}
+        results: dict[str, Any] = {}
         for db_name in databases:
             try:
                 conn = pymysql.connect(
@@ -83,7 +83,8 @@ class BeadsAdapter(BaseAdapter):
                     blocked_count = 0
                     try:
                         cur.execute("SELECT COUNT(*) FROM blocked_issues")
-                        blocked_count = cur.fetchone()[0]
+                        row = cur.fetchone()
+                        blocked_count = row[0] if row else 0
                     except Exception:
                         pass  # View may not exist in older schemas
                     results[db_name] = {
