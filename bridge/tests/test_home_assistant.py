@@ -76,6 +76,94 @@ SAMPLE_RAW = {
 }
 
 
+# Label-mode test data: simulates registry output with area info
+LABEL_REGISTRY = {
+    "dcc_entity_ids": {
+        "climate.hallway", "sensor.hallway_temp", "sensor.hallway_humidity",
+        "switch.tv_outlet", "media_player.samsung_tv",
+        "light.back_porch", "person.john",
+    },
+    "entity_info": {
+        "climate.hallway": {"device_id": "dev_nest", "area_id": None},
+        "sensor.hallway_temp": {"device_id": "dev_nest", "area_id": None},
+        "sensor.hallway_humidity": {"device_id": "dev_nest", "area_id": None},
+        "switch.tv_outlet": {"device_id": "dev_outlet", "area_id": None},
+        "media_player.samsung_tv": {"device_id": "dev_tv", "area_id": None},
+        "light.back_porch": {"device_id": "dev_porch", "area_id": None},
+        "person.john": {"device_id": None, "area_id": None},
+    },
+    "device_names": {
+        "dev_nest": "Nest Thermostat",
+        "dev_outlet": "TV Outlet",
+        "dev_tv": "Samsung TV",
+        "dev_porch": "Back Porch Lights",
+    },
+    "device_areas": {
+        "dev_nest": "area_hallway",
+        "dev_outlet": "area_living",
+        "dev_tv": "area_living",
+        "dev_porch": "area_porch",
+    },
+    "area_names": {
+        "area_hallway": "Hallway",
+        "area_living": "Living Room",
+        "area_porch": "Back Porch",
+    },
+}
+
+LABEL_STATES = [
+    {
+        "entity_id": "climate.hallway",
+        "state": "heat",
+        "attributes": {
+            "friendly_name": "Hallway",
+            "current_temperature": 68,
+            "temperature": 70,
+            "hvac_action": "heating",
+            "preset_mode": "home",
+        },
+    },
+    {
+        "entity_id": "sensor.hallway_temp",
+        "state": "68",
+        "attributes": {
+            "friendly_name": "Hallway Temperature",
+            "unit_of_measurement": "°F",
+            "device_class": "temperature",
+        },
+    },
+    {
+        "entity_id": "sensor.hallway_humidity",
+        "state": "45",
+        "attributes": {
+            "friendly_name": "Hallway Humidity",
+            "unit_of_measurement": "%",
+            "device_class": "humidity",
+        },
+    },
+    {
+        "entity_id": "switch.tv_outlet",
+        "state": "on",
+        "attributes": {"friendly_name": "TV Outlet"},
+    },
+    {
+        "entity_id": "media_player.samsung_tv",
+        "state": "off",
+        "attributes": {"friendly_name": "Samsung TV"},
+    },
+    {
+        "entity_id": "light.back_porch",
+        "state": "on",
+        "attributes": {"friendly_name": "Back Porch Lights"},
+    },
+    {
+        "entity_id": "person.john",
+        "state": "home",
+        "attributes": {"friendly_name": "John", "source": "device_tracker.phone"},
+    },
+]
+
+
 class TestHomeAssistantAdapter:
     def test_init(self):
         adapter = HomeAssistantAdapter(HA_CONFIG)
@@ -205,3 +293,99 @@ class TestHomeAssistantAdapter:
             assert entity["entity_id"] == "light.office"
             assert entity["state"] == "off"
             assert entity["domain"] == "light"
+
+    # ── Label-mode area tests ──────────────────────────────────
+
+    def test_label_mode_devices_have_area_name(self):
+        """Devices in label mode should include area_name from registry."""
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+        parsed = adapter.parse({
+            "states": LABEL_STATES,
+            "registry": LABEL_REGISTRY,
+        })
+
+        assert parsed["label_mode"] is True
+        devices = parsed["devices"]
+
+        # Build lookup by device_name
+        by_name = {d["device_name"]: d for d in devices}
+
+        assert by_name["Nest Thermostat"]["area_name"] == "Hallway"
+        assert by_name["TV Outlet"]["area_name"] == "Living Room"
+        assert by_name["Samsung TV"]["area_name"] == "Living Room"
+        assert by_name["Back Porch Lights"]["area_name"] == "Back Porch"
+
+    def test_label_mode_standalone_no_area(self):
+        """Standalone entities without area_id should have area_name=None."""
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+        parsed = adapter.parse({
+            "states": LABEL_STATES,
+            "registry": LABEL_REGISTRY,
+        })
+
+        standalone = parsed["standalone"]
+        assert len(standalone) == 1
+        assert standalone[0]["entity_id"] == "person.john"
+        assert standalone[0]["area_name"] is None
+
+    def test_label_mode_entity_area_override(self):
+        """Entity-level area_id should override device-level area_id."""
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+
+        # Give the TV outlet entity a direct area override to "Hallway"
+        registry = {**LABEL_REGISTRY}
+        registry["entity_info"] = {
+            **LABEL_REGISTRY["entity_info"],
+            "switch.tv_outlet": {
+                "device_id": "dev_outlet",
+                "area_id": "area_hallway",  # override: entity says Hallway
+            },
+        }
+
+        parsed = adapter.parse({
+            "states": LABEL_STATES,
+            "registry": registry,
+        })
+
+        by_name = {d["device_name"]: d for d in parsed["devices"]}
+        # TV Outlet device should resolve to Hallway (entity override),
+        # not Living Room (device-level)
+        assert by_name["TV Outlet"]["area_name"] == "Hallway"
+
+    def test_label_mode_device_no_area(self):
+        """Device with no area_id should have area_name=None."""
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+
+        registry = {**LABEL_REGISTRY}
+        registry["device_areas"] = {
+            **LABEL_REGISTRY["device_areas"],
+            "dev_tv": None,  # Samsung TV has no area
+        }
+
+        parsed = adapter.parse({
+            "states": LABEL_STATES,
+            "registry": registry,
+        })
+
+        by_name = {d["device_name"]: d for d in parsed["devices"]}
+        assert by_name["Samsung TV"]["area_name"] is None
+
+    def test_resolve_area_name_priority(self):
+        """_resolve_area_name should prefer entity area over device area."""
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+
+        # Entity area set → should use entity area
+        result = adapter._resolve_area_name(
+            "dev_nest", "area_living", LABEL_REGISTRY,
+        )
+        assert result == "Living Room"  # entity override wins
+
+        # Entity area None → should fall back to device area
+        result = adapter._resolve_area_name(
+            "dev_nest", None, LABEL_REGISTRY,
+        )
+        assert result == "Hallway"  # device-level area
+
+        # Both None → should return None
+        result = adapter._resolve_area_name(None, None, LABEL_REGISTRY)
+        assert result is None
