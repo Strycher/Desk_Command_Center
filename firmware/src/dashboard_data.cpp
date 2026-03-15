@@ -290,7 +290,6 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                 /* ── Label mode: device-grouped entities ── */
                 JsonArrayConst devArr = haData["devices"];
                 for (JsonObjectConst dev : devArr) {
-                    if (out.home_assistant.data.device_count >= MAX_HA_DEVICES) break;
                     if (out.home_assistant.data.entity_count >= MAX_HA_ENTITIES) break;
 
                     HADeviceGroup& grp = out.home_assistant.data.devices[out.home_assistant.data.device_count];

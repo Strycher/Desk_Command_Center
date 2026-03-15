@@ -46,6 +46,11 @@ static char _entityId[64]   = {};
 static char _domain[16]     = {};
 static char _currentState[32] = {};
 
+/* Climate mode buttons (for re-highlighting on result) */
+static constexpr uint8_t CLIMATE_MODE_COUNT = 3;
+static const char* _climateModes[] = {"heat", "cool", "off"};
+static lv_obj_t* _modeBtns[CLIMATE_MODE_COUNT] = {};
+
 /* -- Forward declarations -- */
 static void buildToggleBody(lv_obj_t* body);
 static void buildClimateBody(lv_obj_t* body, const HAEntity& entity);
@@ -280,6 +285,7 @@ void HAControlModal::close() {
         _lblState = nullptr;
         _lblToast = nullptr;
         _lblTarget = nullptr;
+        for (uint8_t i = 0; i < CLIMATE_MODE_COUNT; i++) _modeBtns[i] = nullptr;
     }
     LOG_INFO("MODAL: closed");
 }
@@ -298,24 +304,48 @@ void HAControlModal::onCommandResult(bool success, const char* newState,
         /* Update stored state */
         strncpy(_currentState, newState, sizeof(_currentState) - 1);
 
-        /* Update state label */
+        /* Update state label (domain-aware) */
         if (_lblState) {
             char buf[48];
-            bool isOn = (strcmp(newState, "on") == 0 ||
-                         strcmp(newState, "home") == 0);
-            if (strcmp(_domain, "lock") == 0) {
+            if (strcmp(_domain, "climate") == 0) {
+                bool isHeat = (strcmp(newState, "heat") == 0 ||
+                               strcmp(newState, "heat_cool") == 0);
+                bool isCool = (strcmp(newState, "cool") == 0);
+                bool isOff  = (strcmp(newState, "off") == 0);
+                snprintf(buf, sizeof(buf), "Mode: %s", newState);
+                lv_label_set_text(_lblState, buf);
+                lv_obj_set_style_text_color(_lblState,
+                    isHeat ? HEAT_CLR : isCool ? COOL_CLR
+                    : isOff ? STATE_OFF_CLR : TEXT_PRI, 0);
+            } else if (strcmp(_domain, "lock") == 0) {
                 bool locked = (strcmp(newState, "locked") == 0);
                 snprintf(buf, sizeof(buf), "State: %s %s",
                          locked ? LV_SYMBOL_CLOSE : LV_SYMBOL_OK,
                          locked ? "Locked" : "Unlocked");
+                lv_label_set_text(_lblState, buf);
+                lv_obj_set_style_text_color(_lblState,
+                    locked ? STATE_OFF_CLR : STATE_ON_CLR, 0);
             } else {
+                bool isOn = (strcmp(newState, "on") == 0 ||
+                             strcmp(newState, "home") == 0);
                 snprintf(buf, sizeof(buf), "State: %s %s",
                          isOn ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE,
                          isOn ? "On" : "Off");
+                lv_label_set_text(_lblState, buf);
+                lv_obj_set_style_text_color(_lblState,
+                    isOn ? STATE_ON_CLR : STATE_OFF_CLR, 0);
             }
-            lv_label_set_text(_lblState, buf);
-            lv_obj_set_style_text_color(_lblState,
-                                        isOn ? STATE_ON_CLR : STATE_OFF_CLR, 0);
+        }
+
+        /* Re-highlight climate mode buttons */
+        if (strcmp(_domain, "climate") == 0) {
+            for (uint8_t i = 0; i < CLIMATE_MODE_COUNT; i++) {
+                if (_modeBtns[i]) {
+                    bool active = (strcmp(newState, _climateModes[i]) == 0);
+                    lv_obj_set_style_bg_color(_modeBtns[i],
+                        active ? BTN_ACTIVE : BTN_BG, 0);
+                }
+            }
         }
 
         /* Show success toast */
@@ -452,8 +482,24 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
     lv_obj_center(lblU);
     lv_obj_add_event_cb(btnUp, onTempUp, LV_EVENT_CLICKED, nullptr);
 
+    /* Mode state label (updated by onCommandResult) */
+    _lblState = lv_label_create(body);
+    lv_obj_set_style_text_font(_lblState, &lv_font_montserrat_14, 0);
+    lv_obj_align(_lblState, LV_ALIGN_TOP_RIGHT, 0, 4);
+    {
+        bool isHeat = (strcmp(entity.state, "heat") == 0 ||
+                       strcmp(entity.state, "heat_cool") == 0);
+        bool isCool = (strcmp(entity.state, "cool") == 0);
+        bool isOff  = (strcmp(entity.state, "off") == 0);
+        char mbuf[32];
+        snprintf(mbuf, sizeof(mbuf), "Mode: %s", entity.state);
+        lv_label_set_text(_lblState, mbuf);
+        lv_obj_set_style_text_color(_lblState,
+            isHeat ? HEAT_CLR : isCool ? COOL_CLR
+            : isOff ? STATE_OFF_CLR : TEXT_PRI, 0);
+    }
+
     /* HVAC mode buttons */
-    static const char* modes[] = {"heat", "cool", "off"};
     static const char* modeLabels[] = {"Heat", "Cool", "Off"};
     int16_t btnW = 90;
     int16_t startX = (PANEL_W - 24 - btnW * 3 - 16) / 2;
@@ -464,12 +510,12 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
     lv_obj_align(lblMode, LV_ALIGN_TOP_LEFT, 0, 92);
     lv_label_set_text(lblMode, "Mode:");
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < CLIMATE_MODE_COUNT; i++) {
         lv_obj_t* btn = lv_btn_create(body);
         lv_obj_set_size(btn, btnW, 34);
         lv_obj_set_pos(btn, startX + i * (btnW + 8), 110);
 
-        bool active = (strcmp(entity.state, modes[i]) == 0);
+        bool active = (strcmp(entity.state, _climateModes[i]) == 0);
         lv_obj_set_style_bg_color(btn, active ? BTN_ACTIVE : BTN_BG, 0);
         lv_obj_set_style_radius(btn, 6, 0);
 
@@ -480,7 +526,8 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
         lv_obj_center(lbl);
 
         lv_obj_add_event_cb(btn, onHvacMode, LV_EVENT_CLICKED,
-                            (void*)modes[i]);
+                            (void*)_climateModes[i]);
+        _modeBtns[i] = btn;
     }
 
     /* Preset buttons (if preset_mode is available) */
