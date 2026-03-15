@@ -294,6 +294,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
 
                     HADeviceGroup& grp = out.home_assistant.data.devices[out.home_assistant.data.device_count];
                     copyStr(grp.device_name, sizeof(grp.device_name), dev["device_name"]);
+                    copyStr(grp.area_name, sizeof(grp.area_name), dev["area_name"]);
                     grp.domain[0] = '\0';
                     grp.entity_start = out.home_assistant.data.entity_count;
                     grp.entity_count = 0;
