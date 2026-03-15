@@ -15,6 +15,7 @@ Endpoints:
   GET  /calendar/google     — retrieve latest Google calendar snapshot
 """
 
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -251,12 +252,33 @@ async def ha_command(request: Request):
             "error": f"Service call failed: {exc}",
         })
 
-    # Re-fetch entity state
+    # Re-fetch entity state (climate needs retries — Z-Wave/Zigbee propagation)
+    entity = None
     try:
-        entity = await ha_adapter.get_entity_state(entity_id)
+        if domain == "climate":
+            await asyncio.sleep(1.0)
+            for attempt in range(3):
+                entity = await ha_adapter.get_entity_state(entity_id)
+                # Check if state reflects the command
+                expected_mode = (data or {}).get("hvac_mode")
+                expected_temp = (data or {}).get("temperature")
+                current_state = entity.get("state")
+                current_temp = entity.get("target_temp")
+                if expected_mode and str(current_state) == str(expected_mode):
+                    break
+                if expected_temp and str(current_temp) == str(expected_temp):
+                    break
+                if not expected_mode and not expected_temp:
+                    break  # preset_mode or other — no easy check
+                await asyncio.sleep(1.0)
+        else:
+            entity = await ha_adapter.get_entity_state(entity_id)
     except Exception as exc:
         logger.warning("HA state refetch failed: %s", exc)
         return {"success": True, "entity": None, "warning": "State refetch failed"}
+
+    # Refresh scheduler cache so the next /api/dashboard poll sees fresh data
+    asyncio.ensure_future(scheduler.poll_once(ha_adapter))
 
     return {"success": True, "entity": entity}
 

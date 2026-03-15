@@ -607,8 +607,8 @@ void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
     for (uint8_t i = 0; i < grp.entity_count; i++) {
         const HAEntity& ent = entities[grp.entity_start + i];
 
-        /* Skip device_tracker entities with router source_type */
-        if (strcmp(ent.domain, "device_tracker") == 0) continue;
+        /* device_tracker entities are kept — useful for routers,
+           network devices, and other non-person trackers */
 
         const char* sname = shortEntityName(ent, grp.device_name);
 
