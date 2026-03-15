@@ -19,6 +19,8 @@
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t TILE_BG        = lv_color_hex(0x1c1c36);
 static const lv_color_t TILE_BG_ON     = lv_color_hex(0x2a2a50);
+static const lv_color_t TOGGLE_ACTIVE  = lv_color_hex(0x6C63FF);
+static const lv_color_t TOGGLE_INACTIVE = lv_color_hex(0x2a2a40);
 static const lv_color_t TEXT_PRIMARY   = lv_color_hex(0xE0E0FF);
 static const lv_color_t TEXT_SECONDARY = lv_color_hex(0x9898B8);
 static const lv_color_t TEXT_DIM       = lv_color_hex(0x606078);
@@ -220,11 +222,65 @@ void HAScreen::onCardClick(lv_event_t* e) {
     HAControlModal::show(entity, devName);
 }
 
+void HAScreen::onToggleClick(lv_event_t* e) {
+    bool wantRoom = (bool)(uintptr_t)lv_event_get_user_data(e);
+    if (haScreen._groupByRoom == wantRoom) return;  // already in this mode
+
+    haScreen._groupByRoom = wantRoom;
+    haScreen.updateToggleStyle();
+
+    if (haScreen._lastData &&
+        haScreen._lastData->home_assistant.status == SourceStatus::OK) {
+        haScreen.rebuildEntityList(haScreen._lastData->home_assistant.data);
+    }
+}
+
+void HAScreen::updateToggleStyle() {
+    if (!_btnRoom || !_btnCategory) return;
+
+    lv_obj_set_style_bg_color(_btnRoom,
+        _groupByRoom ? TOGGLE_ACTIVE : TOGGLE_INACTIVE, 0);
+    lv_obj_set_style_bg_color(_btnCategory,
+        _groupByRoom ? TOGGLE_INACTIVE : TOGGLE_ACTIVE, 0);
+}
+
 /* ── Screen create ──────────────────────────────────── */
+static lv_obj_t* makeToggleBtn(lv_obj_t* parent, const char* text,
+                                lv_coord_t x, bool active) {
+    lv_obj_t* btn = lv_btn_create(parent);
+    lv_obj_set_size(btn, 90, 24);
+    lv_obj_set_pos(btn, x, 3);
+    lv_obj_set_style_bg_color(btn, active ? TOGGLE_ACTIVE : TOGGLE_INACTIVE, 0);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(btn, 6, 0);
+    lv_obj_set_style_border_width(btn, 0, 0);
+    lv_obj_set_style_shadow_width(btn, 0, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+
+    lv_obj_t* lbl = lv_label_create(btn);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl, TEXT_PRIMARY, 0);
+    lv_label_set_text(lbl, text);
+    lv_obj_center(lbl);
+
+    return btn;
+}
+
 void HAScreen::create(lv_obj_t* parent) {
     _screen = lv_obj_create(nullptr);
     lv_obj_set_style_bg_color(_screen, BG_COLOR, 0);
     lv_obj_set_style_bg_opa(_screen, LV_OPA_COVER, 0);
+
+    /* Toggle buttons: [Room] [Type] at top-right */
+    _btnRoom = makeToggleBtn(_screen, LV_SYMBOL_HOME " Room",
+                              586, _groupByRoom);
+    lv_obj_add_event_cb(_btnRoom, onToggleClick, LV_EVENT_CLICKED,
+                        (void*)(uintptr_t)1);
+
+    _btnCategory = makeToggleBtn(_screen, LV_SYMBOL_LIST " Type",
+                                  682, !_groupByRoom);
+    lv_obj_add_event_cb(_btnCategory, onToggleClick, LV_EVENT_CLICKED,
+                        (void*)(uintptr_t)0);
 
     /* Scrollable tile container — full content area */
     _entityList = lv_obj_create(_screen);
@@ -645,7 +701,135 @@ void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
 }
 
 /* ═══════════════════════════════════════════════════════
- *  Label Mode: Domain-Sectioned Card Grid
+ *  Room Mode: Area-Sectioned Card Grid
+ * ═══════════════════════════════════════════════════════ */
+
+void HAScreen::addRoomHeader(const char* roomName, uint8_t count) {
+    lv_obj_t* hdr = lv_obj_create(_entityList);
+    lv_obj_set_size(hdr, CONTENT_W, 24);
+    lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(hdr, 0, 0);
+    lv_obj_set_style_pad_all(hdr, 0, 0);
+    lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* lblIcon = lv_label_create(hdr);
+    lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblIcon, ACCENT, 0);
+    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, 4, -2);
+    lv_label_set_text(lblIcon, LV_SYMBOL_HOME);
+
+    lv_obj_t* lblName = lv_label_create(hdr);
+    lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
+    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 26, -2);
+    char buf[48];
+    snprintf(buf, sizeof(buf), "%s (%d)", roomName, count);
+    lv_label_set_text(lblName, buf);
+}
+
+void HAScreen::rebuildByRoom(const HAData& ha) {
+    LOG_INFO("HA: rebuild room mode — %d devices", ha.device_count);
+
+    /* ── Discover unique room names ── */
+    static constexpr uint8_t MAX_ROOMS = 16;
+    char rooms[MAX_ROOMS][32];
+    uint8_t roomCount = 0;
+
+    for (uint8_t d = 0; d < ha.device_count; d++) {
+        const char* area = ha.devices[d].area_name;
+        if (area[0] == '\0') continue;  // skip unassigned — goes to "Other"
+
+        bool found = false;
+        for (uint8_t r = 0; r < roomCount; r++) {
+            if (strcmp(rooms[r], area) == 0) { found = true; break; }
+        }
+        if (!found && roomCount < MAX_ROOMS) {
+            strncpy(rooms[roomCount], area, 31);
+            rooms[roomCount][31] = '\0';
+            roomCount++;
+        }
+    }
+
+    /* Sort rooms alphabetically */
+    for (uint8_t i = 0; i < roomCount; i++) {
+        for (uint8_t j = i + 1; j < roomCount; j++) {
+            if (strcasecmp(rooms[j], rooms[i]) < 0) {
+                char tmp[32];
+                memcpy(tmp, rooms[i], 32);
+                memcpy(rooms[i], rooms[j], 32);
+                memcpy(rooms[j], tmp, 32);
+            }
+        }
+    }
+
+    /* ── Render each room section ── */
+    for (uint8_t r = 0; r < roomCount; r++) {
+        /* Collect device indices for this room */
+        uint8_t devIdx[MAX_HA_DEVICES];
+        uint8_t devCount = 0;
+        for (uint8_t d = 0; d < ha.device_count; d++) {
+            if (strcmp(ha.devices[d].area_name, rooms[r]) == 0) {
+                devIdx[devCount++] = d;
+            }
+        }
+        if (devCount == 0) continue;
+
+        /* Room header */
+        addRoomHeader(rooms[r], devCount);
+
+        /* Card grid */
+        lv_obj_t* grid = makeSectionGrid();
+
+        for (uint8_t i = 0; i < devCount; i++) {
+            const HADeviceGroup& grp = ha.devices[devIdx[i]];
+            const char* sec = sectionKey(grp.domain);
+            bool wide = needsWideCard(sec, grp.entity_count);
+            addDeviceCardToGrid(grid, grp, ha.entities, wide);
+        }
+    }
+
+    /* ── "Other" section: devices with no area + standalone entities ── */
+    uint8_t noAreaIdx[MAX_HA_DEVICES];
+    uint8_t noAreaCount = 0;
+    for (uint8_t d = 0; d < ha.device_count; d++) {
+        if (ha.devices[d].area_name[0] == '\0') {
+            noAreaIdx[noAreaCount++] = d;
+        }
+    }
+    uint8_t standaloneCount = ha.entity_count - ha.standalone_start;
+
+    if (noAreaCount > 0 || standaloneCount > 0) {
+        addRoomHeader("Other", noAreaCount + standaloneCount);
+        lv_obj_t* grid = makeSectionGrid();
+
+        for (uint8_t i = 0; i < noAreaCount; i++) {
+            const HADeviceGroup& grp = ha.devices[noAreaIdx[i]];
+            const char* sec = sectionKey(grp.domain);
+            bool wide = needsWideCard(sec, grp.entity_count);
+            addDeviceCardToGrid(grid, grp, ha.entities, wide);
+        }
+
+        /* Standalone entities */
+        for (uint8_t i = ha.standalone_start; i < ha.entity_count; i++) {
+            const HAEntity& ent = ha.entities[i];
+            if (strcmp(ent.domain, "climate") == 0)
+                addClimateCard(grid, ent);
+            else if (strcmp(ent.domain, "sensor") == 0 ||
+                     strcmp(ent.domain, "binary_sensor") == 0)
+                addSensorRow(grid, ent, CARD_STD);
+            else if (strcmp(ent.domain, "light") == 0 ||
+                     strcmp(ent.domain, "switch") == 0)
+                addLightSwitchRow(grid, ent, CARD_STD);
+            else if (strcmp(ent.domain, "media_player") == 0)
+                addMediaCard(grid, ent, CARD_STD);
+            else
+                addGenericRow(grid, ent, CARD_STD);
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════
+ *  Category Mode: Domain-Sectioned Card Grid
  * ═══════════════════════════════════════════════════════ */
 
 /* ── Section Header: domain icon + label + count + divider ── */
@@ -957,7 +1141,9 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
         return;
     }
 
-    if (ha.label_mode) {
+    if (ha.label_mode && _groupByRoom) {
+        rebuildByRoom(ha);
+    } else if (ha.label_mode) {
         rebuildDeviceGrouped(ha);
     } else {
         rebuildDomainGrouped(ha);

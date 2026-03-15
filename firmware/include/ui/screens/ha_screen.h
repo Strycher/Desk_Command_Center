@@ -17,10 +17,21 @@ private:
     lv_obj_t* _entityList = nullptr;
     const DashboardData* _lastData = nullptr;
     bool _dirty = false;
+    bool _groupByRoom = true;  // default to room grouping
+
+    /* Toggle buttons */
+    lv_obj_t* _btnRoom = nullptr;
+    lv_obj_t* _btnCategory = nullptr;
 
     static void onCardClick(lv_event_t* e);
+    static void onToggleClick(lv_event_t* e);
 
     void rebuildEntityList(const HAData& ha);
+    void updateToggleStyle();
+
+    /* Room mode: area-sectioned card grid */
+    void rebuildByRoom(const HAData& ha);
+    void addRoomHeader(const char* roomName, uint8_t count);
 
     /* Label mode: domain-sectioned card grid */
     void rebuildDeviceGrouped(const HAData& ha);
@@ -36,7 +47,7 @@ private:
     void addDomainGroup(const char* domain, const HAEntity* entities,
                         const uint8_t* indices, uint8_t count);
 
-    /* Domain-specific card renderers (shared by both modes) */
+    /* Domain-specific card renderers (shared by all modes) */
     void addClimateCard(lv_obj_t* parent, const HAEntity& entity);
     void addSensorRow(lv_obj_t* parent, const HAEntity& entity,
                       int16_t w = 0);
