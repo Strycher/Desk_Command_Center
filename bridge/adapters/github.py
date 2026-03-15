@@ -78,7 +78,7 @@ class GitHubAdapter(BaseAdapter):
         # Open PRs
         prs_resp = await client.get(
             f"{API_BASE}/repos/{repo}/pulls",
-            params={"state": "open", "per_page": 10},
+            params={"state": "open", "per_page": 100},
             headers=headers,
         )
         prs_resp.raise_for_status()
@@ -86,15 +86,17 @@ class GitHubAdapter(BaseAdapter):
         # Open issues (excludes PRs)
         issues_resp = await client.get(
             f"{API_BASE}/repos/{repo}/issues",
-            params={"state": "open", "per_page": 10},
+            params={"state": "open", "per_page": 100},
             headers=headers,
         )
         issues_resp.raise_for_status()
 
-        # Latest workflow runs (CI status)
+        # Latest workflow runs (CI status) — only code-triggered runs.
+        # Scheduled/cron workflows (uptime monitors, auto-promote) are excluded
+        # so a failing cron job doesn't mark the whole repo as "failing".
         runs_resp = await client.get(
             f"{API_BASE}/repos/{repo}/actions/runs",
-            params={"per_page": 5},
+            params={"per_page": 20, "exclude_pull_requests": "false"},
             headers=headers,
         )
         runs_resp.raise_for_status()
@@ -106,10 +108,18 @@ class GitHubAdapter(BaseAdapter):
         # Filter out PRs from issues endpoint
         issues = [i for i in issues_raw if "pull_request" not in i]
 
+        # Only include code-triggered runs for CI status.
+        # Scheduled (cron) and workflow_dispatch runs are auxiliary — not CI.
+        ci_events = {"push", "pull_request", "pull_request_target"}
+        ci_runs = [
+            r for r in runs.get("workflow_runs", [])
+            if r.get("event") in ci_events
+        ]
+
         return {
             "prs": prs,
             "issues": issues,
-            "runs": runs.get("workflow_runs", []),
+            "runs": ci_runs,
         }
 
     def parse(self, raw: dict[str, Any]) -> dict[str, Any]:
@@ -162,6 +172,8 @@ class GitHubAdapter(BaseAdapter):
                 })
 
             # Derive summary CI status for firmware display.
+            # Only code-triggered runs (push/PR) are included — scheduled
+            # cron jobs are filtered out in _poll_repo().
             # "failing" if any workflow failed, "pending" if any in-progress,
             # "passing" if all succeeded, empty if no runs.
             ci_status = ""
