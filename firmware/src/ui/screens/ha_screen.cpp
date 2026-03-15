@@ -266,26 +266,33 @@ static lv_obj_t* makeToggleBtn(lv_obj_t* parent, const char* text,
     return btn;
 }
 
+/* Toggle row sits below the 30px status bar */
+static constexpr int16_t TOGGLE_Y      = 32;   /* just below status bar */
+static constexpr int16_t ENTITY_LIST_Y = 60;   /* below toggle row */
+static constexpr int16_t ENTITY_LIST_H = 370;  /* 430 - 60 = 370 */
+
 void HAScreen::create(lv_obj_t* parent) {
     _screen = lv_obj_create(nullptr);
     lv_obj_set_style_bg_color(_screen, BG_COLOR, 0);
     lv_obj_set_style_bg_opa(_screen, LV_OPA_COVER, 0);
 
-    /* Toggle buttons: [Room] [Type] at top-right */
+    /* Toggle buttons: [Room] [Type] at top-right, below status bar */
     _btnRoom = makeToggleBtn(_screen, LV_SYMBOL_HOME " Room",
                               586, _groupByRoom);
+    lv_obj_set_pos(_btnRoom, 586, TOGGLE_Y);
     lv_obj_add_event_cb(_btnRoom, onToggleClick, LV_EVENT_CLICKED,
                         (void*)(uintptr_t)1);
 
     _btnCategory = makeToggleBtn(_screen, LV_SYMBOL_LIST " Type",
                                   682, !_groupByRoom);
+    lv_obj_set_pos(_btnCategory, 682, TOGGLE_Y);
     lv_obj_add_event_cb(_btnCategory, onToggleClick, LV_EVENT_CLICKED,
                         (void*)(uintptr_t)0);
 
-    /* Scrollable tile container — full content area */
+    /* Scrollable tile container — below toggle row */
     _entityList = lv_obj_create(_screen);
-    lv_obj_set_size(_entityList, 780, 392);
-    lv_obj_set_pos(_entityList, PAD, CONTENT_Y);
+    lv_obj_set_size(_entityList, 780, ENTITY_LIST_H);
+    lv_obj_set_pos(_entityList, PAD, ENTITY_LIST_Y);
     lv_obj_set_style_bg_opa(_entityList, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_entityList, 0, 0);
     lv_obj_set_style_pad_all(_entityList, 0, 0);
