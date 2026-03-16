@@ -255,12 +255,35 @@ bool init()
     return true;
 }
 
+void tick()
+{
+    /* P4: esp_lvgl_port runs its own FreeRTOS task — nothing to do here */
+}
+
+bool lock(uint32_t timeout_ms)
+{
+    return lvgl_port_lock(timeout_ms);
+}
+
+void unlock()
+{
+    lvgl_port_unlock();
+}
+
+static uint8_t s_brightness = 0;
+
 void setBacklight(uint8_t percent)
 {
     if (percent > 100) percent = 100;
+    s_brightness = percent;
     uint32_t duty = (percent == 0) ? 0 : ((percent * 18) + 200);
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
+uint8_t getBacklight()
+{
+    return s_brightness;
 }
 
 uint16_t screenWidth()  { return LCD_H_RES; }
