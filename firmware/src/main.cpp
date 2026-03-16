@@ -9,12 +9,18 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#if defined(CROWPANEL_P4)
+#include "display_driver_p4.h"
+#else
 #include "display_driver.h"
+#endif
 #include "pins_config.h"
 #include "logger.h"
 #include "config_store.h"
 #include "wifi_manager.h"
+#if !defined(CROWPANEL_P4)
 #include "backlight.h"
+#endif
 #include "ntp_time.h"
 #include "sd_manager.h"
 #include "web_serial.h"
@@ -42,7 +48,9 @@
 #include "ui/screens/settings_screen.h"
 #include "ui/screens/diagnostics_screen.h"
 
+#if !defined(CROWPANEL_P4)
 static LGFX lcd;
+#endif
 static lv_disp_draw_buf_t draw_buf;
 static lv_disp_drv_t disp_drv;
 static lv_indev_drv_t indev_drv;
@@ -67,6 +75,7 @@ static DiagnosticsScreen    diagnosticsScreen;
 /* Dashboard data — parsed from bridge JSON */
 static DashboardData dashData;
 
+#if !defined(CROWPANEL_P4)
 /* --- LVGL display flush callback (sync copy to RGB frame buffer) --- */
 static void lvglFlush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_p) {
     uint32_t w = (area->x2 - area->x1 + 1);
@@ -102,6 +111,7 @@ static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
         LOG_DEBUG("TOUCH: polls=%lu hits=%lu", _touchPolls, _touchHits);
     }
 }
+#endif /* !CROWPANEL_P4 */
 
 /* --- Data callback: bridge JSON → DashboardData → all screens --- */
 static void onBridgeData(JsonDocument& doc) {
@@ -149,7 +159,14 @@ void setup() {
     ConfigStore::init();
     DeviceConfig cfg = ConfigStore::load();
 
-    /* GT911 touch reset — pull RST low for 120ms then release.
+#if defined(CROWPANEL_P4)
+    /* P4: MIPI-DSI display + GT911 touch (different pins) */
+    if (!P4Display::init()) {
+        LOG_ERROR("P4 DSI: display init FAILED — halting");
+        while (true) delay(1000);
+    }
+#else
+    /* S3: GT911 touch reset — pull RST low for 120ms then release.
        Must happen BEFORE lcd.begin() which runs Touch_GT911::init().
        Factory V1.1 firmware uses GPIO 1 for GT911 reset.
        Verified via I2C scan: GT911 appears at 0x5D after this reset. */
@@ -166,6 +183,7 @@ void setup() {
     lcd.begin();
     lcd.setColorDepth(16);
     lcd.fillScreen(TFT_BLACK);
+#endif
 
 
     /* Init LVGL */
@@ -176,18 +194,26 @@ void setup() {
     lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, nullptr,
                           SCREEN_WIDTH * SCREEN_HEIGHT / 10);
 
-    /* Display driver — standard partial updates via pushImageDMA */
+    /* Display driver */
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res  = SCREEN_WIDTH;
     disp_drv.ver_res  = SCREEN_HEIGHT;
+#if defined(CROWPANEL_P4)
+    disp_drv.flush_cb = P4Display::lvglFlush;
+#else
     disp_drv.flush_cb = lvglFlush;
+#endif
     disp_drv.draw_buf = &draw_buf;
     lv_disp_drv_register(&disp_drv);
 
     /* Touch input driver */
     lv_indev_drv_init(&indev_drv);
     indev_drv.type    = LV_INDEV_TYPE_POINTER;
+#if defined(CROWPANEL_P4)
+    indev_drv.read_cb = P4Display::lvglTouchRead;
+#else
     indev_drv.read_cb = lvglTouchRead;
+#endif
     lv_indev_drv_register(&indev_drv);
 
     LOG_INFO("DCC: LVGL ready (%dx%d, SRAM buf %lu KB, pushImageDMA)",
@@ -200,9 +226,14 @@ void setup() {
     splash.updateStatus("Initializing...");
     lv_timer_handler();
 
-    /* Init backlight */
+#if defined(CROWPANEL_P4)
+    /* P4: backlight already initialized by P4Display::init() */
+    P4Display::setBacklight(cfg.brightness);
+#else
+    /* S3: backlight via STC8H1K28 co-processor */
     Backlight::init();
     Backlight::setBrightness(cfg.brightness);
+#endif
 
     /* Init subsystems */
     splash.updateStatus("Connecting to WiFi...");

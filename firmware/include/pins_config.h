@@ -1,9 +1,18 @@
 /**
- * CrowPanel Advance 5.0" — Pin Definitions
- * Source: Elecrow factory firmware V1.1
+ * CrowPanel Pin Definitions
+ * 5.0" (ESP32-S3): Elecrow factory firmware V1.1
+ * 7.0" (ESP32-P4): CrowPanel Advance 7.0" HMI
  */
 
 #pragma once
+
+#if defined(CROWPANEL_P4)
+
+/* --- Display (EK79007, MIPI-DSI) --- */
+#define LCD_H_RES  1024
+#define LCD_V_RES  600
+
+#else  /* ESP32-S3 CrowPanel 5.0" */
 
 /* --- Display (ST7262 RGB interface) --- */
 #define LCD_H_RES  800
@@ -65,3 +74,5 @@
 
 /* --- Speaker / Audio --- */
 /* Driven via STC8H1K28 co-processor at I2C 0x30 */
+
+#endif /* CROWPANEL_P4 */

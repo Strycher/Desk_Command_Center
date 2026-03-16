@@ -1,8 +1,10 @@
 /**
- * Backlight Control — Implementation
+ * Backlight Control — Implementation (ESP32-S3 only)
  * STC8H1K28 at I2C 0x30. Brightness range: 0x05 (off) to 0x10 (max).
- * Uses the same I2C bus as touch (GPIO 15/16), already initialized by LovyanGFX.
+ * P4 uses direct PWM via display_driver_p4.cpp instead.
  */
+
+#if !defined(CROWPANEL_P4)
 
 #include "backlight.h"
 #include <Wire.h>
@@ -46,3 +48,5 @@ void Backlight::setBrightness(uint8_t percent) {
 uint8_t Backlight::getBrightness() {
     return _currentPercent;
 }
+
+#endif /* !CROWPANEL_P4 */
