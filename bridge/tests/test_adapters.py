@@ -97,6 +97,16 @@ class TestBaseAdapter:
         assert "test" in repr(a)
         assert "idle" in repr(a)
 
+    def test_cache_key_defaults_to_name(self):
+        a = FakeAdapter(name="weather")
+        assert a.cache_key == "weather"
+
+    def test_cache_key_override(self):
+        a = FakeAdapter(name="weather")
+        a.cache_key = "weather:strycher"
+        assert a.cache_key == "weather:strycher"
+        assert a.name == "weather"  # name unchanged
+
 
 # --- Scheduler ---------------------------------------------------------------
 
@@ -114,6 +124,18 @@ class TestScheduler:
         assert result["temp"] == 72
         assert adapter.state.status == AdapterStatus.OK
         assert cache.get("fake") is not None
+
+    @pytest.mark.asyncio
+    async def test_poll_once_uses_cache_key(self):
+        cache = TTLCache()
+        sched = AdapterScheduler(cache=cache)
+        adapter = FakeAdapter(name="weather", data={"temp": 72})
+        adapter.cache_key = "weather:strycher"
+        sched.register(adapter)
+
+        await sched.poll_once(adapter)
+        assert cache.get("weather:strycher") is not None
+        assert cache.get("weather") is None  # not stored under bare name
 
     @pytest.mark.asyncio
     async def test_poll_once_failure(self):
@@ -163,6 +185,27 @@ class TestScheduler:
         with pytest.raises(ValueError, match="already registered"):
             sched.register(FakeAdapter(name="a"))
 
+    def test_register_same_name_different_cache_key(self):
+        """Two adapters with same name but different cache_keys can coexist."""
+        sched = AdapterScheduler()
+        a1 = FakeAdapter(name="weather")
+        a1.cache_key = "weather:strycher"
+        a2 = FakeAdapter(name="weather")
+        a2.cache_key = "weather:wife"
+        sched.register(a1)
+        sched.register(a2)
+        assert len(sched.list_adapters()) == 2
+
+    def test_register_duplicate_cache_key_raises(self):
+        sched = AdapterScheduler()
+        a1 = FakeAdapter(name="weather")
+        a1.cache_key = "weather:strycher"
+        a2 = FakeAdapter(name="weather")
+        a2.cache_key = "weather:strycher"
+        sched.register(a1)
+        with pytest.raises(ValueError, match="already registered"):
+            sched.register(a2)
+
     def test_list_adapters(self):
         sched = AdapterScheduler()
         sched.register(FakeAdapter(name="weather"))
@@ -170,6 +213,14 @@ class TestScheduler:
         assert len(adapters) == 1
         assert adapters[0]["name"] == "weather"
         assert adapters[0]["status"] == "idle"
+
+    def test_list_adapters_shows_cache_key(self):
+        sched = AdapterScheduler()
+        a = FakeAdapter(name="weather")
+        a.cache_key = "weather:wife"
+        sched.register(a)
+        adapters = sched.list_adapters()
+        assert adapters[0]["name"] == "weather:wife"
 
     @pytest.mark.asyncio
     async def test_start_and_stop(self):

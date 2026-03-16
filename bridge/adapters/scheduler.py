@@ -27,20 +27,22 @@ class AdapterScheduler:
         self._running = False
 
     def register(self, adapter: BaseAdapter) -> None:
-        if adapter.name in self._adapters:
-            raise ValueError(f"Adapter {adapter.name!r} already registered")
-        self._adapters[adapter.name] = adapter
-        logger.info("Registered adapter: %s", adapter.name)
+        key = adapter.cache_key
+        if key in self._adapters:
+            raise ValueError(f"Adapter {key!r} already registered")
+        self._adapters[key] = adapter
+        logger.info("Registered adapter: %s (cache_key=%s)", adapter.name, key)
 
-    def get_adapter(self, name: str) -> BaseAdapter | None:
-        return self._adapters.get(name)
+    def get_adapter(self, key: str) -> BaseAdapter | None:
+        """Look up adapter by cache_key."""
+        return self._adapters.get(key)
 
     def list_adapters(self) -> list[dict[str, Any]]:
         result = []
         for adapter in self._adapters.values():
-            age = self.cache.get_age(adapter.name)
+            age = self.cache.get_age(adapter.cache_key)
             result.append({
-                "name": adapter.name,
+                "name": adapter.cache_key,
                 "status": adapter.state.status.value,
                 "last_ok": adapter.state.last_ok,
                 "last_error": adapter.state.last_error,
@@ -57,12 +59,12 @@ class AdapterScheduler:
         if self._running:
             return
         self._running = True
-        for name, adapter in self._adapters.items():
+        for key, adapter in self._adapters.items():
             task = asyncio.create_task(
                 self._run_adapter(adapter),
-                name=f"adapter-{name}",
+                name=f"adapter-{key}",
             )
-            self._tasks[name] = task
+            self._tasks[key] = task
         logger.info("Scheduler started with %d adapters", len(self._adapters))
 
     async def stop(self) -> None:
@@ -89,8 +91,8 @@ class AdapterScheduler:
                 adapter.state.error_message = None
                 adapter.state.consecutive_failures = 0
 
-                self.cache.set(adapter.name, parsed, adapter.config.ttl)
-                logger.debug("Adapter %s polled OK", adapter.name)
+                self.cache.set(adapter.cache_key, parsed, adapter.config.ttl)
+                logger.debug("Adapter %s polled OK", adapter.cache_key)
                 return parsed
 
             except Exception as exc:
@@ -120,7 +122,7 @@ class AdapterScheduler:
             await self.poll_once(adapter)
 
             # Check staleness: if cache has expired, mark stale
-            entry = self.cache.get_entry(adapter.name)
+            entry = self.cache.get_entry(adapter.cache_key)
             if entry is not None and entry.is_expired:
                 if adapter.state.status != AdapterStatus.ERROR:
                     adapter.state.status = AdapterStatus.STALE
