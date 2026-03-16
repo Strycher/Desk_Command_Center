@@ -25,6 +25,9 @@ static const char* KEY_TZ          = "timezone";
 static const char* KEY_BRIGHT      = "brightness";
 static const char* KEY_24H         = "clock_24h";
 static const char* KEY_POLL        = "poll_sec";
+static const char* KEY_DEV_NAME    = "dev_name";
+static const char* KEY_DEV_KEY     = "dev_key";
+static const char* KEY_HOME_SSID   = "home_ssid";
 
 /* WiFi entries stored as wifi_s0..wifi_s4 (ssid), wifi_p0..wifi_p4 (pass), wifi_r0..wifi_r4 (priority) */
 static void loadWifi(DeviceConfig& cfg) {
@@ -78,6 +81,9 @@ DeviceConfig ConfigStore::load() {
     cfg.brightness       = prefs.getUChar(KEY_BRIGHT, DEFAULT_BRIGHT);
     cfg.clock_24h        = prefs.getBool(KEY_24H, DEFAULT_24H);
     cfg.poll_interval_sec = prefs.getUShort(KEY_POLL, DEFAULT_POLL);
+    prefs.getString(KEY_DEV_NAME, cfg.device_name, DCC_DEV_NAME_LEN);
+    prefs.getString(KEY_DEV_KEY, cfg.device_key, DCC_DEV_KEY_LEN);
+    prefs.getString(KEY_HOME_SSID, cfg.home_ssid, DCC_SSID_LEN);
 
     /* Apply defaults for empty strings */
     if (cfg.bridge_url[0] == '\0') {
@@ -100,6 +106,9 @@ void ConfigStore::save(const DeviceConfig& cfg) {
     prefs.putUChar(KEY_BRIGHT, cfg.brightness);
     prefs.putBool(KEY_24H, cfg.clock_24h);
     prefs.putUShort(KEY_POLL, cfg.poll_interval_sec);
+    prefs.putString(KEY_DEV_NAME, cfg.device_name);
+    prefs.putString(KEY_DEV_KEY, cfg.device_key);
+    prefs.putString(KEY_HOME_SSID, cfg.home_ssid);
 
     LOG_INFO("CFG: saved to NVS");
 }
