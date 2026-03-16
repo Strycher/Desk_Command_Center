@@ -63,7 +63,7 @@ def create_adapter(
     cls = ADAPTER_CLASSES.get(source_name)
     if cls is None:
         raise ValueError(f"Unknown adapter source: {source_name!r}")
-    adapter = cls(source_config)
+    adapter = cls(source_config)  # type: ignore[arg-type]  # subclasses accept dict
     if user_id is not None:
         adapter.cache_key = f"{adapter.name}:{user_id}"
     return adapter
