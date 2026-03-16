@@ -222,7 +222,7 @@ void setup() {
     splash.updateStatus("Starting data service...");
     lv_timer_handler();
     StalenessTracker::init();
-    DataService::init(cfg.bridge_url, cfg.poll_interval_sec);
+    DataService::init(cfg.bridge_url, cfg.poll_interval_sec, cfg.device_key);
     HACommand::init(cfg.bridge_url);
     HACommand::onResult([](bool success, const char* entityId,
                            const char* newState, const char* error) {

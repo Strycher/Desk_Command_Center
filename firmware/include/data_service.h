@@ -21,7 +21,11 @@ enum class FetchState : uint8_t { IDLE, FETCHING, SUCCESS, ERROR };
 typedef void (*DataCallback)(JsonDocument& doc);
 
 namespace DataService {
-    void init(const char* bridgeUrl, uint16_t pollIntervalSec);
+    void init(const char* bridgeUrl, uint16_t pollIntervalSec,
+              const char* deviceKey = nullptr);
+
+    /** Return 12-char hex chip ID (from ESP.getEfuseMac()). Available after init(). */
+    const char* chipId();
 
     /** Launch background FreeRTOS task on Core 0. Call once from setup(). */
     void startTask();

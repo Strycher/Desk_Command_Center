@@ -36,6 +36,8 @@ static JsonDocument _doc(&psramAllocator);
 /* --- Configuration --- */
 static char         _url[256] = {};
 static uint32_t     _intervalMs = 30000;
+static char         _chipId[13] = {};    // 12 hex chars + null
+static char         _deviceKey[48] = {}; // pre-shared auth token
 
 /* --- State (written by net task, read by main loop) --- */
 static volatile FetchState _state = FetchState::IDLE;
@@ -77,6 +79,12 @@ static void doFetch() {
     http.begin(url);
     http.setTimeout(HTTP_TIMEOUT_MS);
     http.setConnectTimeout(HTTP_TIMEOUT_MS);
+    if (_chipId[0] != '\0') {
+        http.addHeader("X-Device-ID", _chipId);
+    }
+    if (_deviceKey[0] != '\0') {
+        http.addHeader("X-Device-Key", _deviceKey);
+    }
     int code = http.GET();
 
     if (code == HTTP_CODE_OK) {
@@ -161,12 +169,26 @@ static void networkTask(void* param) {
 
 /* --- Public API --- */
 
-void DataService::init(const char* bridgeUrl, uint16_t pollIntervalSec) {
+void DataService::init(const char* bridgeUrl, uint16_t pollIntervalSec,
+                       const char* deviceKey) {
     strncpy(_url, bridgeUrl, sizeof(_url) - 1);
     _intervalMs = (uint32_t)pollIntervalSec * 1000;
     _dataMutex = xSemaphoreCreateMutex();
-    LOG_INFO("DATA: init bridge=%s interval=%ds", _url, pollIntervalSec);
+
+    // Read chip ID from eFuse MAC (6 bytes → 12 hex chars)
+    uint64_t mac = ESP.getEfuseMac();
+    snprintf(_chipId, sizeof(_chipId), "%04X%08X",
+             (uint16_t)(mac >> 32), (uint32_t)mac);
+
+    if (deviceKey && deviceKey[0] != '\0') {
+        strncpy(_deviceKey, deviceKey, sizeof(_deviceKey) - 1);
+    }
+
+    LOG_INFO("DATA: init bridge=%s interval=%ds chipId=%s",
+             _url, pollIntervalSec, _chipId);
 }
+
+const char* DataService::chipId() { return _chipId; }
 
 void DataService::startTask() {
     if (_taskHandle != nullptr) return;  /* Already running */
