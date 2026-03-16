@@ -23,9 +23,8 @@ class GitHubAdapter(BaseAdapter):
       github.poll_interval: seconds between polls
     """
 
-    def __init__(self, bridge_config: dict[str, Any]) -> None:
-        gh_cfg = bridge_config.get("github", {})
-        poll_interval = gh_cfg.get("poll_interval", 300)
+    def __init__(self, source_config: dict[str, Any]) -> None:
+        poll_interval = source_config.get("poll_interval", 300)
 
         super().__init__(
             name="github",
@@ -37,10 +36,10 @@ class GitHubAdapter(BaseAdapter):
                 backoff_max=120.0,
             ),
         )
-        self.token = gh_cfg.get("api_key", "")
-        self.repos: list[str] = gh_cfg.get("repos", [])
-        self.org_token = gh_cfg.get("org_api_key", "")
-        self.org_repos: set[str] = set(gh_cfg.get("org_repos", []))
+        self.token = source_config.get("api_key", "")
+        self.repos: list[str] = source_config.get("repos", [])
+        self.org_token = source_config.get("org_api_key", "")
+        self.org_repos: set[str] = set(source_config.get("org_repos", []))
         # Merge org repos into the poll list (deduplicated)
         for r in self.org_repos:
             if r not in self.repos:

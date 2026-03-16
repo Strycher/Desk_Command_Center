@@ -31,9 +31,8 @@ class WeatherAdapter(BaseAdapter):
       weather.poll_interval: seconds between polls
     """
 
-    def __init__(self, bridge_config: dict[str, Any]) -> None:
-        weather_cfg = bridge_config.get("weather", {})
-        poll_interval = weather_cfg.get("poll_interval", 900)
+    def __init__(self, source_config: dict[str, Any]) -> None:
+        poll_interval = source_config.get("poll_interval", 900)
 
         super().__init__(
             name="weather",
@@ -45,11 +44,11 @@ class WeatherAdapter(BaseAdapter):
                 backoff_max=120.0,
             ),
         )
-        self.provider = weather_cfg.get("provider", "nws")
-        self.api_key = weather_cfg.get("api_key", "")
-        self.lat = weather_cfg.get("lat", 39.3451)
-        self.lon = weather_cfg.get("lon", -84.3916)
-        self.units = weather_cfg.get("units", "imperial")
+        self.provider = source_config.get("provider", "nws")
+        self.api_key = source_config.get("api_key", "")
+        self.lat = source_config.get("lat", 39.3451)
+        self.lon = source_config.get("lon", -84.3916)
+        self.units = source_config.get("units", "imperial")
 
     async def poll(self) -> dict[str, Any]:
         if self.provider == "openweathermap" and self.api_key:

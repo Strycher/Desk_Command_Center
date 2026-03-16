@@ -9,11 +9,9 @@ from adapters.github import GitHubAdapter
 
 
 GH_CONFIG = {
-    "github": {
-        "api_key": "ghp_test",
-        "repos": ["Strycher/Desk_Command_Center", "DifferentWire/Unfocused"],
-        "poll_interval": 300,
-    },
+    "api_key": "ghp_test",
+    "repos": ["Strycher/Desk_Command_Center", "DifferentWire/Unfocused"],
+    "poll_interval": 300,
 }
 
 SAMPLE_RAW = {
