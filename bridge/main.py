@@ -25,6 +25,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from adapters import TTLCache, AdapterScheduler
+from adapters.base import BaseAdapter
 from adapters.beads import BeadsAdapter
 from adapters.github import GitHubAdapter
 from adapters.google_calendar import GoogleCalendarAdapter
@@ -36,34 +37,63 @@ from push_store import PushStore
 
 logger = logging.getLogger(__name__)
 
+# --- Adapter factory --------------------------------------------------------
+
+# Maps source config key to adapter class
+ADAPTER_CLASSES: dict[str, type[BaseAdapter]] = {
+    "weather": WeatherAdapter,
+    "github": GitHubAdapter,
+    "google_calendar": GoogleCalendarAdapter,
+    "beads": BeadsAdapter,
+    "unfocused_tasks": UnfocusedTasksAdapter,
+    "home_assistant": HomeAssistantAdapter,
+}
+
+
+def create_adapter(
+    source_name: str,
+    source_config: dict,
+    user_id: str | None = None,
+) -> BaseAdapter:
+    """Create an adapter instance with appropriate cache_key.
+
+    Per-user adapters get cache_key "source:user_id".
+    Shared adapters (user_id=None) keep the default bare name.
+    """
+    cls = ADAPTER_CLASSES.get(source_name)
+    if cls is None:
+        raise ValueError(f"Unknown adapter source: {source_name!r}")
+    adapter = cls(source_config)
+    if user_id is not None:
+        adapter.cache_key = f"{adapter.name}:{user_id}"
+    return adapter
+
+
 # Shared state
 cache = TTLCache()
 scheduler = AdapterScheduler(cache=cache)
 config = BridgeConfig()
 push_store: PushStore | None = None  # initialized in lifespan (avoids mkdir at import)
 
-# Register poll-based adapters from first user's sources + shared sources.
-# Task 1.4 replaces this with the full adapter factory (per-user instances).
-_users = config.list_users()
-_user_id = _users[0] if _users else "strycher"
-_user_src = config.get_user_sources(_user_id)
-_shared_src = config.get_shared_sources()
+# Register per-user adapters from config
+for _user_id in config.list_users():
+    for _source_name, _source_cfg in config.get_user_sources(_user_id).items():
+        if _source_name not in ADAPTER_CLASSES:
+            continue  # skip non-adapter sources (claude, devops)
+        _adapter = create_adapter(_source_name, _source_cfg, _user_id)
+        scheduler.register(_adapter)
+        logger.info("Registered %s for user %s", _source_name, _user_id)
 
-if "weather" in _user_src:
-    scheduler.register(WeatherAdapter(_user_src["weather"]))
-if "github" in _user_src:
-    scheduler.register(GitHubAdapter(_user_src["github"]))
-if "beads" in _user_src:
-    scheduler.register(BeadsAdapter(_user_src["beads"]))
-if "google_calendar" in _user_src:
-    scheduler.register(GoogleCalendarAdapter(_user_src["google_calendar"]))
-if "unfocused_tasks" in _user_src:
-    scheduler.register(UnfocusedTasksAdapter(_user_src["unfocused_tasks"]))
-
+# Register shared adapters (one instance, bare cache key)
 ha_adapter: HomeAssistantAdapter | None = None
-if "home_assistant" in _shared_src:
-    ha_adapter = HomeAssistantAdapter(_shared_src["home_assistant"])
-    scheduler.register(ha_adapter)
+for _source_name, _source_cfg in config.get_shared_sources().items():
+    if _source_name not in ADAPTER_CLASSES:
+        continue
+    _adapter = create_adapter(_source_name, _source_cfg)
+    scheduler.register(_adapter)
+    if isinstance(_adapter, HomeAssistantAdapter):
+        ha_adapter = _adapter
+    logger.info("Registered shared %s", _source_name)
 
 # Default TTL for push-ingested data.
 # Calendar data is stable — a missed push shouldn't blank the display.
@@ -81,9 +111,8 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
     "media_player": {"media_play_pause", "volume_up", "volume_down", "volume_set"},
 }
 
-# Known data sources — the dashboard merges all of these.
-# Each entry: cache_key -> human-readable label
-DASHBOARD_SOURCES = {
+# Human-readable labels for source types
+SOURCE_LABELS = {
     "calendar_ms": "Outlook Calendar",
     "calendar_google": "Google Calendar",
     "weather": "Weather",
@@ -93,6 +122,9 @@ DASHBOARD_SOURCES = {
     "unfocused_tasks": "Unfocused Tasks",
     "claude": "Claude Agents",
 }
+
+# Push-based sources (not adapter-driven, always included)
+PUSH_SOURCES = {"calendar_ms", "calendar_google", "claude"}
 
 
 @asynccontextmanager
@@ -148,39 +180,47 @@ async def update_config(request: Request):
     return result
 
 
+def _label_for_key(cache_key: str) -> str:
+    """Derive human-readable label from a cache key.
+
+    "weather:strycher" -> "Weather", "home_assistant" -> "Home Assistant"
+    """
+    base = cache_key.split(":")[0]
+    return SOURCE_LABELS.get(base, base)
+
+
+def _build_source_entry(cache_key: str) -> dict:
+    """Build a dashboard source entry from a cache key."""
+    entry = cache.get_entry(cache_key)
+    label = _label_for_key(cache_key)
+    if entry is None:
+        return {"label": label, "status": "missing", "last_updated": None, "data": None}
+    elif entry.is_expired:
+        return {"label": label, "status": "stale",
+                "last_updated": entry.value.get("received_at"), "data": entry.value}
+    else:
+        return {"label": label, "status": "ok",
+                "last_updated": entry.value.get("received_at"), "data": entry.value}
+
+
 @app.get("/api/dashboard")
 async def dashboard():
     """Merged snapshot of all data sources for the display.
 
-    Each source entry contains status, last_updated, and data.
-    Missing or expired sources return null data with error metadata.
+    Returns all registered adapter cache keys + push sources.
+    Task 1.5 adds device-filtered responses via X-Device-ID header.
     """
     sources = {}
-    for key, label in DASHBOARD_SOURCES.items():
-        entry = cache.get_entry(key)
-        if entry is None:
-            sources[key] = {
-                "label": label,
-                "status": "missing",
-                "last_updated": None,
-                "data": None,
-            }
-        elif entry.is_expired:
-            sources[key] = {
-                "label": label,
-                "status": "stale",
-                "last_updated": entry.value.get("received_at"),
-                "data": entry.value,
-            }
-        else:
-            sources[key] = {
-                "label": label,
-                "status": "ok",
-                "last_updated": entry.value.get("received_at"),
-                "data": entry.value,
-            }
 
-    # Include any poll-based adapter statuses
+    # Poll-based adapters (per-user and shared)
+    for adapter_info in scheduler.list_adapters():
+        key = adapter_info["name"]  # cache_key
+        sources[key] = _build_source_entry(key)
+
+    # Push-based sources
+    for key in PUSH_SOURCES:
+        sources[key] = _build_source_entry(key)
+
     adapter_statuses = {a["name"]: a["status"] for a in scheduler.list_adapters()}
 
     return {
