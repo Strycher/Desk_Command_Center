@@ -9,11 +9,9 @@ from adapters.home_assistant import HomeAssistantAdapter
 
 
 HA_CONFIG = {
-    "home_assistant": {
-        "url": "http://192.168.50.24:8123",
-        "api_key": "test_token",
-        "poll_interval": 60,
-    },
+    "url": "http://192.168.50.24:8123",
+    "api_key": "test_token",
+    "poll_interval": 60,
 }
 
 SAMPLE_RAW = {

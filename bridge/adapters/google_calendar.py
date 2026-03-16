@@ -27,9 +27,8 @@ class GoogleCalendarAdapter(BaseAdapter):
       google_calendar.poll_interval: seconds between polls
     """
 
-    def __init__(self, bridge_config: dict[str, Any]) -> None:
-        gc_cfg = bridge_config.get("google_calendar", {})
-        poll_interval = gc_cfg.get("poll_interval", 300)
+    def __init__(self, source_config: dict[str, Any]) -> None:
+        poll_interval = source_config.get("poll_interval", 300)
 
         super().__init__(
             name="calendar_google",
@@ -41,10 +40,10 @@ class GoogleCalendarAdapter(BaseAdapter):
                 backoff_max=120.0,
             ),
         )
-        self.client_id = gc_cfg.get("client_id", "")
-        self.client_secret = gc_cfg.get("client_secret", "")
-        self.refresh_token = gc_cfg.get("refresh_token", "")
-        self.calendars: list[str] = gc_cfg.get("calendars", ["primary"])
+        self.client_id = source_config.get("client_id", "")
+        self.client_secret = source_config.get("client_secret", "")
+        self.refresh_token = source_config.get("refresh_token", "")
+        self.calendars: list[str] = source_config.get("calendars", ["primary"])
 
     async def _get_access_token(self, client: httpx.AsyncClient) -> str:
         """Exchange refresh token for a short-lived access token."""

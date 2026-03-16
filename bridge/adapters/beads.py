@@ -20,9 +20,8 @@ class BeadsAdapter(BaseAdapter):
       beads.poll_interval: seconds between polls
     """
 
-    def __init__(self, bridge_config: dict[str, Any]) -> None:
-        beads_cfg = bridge_config.get("beads", {})
-        poll_interval = beads_cfg.get("poll_interval", 120)
+    def __init__(self, source_config: dict[str, Any]) -> None:
+        poll_interval = source_config.get("poll_interval", 120)
 
         super().__init__(
             name="beads",
@@ -34,9 +33,9 @@ class BeadsAdapter(BaseAdapter):
                 backoff_max=60.0,
             ),
         )
-        self.host = beads_cfg.get("host", "127.0.0.1")
-        self.port = beads_cfg.get("port", 3310)
-        self.projects: list[str] = beads_cfg.get("projects", [])
+        self.host = source_config.get("host", "127.0.0.1")
+        self.port = source_config.get("port", 3310)
+        self.projects: list[str] = source_config.get("projects", [])
 
     async def poll(self) -> dict[str, Any]:
         import pymysql

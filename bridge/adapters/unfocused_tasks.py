@@ -28,9 +28,8 @@ class UnfocusedTasksAdapter(BaseAdapter):
       unfocused_tasks.poll_interval: seconds between polls
     """
 
-    def __init__(self, bridge_config: dict[str, Any]) -> None:
-        uf_cfg = bridge_config.get("unfocused_tasks", {})
-        poll_interval = uf_cfg.get("poll_interval", 300)
+    def __init__(self, source_config: dict[str, Any]) -> None:
+        poll_interval = source_config.get("poll_interval", 300)
 
         super().__init__(
             name="unfocused_tasks",
@@ -42,9 +41,9 @@ class UnfocusedTasksAdapter(BaseAdapter):
                 backoff_max=120.0,
             ),
         )
-        self.api_url = uf_cfg.get("api_url", "https://getunfocused.app")
-        self.api_key = uf_cfg.get("api_key", "")
-        self.limit = uf_cfg.get("limit", 50)
+        self.api_url = source_config.get("api_url", "https://getunfocused.app")
+        self.api_key = source_config.get("api_key", "")
+        self.limit = source_config.get("limit", 50)
 
     async def poll(self) -> dict[str, Any]:
         if not self.api_key:

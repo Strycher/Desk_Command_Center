@@ -11,25 +11,21 @@ from adapters.weather import WeatherAdapter
 # --- Fixtures ---------------------------------------------------------------
 
 OWM_CONFIG = {
-    "weather": {
-        "provider": "openweathermap",
-        "api_key": "test-key",
-        "lat": 39.3451,
-        "lon": -84.3916,
-        "units": "imperial",
-        "poll_interval": 900,
-    },
+    "provider": "openweathermap",
+    "api_key": "test-key",
+    "lat": 39.3451,
+    "lon": -84.3916,
+    "units": "imperial",
+    "poll_interval": 900,
 }
 
 NWS_CONFIG = {
-    "weather": {
-        "provider": "nws",
-        "api_key": "",
-        "lat": 39.3451,
-        "lon": -84.3916,
-        "units": "imperial",
-        "poll_interval": 900,
-    },
+    "provider": "nws",
+    "api_key": "",
+    "lat": 39.3451,
+    "lon": -84.3916,
+    "units": "imperial",
+    "poll_interval": 900,
 }
 
 OWM_CURRENT = {
@@ -145,7 +141,7 @@ class TestWeatherAdapterNWS:
         assert len(parsed["hourly"]) == 2
 
     def test_parse_nws_metric(self):
-        cfg = {**NWS_CONFIG, "weather": {**NWS_CONFIG["weather"], "units": "metric"}}
+        cfg = {**NWS_CONFIG, "units": "metric"}
         adapter = WeatherAdapter(cfg)
         raw = {
             "_provider": "nws",

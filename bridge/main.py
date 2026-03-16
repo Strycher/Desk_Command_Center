@@ -42,15 +42,28 @@ scheduler = AdapterScheduler(cache=cache)
 config = BridgeConfig()
 push_store: PushStore | None = None  # initialized in lifespan (avoids mkdir at import)
 
-# Register poll-based adapters
-_cfg = config.get_all(mask_secrets=False)
-scheduler.register(WeatherAdapter(_cfg))
-scheduler.register(GitHubAdapter(_cfg))
-scheduler.register(BeadsAdapter(_cfg))
-ha_adapter = HomeAssistantAdapter(_cfg)
-scheduler.register(ha_adapter)
-scheduler.register(GoogleCalendarAdapter(_cfg))
-scheduler.register(UnfocusedTasksAdapter(_cfg))
+# Register poll-based adapters from first user's sources + shared sources.
+# Task 1.4 replaces this with the full adapter factory (per-user instances).
+_users = config.list_users()
+_user_id = _users[0] if _users else "strycher"
+_user_src = config.get_user_sources(_user_id)
+_shared_src = config.get_shared_sources()
+
+if "weather" in _user_src:
+    scheduler.register(WeatherAdapter(_user_src["weather"]))
+if "github" in _user_src:
+    scheduler.register(GitHubAdapter(_user_src["github"]))
+if "beads" in _user_src:
+    scheduler.register(BeadsAdapter(_user_src["beads"]))
+if "google_calendar" in _user_src:
+    scheduler.register(GoogleCalendarAdapter(_user_src["google_calendar"]))
+if "unfocused_tasks" in _user_src:
+    scheduler.register(UnfocusedTasksAdapter(_user_src["unfocused_tasks"]))
+
+ha_adapter: HomeAssistantAdapter | None = None
+if "home_assistant" in _shared_src:
+    ha_adapter = HomeAssistantAdapter(_shared_src["home_assistant"])
+    scheduler.register(ha_adapter)
 
 # Default TTL for push-ingested data.
 # Calendar data is stable — a missed push shouldn't blank the display.
@@ -221,6 +234,12 @@ async def get_google_calendar():
 
 @app.post("/api/ha/command")
 async def ha_command(request: Request):
+    if ha_adapter is None:
+        return JSONResponse(status_code=503, content={
+            "success": False,
+            "error": "Home Assistant adapter not configured",
+        })
+
     body = await request.json()
     entity_id = body.get("entity_id")
     service = body.get("service")

@@ -9,13 +9,11 @@ from adapters.google_calendar import GoogleCalendarAdapter
 
 
 GC_CONFIG = {
-    "google_calendar": {
-        "client_id": "test-client-id",
-        "client_secret": "test-client-secret",
-        "refresh_token": "test-refresh-token",
-        "calendars": ["primary", "work@example.com"],
-        "poll_interval": 300,
-    },
+    "client_id": "test-client-id",
+    "client_secret": "test-client-secret",
+    "refresh_token": "test-refresh-token",
+    "calendars": ["primary", "work@example.com"],
+    "poll_interval": 300,
 }
 
 SAMPLE_RAW = {

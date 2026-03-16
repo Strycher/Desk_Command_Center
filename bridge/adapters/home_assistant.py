@@ -39,9 +39,8 @@ class HomeAssistantAdapter(BaseAdapter):
       home_assistant.registry_ttl: seconds to cache registry data (default 300)
     """
 
-    def __init__(self, bridge_config: dict[str, Any]) -> None:
-        ha_cfg = bridge_config.get("home_assistant", {})
-        poll_interval = ha_cfg.get("poll_interval", 60)
+    def __init__(self, source_config: dict[str, Any]) -> None:
+        poll_interval = source_config.get("poll_interval", 60)
 
         super().__init__(
             name="home_assistant",
@@ -53,10 +52,10 @@ class HomeAssistantAdapter(BaseAdapter):
                 backoff_max=60.0,
             ),
         )
-        self.url = ha_cfg.get("url", "").rstrip("/")
-        self.token = ha_cfg.get("api_key", "")
-        self.label_name = ha_cfg.get("label", "DCC")
-        self._registry_ttl = ha_cfg.get("registry_ttl", 300)
+        self.url = source_config.get("url", "").rstrip("/")
+        self.token = source_config.get("api_key", "")
+        self.label_name = source_config.get("label", "DCC")
+        self._registry_ttl = source_config.get("registry_ttl", 300)
 
         # Cached registry data (refreshed every _registry_ttl seconds)
         self._registry: dict[str, Any] | None = None

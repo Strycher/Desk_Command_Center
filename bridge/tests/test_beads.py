@@ -9,12 +9,10 @@ from adapters.beads import BeadsAdapter
 
 
 BEADS_CONFIG = {
-    "beads": {
-        "host": "127.0.0.1",
-        "port": 3310,
-        "projects": ["beads_DCC"],
-        "poll_interval": 120,
-    },
+    "host": "127.0.0.1",
+    "port": 3310,
+    "projects": ["beads_DCC"],
+    "poll_interval": 120,
 }
 
 SAMPLE_RAW = {
