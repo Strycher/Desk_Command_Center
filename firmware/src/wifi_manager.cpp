@@ -45,6 +45,12 @@ static void tryConnect() {
 }
 
 void WifiManager::init(const DeviceConfig& cfg) {
+#if defined(CROWPANEL_P4)
+    /* P4: WiFi via ESP32-C6 companion over SDIO
+       CLK=18, CMD=19, D0=14, D1=15, D2=16, D3=17, RST=32 */
+    WiFi.setPins(18, 19, 14, 15, 16, 17, 32);
+    LOG_INFO("WIFI: P4 SDIO pins configured for ESP32-C6 companion");
+#endif
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(false);
 
