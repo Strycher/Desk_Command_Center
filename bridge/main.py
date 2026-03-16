@@ -375,9 +375,20 @@ async def ha_command(request: Request):
 
 # --- Claude agent heartbeat ------------------------------------------------
 
-# In-memory registry: {agent_name: {task, program, model, last_seen}}
-_claude_sessions: dict[str, dict] = {}
+# Per-user session registries: {user_id: {agent_name: {task, program, model, last_seen}}}
+# "claude" (bare) is the legacy/unscoped key
+_claude_sessions: dict[str, dict[str, dict]] = {}
 CLAUDE_SESSION_TTL = 300  # 5 minutes — session is stale if no heartbeat
+
+
+def _resolve_claude_user(request: Request) -> str:
+    """Resolve device header to user_id, or return bare "claude" for legacy."""
+    device_id = request.headers.get("X-Device-ID")
+    if device_id:
+        user_id = config.resolve_device_user(device_id)
+        if user_id:
+            return user_id
+    return "claude"  # legacy/unscoped
 
 
 @app.post("/api/claude/heartbeat")
@@ -385,17 +396,21 @@ async def claude_heartbeat(request: Request):
     """Register or refresh a Claude agent session.
 
     Body: {agent: "name", task: "description", program: "claude-code", model: "opus-4.6"}
+    Header: X-Device-ID (optional) — scopes session to a user
     """
     body = await request.json()
     agent = body.get("agent", "unknown")
-    _claude_sessions[agent] = {
+    user_key = _resolve_claude_user(request)
+
+    sessions = _claude_sessions.setdefault(user_key, {})
+    sessions[agent] = {
         "task": body.get("task", ""),
         "program": body.get("program", "claude-code"),
         "model": body.get("model", ""),
         "last_seen": time.monotonic(),
     }
-    _refresh_claude_cache()
-    return {"accepted": True, "agent": agent}
+    _refresh_claude_cache(user_key)
+    return {"accepted": True, "agent": agent, "user": user_key}
 
 
 @app.delete("/api/claude/heartbeat")
@@ -403,27 +418,28 @@ async def claude_goodbye(request: Request):
     """Remove a Claude agent session (clean shutdown)."""
     body = await request.json()
     agent = body.get("agent", "")
-    _claude_sessions.pop(agent, None)
-    _refresh_claude_cache()
-    return {"removed": True, "agent": agent}
+    user_key = _resolve_claude_user(request)
+
+    sessions = _claude_sessions.get(user_key, {})
+    sessions.pop(agent, None)
+    _refresh_claude_cache(user_key)
+    return {"removed": True, "agent": agent, "user": user_key}
 
 
-def _refresh_claude_cache():
-    """Rebuild claude cache entry from active sessions."""
+def _refresh_claude_cache(user_key: str) -> None:
+    """Rebuild claude cache entry for a specific user scope."""
+    sessions = _claude_sessions.get(user_key, {})
     now = time.monotonic()
+
     # Prune stale sessions
-    stale = [k for k, v in _claude_sessions.items()
+    stale = [k for k, v in sessions.items()
              if now - v["last_seen"] > CLAUDE_SESSION_TTL]
     for k in stale:
-        del _claude_sessions[k]
+        del sessions[k]
 
-    active = [
-        {**v, "agent": k}
-        for k, v in _claude_sessions.items()
-    ]
+    active = [{**v, "agent": k} for k, v in sessions.items()]
 
     if active:
-        # Pick most recently seen for the summary fields
         latest = max(active, key=lambda s: s["last_seen"])
         status = "active"
         current_task = latest["task"]
@@ -431,7 +447,9 @@ def _refresh_claude_cache():
         status = "offline"
         current_task = ""
 
-    cache.set("claude", {
+    # Cache key: "claude:strycher" for scoped, "claude" for legacy
+    cache_key = f"claude:{user_key}" if user_key != "claude" else "claude"
+    cache.set(cache_key, {
         "status": status,
         "current_task": current_task,
         "active_count": len(active),
