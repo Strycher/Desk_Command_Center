@@ -204,22 +204,48 @@ def _build_source_entry(cache_key: str) -> dict:
 
 
 @app.get("/api/dashboard")
-async def dashboard():
-    """Merged snapshot of all data sources for the display.
+async def dashboard(request: Request):
+    """Merged snapshot of data sources for the display.
 
-    Returns all registered adapter cache keys + push sources.
-    Task 1.5 adds device-filtered responses via X-Device-ID header.
+    Device identification via headers:
+    - No X-Device-ID: legacy mode — all sources returned
+    - Unknown device: shared sources only, device recorded
+    - Known device, wrong key: 403 Forbidden
+    - Known device, valid key: per-user + shared sources
     """
+    device_id = request.headers.get("X-Device-ID")
+    device_key = request.headers.get("X-Device-Key")
+
+    if device_id is None:
+        # Legacy mode: return all registered sources + push sources
+        cache_keys = {}
+        for adapter_info in scheduler.list_adapters():
+            key = adapter_info["name"]
+            cache_keys[key] = key
+        for key in PUSH_SOURCES:
+            cache_keys[key] = key
+    else:
+        device = config.get_device(device_id)
+        if device is not None and device.get("key") != device_key:
+            return JSONResponse(status_code=403, content={"error": "Invalid device key"})
+
+        if device is None:
+            # Unknown device — shared sources only, record it
+            config.record_unregistered_device(
+                device_id, request.client.host if request.client else "unknown",
+            )
+            cache_keys = config.get_cache_keys_shared_only()
+        else:
+            user_id = device["user"]
+            cache_keys = config.get_cache_keys_for_user(user_id)
+
+        # Always include push sources
+        for key in PUSH_SOURCES:
+            cache_keys[key] = key
+
     sources = {}
-
-    # Poll-based adapters (per-user and shared)
-    for adapter_info in scheduler.list_adapters():
-        key = adapter_info["name"]  # cache_key
-        sources[key] = _build_source_entry(key)
-
-    # Push-based sources
-    for key in PUSH_SOURCES:
-        sources[key] = _build_source_entry(key)
+    for source_name, cache_key in cache_keys.items():
+        sources[source_name] = _build_source_entry(cache_key)
 
     adapter_statuses = {a["name"]: a["status"] for a in scheduler.list_adapters()}
 
