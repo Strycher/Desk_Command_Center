@@ -29,6 +29,7 @@ from adapters.base import BaseAdapter
 from adapters.beads import BeadsAdapter
 from adapters.claude_status import ClaudeStatusAdapter
 from adapters.github import GitHubAdapter
+from adapters.monday import MondayAdapter
 from adapters.google_calendar import GoogleCalendarAdapter
 from adapters.home_assistant import HomeAssistantAdapter
 from adapters.unfocused_tasks import UnfocusedTasksAdapter
@@ -49,6 +50,7 @@ ADAPTER_CLASSES: dict[str, type[BaseAdapter]] = {
     "unfocused_tasks": UnfocusedTasksAdapter,
     "home_assistant": HomeAssistantAdapter,
     "claude_status": ClaudeStatusAdapter,
+    "monday": MondayAdapter,
 }
 
 
@@ -124,6 +126,7 @@ SOURCE_LABELS = {
     "unfocused_tasks": "Unfocused Tasks",
     "claude": "Claude Agents",
     "claude_status": "Claude Agents",
+    "monday": "Monday.com",
 }
 
 # Push-based sources (not adapter-driven, always included)
