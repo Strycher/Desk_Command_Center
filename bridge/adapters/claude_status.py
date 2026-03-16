@@ -80,7 +80,6 @@ class ClaudeStatusAdapter(BaseAdapter):
             data = resp.json()
 
         agents = []
-        now = time.time()
         for agent in data.get("agents", []):
             last_active = agent.get("last_active_ts", "")
             agents.append({
