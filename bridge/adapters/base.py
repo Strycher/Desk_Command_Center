@@ -48,8 +48,22 @@ class BaseAdapter(ABC):
 
     def __init__(self, name: str, config: AdapterConfig | None = None) -> None:
         self.name = name
+        self._cache_key: str | None = None
         self.config = config or AdapterConfig()
         self.state = AdapterState()
+
+    @property
+    def cache_key(self) -> str:
+        """Key used by the scheduler for cache reads/writes and registration.
+
+        Defaults to self.name for backward compatibility.
+        Per-user adapters set this to "source:user_id".
+        """
+        return self._cache_key if self._cache_key is not None else self.name
+
+    @cache_key.setter
+    def cache_key(self, value: str) -> None:
+        self._cache_key = value
 
     @abstractmethod
     async def poll(self) -> dict[str, Any]:
