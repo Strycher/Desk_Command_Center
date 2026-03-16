@@ -98,7 +98,7 @@ class TestAdapterFactory:
             create_adapter("nonexistent", {})
 
     def test_all_adapter_classes_registered(self):
-        expected = {"weather", "github", "google_calendar", "beads", "unfocused_tasks", "home_assistant"}
+        expected = {"weather", "github", "google_calendar", "beads", "unfocused_tasks", "home_assistant", "claude_status"}
         assert set(ADAPTER_CLASSES.keys()) == expected
 
     def test_shared_adapter_no_user_scope(self):

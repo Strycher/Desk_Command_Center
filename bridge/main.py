@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from adapters import TTLCache, AdapterScheduler
 from adapters.base import BaseAdapter
 from adapters.beads import BeadsAdapter
+from adapters.claude_status import ClaudeStatusAdapter
 from adapters.github import GitHubAdapter
 from adapters.google_calendar import GoogleCalendarAdapter
 from adapters.home_assistant import HomeAssistantAdapter
@@ -47,6 +48,7 @@ ADAPTER_CLASSES: dict[str, type[BaseAdapter]] = {
     "beads": BeadsAdapter,
     "unfocused_tasks": UnfocusedTasksAdapter,
     "home_assistant": HomeAssistantAdapter,
+    "claude_status": ClaudeStatusAdapter,
 }
 
 
@@ -121,6 +123,7 @@ SOURCE_LABELS = {
     "home_assistant": "Home Assistant",
     "unfocused_tasks": "Unfocused Tasks",
     "claude": "Claude Agents",
+    "claude_status": "Claude Agents",
 }
 
 # Push-based sources (not adapter-driven, always included)
