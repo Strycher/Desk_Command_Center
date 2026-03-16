@@ -176,7 +176,6 @@ class GitHubAdapter(BaseAdapter):
             # cron jobs are filtered out in _poll_repo().
             # "failing" if any workflow failed, "pending" if any in-progress,
             # "passing" if all succeeded, empty if no runs.
-            ci_status = ""
             if ci_runs:
                 has_failure = any(r["conclusion"] == "failure" for r in ci_runs)
                 has_pending = any(r["status"] != "completed" for r in ci_runs)
@@ -186,6 +185,10 @@ class GitHubAdapter(BaseAdapter):
                     ci_status = "pending"
                 else:
                     ci_status = "passing"
+            else:
+                # No code-triggered runs in recent history (all cron/schedule).
+                # Absence of failing code CI = clean state.
+                ci_status = "passing"
 
             repos[repo_name] = {
                 "status": "ok",
