@@ -13,6 +13,10 @@ public:
     void onShow() override;
 
 private:
+    /* Device identity */
+    lv_obj_t* _lblDevName   = nullptr;
+    lv_obj_t* _lblChipId    = nullptr;
+
     /* System info */
     lv_obj_t* _lblVersion   = nullptr;
     lv_obj_t* _lblHeap      = nullptr;
