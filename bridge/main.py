@@ -226,7 +226,8 @@ async def dashboard(request: Request):
             cache_keys[key] = key
     else:
         device = config.get_device(device_id)
-        if device is not None and device.get("key") != device_key:
+        registered_key = device.get("key", "") if device else ""
+        if device is not None and registered_key and registered_key != (device_key or ""):
             return JSONResponse(status_code=403, content={"error": "Invalid device key"})
 
         if device is None:
