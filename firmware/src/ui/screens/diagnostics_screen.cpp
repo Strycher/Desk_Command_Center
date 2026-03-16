@@ -6,6 +6,7 @@
 #include "ui/screens/diagnostics_screen.h"
 #include "wifi_manager.h"
 #include "data_service.h"
+#include "config_store.h"
 #include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
@@ -69,7 +70,7 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     lv_label_set_text(header, LV_SYMBOL_SETTINGS " Diagnostics");
 
     /* === System Card (left) === */
-    lv_obj_t* sysCard = makeCard(_screen, PAD, CONTENT_Y + 35, 380, 180);
+    lv_obj_t* sysCard = makeCard(_screen, PAD, CONTENT_Y + 35, 380, 228);
 
     lv_obj_t* sysHdr = lv_label_create(sysCard);
     lv_label_set_text(sysHdr, "System");
@@ -77,13 +78,15 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_color(sysHdr, TEXT_PRIMARY, 0);
     lv_obj_align(sysHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblVersion = addRow(sysCard, "FW Version:", 28);
-    _lblHeap    = addRow(sysCard, "Free Heap:", 52);
-    _lblPSRAM   = addRow(sysCard, "Free PSRAM:", 76);
-    _lblUptime  = addRow(sysCard, "Uptime:", 100);
+    _lblDevName = addRow(sysCard, "Device:", 28);
+    _lblChipId  = addRow(sysCard, "Chip ID:", 52);
+    _lblVersion = addRow(sysCard, "FW Version:", 76);
+    _lblHeap    = addRow(sysCard, "Free Heap:", 100);
+    _lblPSRAM   = addRow(sysCard, "Free PSRAM:", 124);
+    _lblUptime  = addRow(sysCard, "Uptime:", 148);
 
     /* === WiFi Card (right) === */
-    lv_obj_t* wifiCard = makeCard(_screen, 400, CONTENT_Y + 35, 390, 180);
+    lv_obj_t* wifiCard = makeCard(_screen, 400, CONTENT_Y + 35, 390, 228);
 
     lv_obj_t* wifiHdr = lv_label_create(wifiCard);
     lv_label_set_text(wifiHdr, "WiFi");
@@ -96,7 +99,7 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     _lblWifiRSSI = addRow(wifiCard, "RSSI:", 76);
 
     /* === Data Service Card (bottom) === */
-    lv_obj_t* dataCard = makeCard(_screen, PAD, CONTENT_Y + 230, 780, 120);
+    lv_obj_t* dataCard = makeCard(_screen, PAD, CONTENT_Y + 278, 780, 120);
 
     lv_obj_t* dataHdr = lv_label_create(dataCard);
     lv_label_set_text(dataHdr, "Bridge Data Service");
@@ -115,6 +118,14 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
 }
 
 void DiagnosticsScreen::refreshSystemInfo() {
+    /* Device identity */
+    const char* chipId = DataService::chipId();
+    lv_label_set_text(_lblChipId, chipId[0] ? chipId : "--");
+    lv_obj_set_style_text_color(_lblChipId, ACCENT, 0);
+
+    DeviceConfig cfg = ConfigStore::load();
+    lv_label_set_text(_lblDevName, cfg.device_name[0] ? cfg.device_name : "(unnamed)");
+
     /* Version */
     lv_label_set_text(_lblVersion, FW_VERSION);
 
