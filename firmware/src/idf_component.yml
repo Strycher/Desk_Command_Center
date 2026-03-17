@@ -3,3 +3,11 @@ dependencies:
   espressif/esp_lcd_ek79007: ^1.0.2
   espressif/esp_lvgl_port: ^2.6.0
   lvgl/lvgl: ^8.3.11
+  espressif/esp_hosted:
+    rules:
+    - if: target in [esp32p4]
+    version: ^2.3.0
+  espressif/esp_wifi_remote:
+    rules:
+    - if: target in [esp32p4]
+    version: ^0.16.1

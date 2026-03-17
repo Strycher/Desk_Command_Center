@@ -4,7 +4,8 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 static constexpr uint8_t  DCC_MAX_WIFI       = 5;
 static constexpr uint8_t  DCC_SSID_LEN       = 33;

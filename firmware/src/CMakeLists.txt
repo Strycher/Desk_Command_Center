@@ -5,6 +5,8 @@ set(MAIN_SRCS
     "platform/p4/main_p4.cpp"
     "platform/p4/display_p4.cpp"
     "platform/p4/platform_p4.cpp"
+    "platform/p4/network_p4.cpp"
+    "platform/p4/config_store_p4.cpp"
 )
 
 idf_component_register(
