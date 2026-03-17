@@ -2,10 +2,11 @@
  * Home Screen — Implementation
  * Layout: Clock top-left, Appointment top-right,
  *         Weather bottom-left, Tasks bottom-right.
- * Content area: y=30..430 (400px between status bar and nav bar).
+ * Resolution-independent via ui_scale.h.
  */
 
 #include "ui/home_screen.h"
+#include "ui/ui_scale.h"
 #include "ui/weather_icon.h"
 #include "ui/task_priority.h"
 #include "ntp_time.h"
@@ -18,9 +19,15 @@ static const lv_color_t TEXT_PRIMARY  = lv_color_hex(0xE0E0FF);
 static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT       = lv_color_hex(0x6C63FF);
 
-static constexpr int16_t CONTENT_Y   = 30;
-static constexpr int16_t CONTENT_H   = 400;
-static constexpr int16_t PAD         = 10;
+/* Layout computed from screen dimensions */
+static constexpr int16_t PAD         = UI_PAD;
+static constexpr int16_t HALF_W      = LCD_H_RES / 2;
+static constexpr int16_t CARD_LEFT_W = HALF_W - PAD - PAD / 2;
+static constexpr int16_t CARD_RIGHT_W = LCD_H_RES - HALF_W - PAD - PAD / 2;
+static constexpr int16_t TOP_CARD_H  = UI_CONTENT_H / 2 - PAD - PAD / 2;
+static constexpr int16_t BOT_CARD_H  = UI_CONTENT_H - TOP_CARD_H - PAD * 2 - PAD / 2;
+static constexpr int16_t COL2_X      = HALF_W + PAD / 2;
+static constexpr int16_t ROW2_Y      = UI_CONTENT_Y + PAD + TOP_CARD_H + PAD;
 
 /* --- Card helper --- */
 static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
@@ -30,12 +37,12 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
     lv_obj_set_size(card, w, h);
     lv_obj_set_style_bg_color(card, CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 12, 0);
+    lv_obj_set_style_radius(card, SU(12), 0);
     lv_obj_set_style_border_width(card, 0, 0);
-    lv_obj_set_style_shadow_width(card, 8, 0);
+    lv_obj_set_style_shadow_width(card, SU(8), 0);
     lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
     lv_obj_set_style_shadow_opa(card, LV_OPA_30, 0);
-    lv_obj_set_style_pad_all(card, 12, 0);
+    lv_obj_set_style_pad_all(card, SU(12), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     return card;
 }
@@ -43,18 +50,18 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
 /* ========== CLOCK ========== */
 
 void HomeScreen::createClock(lv_obj_t* parent) {
-    lv_obj_t* area = makeCard(parent, PAD, CONTENT_Y + PAD, 380, 180);
+    lv_obj_t* area = makeCard(parent, PAD, UI_CONTENT_Y + PAD, CARD_LEFT_W, TOP_CARD_H);
 
     _lblClock = lv_label_create(area);
     lv_obj_set_style_text_font(_lblClock, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(_lblClock, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblClock, LV_ALIGN_TOP_LEFT, 0, 10);
+    lv_obj_align(_lblClock, LV_ALIGN_TOP_LEFT, 0, SU(10));
     lv_label_set_text(_lblClock, "--:--");
 
     _lblDate = lv_label_create(area);
     lv_obj_set_style_text_font(_lblDate, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblDate, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblDate, LV_ALIGN_TOP_LEFT, 0, 75);
+    lv_obj_align(_lblDate, LV_ALIGN_TOP_LEFT, 0, SY(75));
     lv_label_set_text(_lblDate, "---");
 }
 
@@ -82,7 +89,7 @@ void HomeScreen::clockTimerCb(lv_timer_t* timer) {
 /* ========== NEXT APPOINTMENT ========== */
 
 void HomeScreen::createApptCard(lv_obj_t* parent) {
-    _cardAppt = makeCard(parent, 400, CONTENT_Y + PAD, 390, 180);
+    _cardAppt = makeCard(parent, COL2_X, UI_CONTENT_Y + PAD, CARD_RIGHT_W, TOP_CARD_H);
 
     lv_obj_t* header = lv_label_create(_cardAppt);
     lv_label_set_text(header, LV_SYMBOL_BELL " Today");
@@ -92,7 +99,7 @@ void HomeScreen::createApptCard(lv_obj_t* parent) {
 
     /* Up to 3 compact event rows: "HH:MM  Event title..." */
     for (uint8_t i = 0; i < MAX_APPT_ROWS; i++) {
-        int16_t rowY = 24 + i * 46;
+        int16_t rowY = SY(24) + i * SY(46);
 
         _lblApptTimes[i] = lv_label_create(_cardAppt);
         lv_obj_set_style_text_font(_lblApptTimes[i], &lv_font_montserrat_16, 0);
@@ -103,8 +110,8 @@ void HomeScreen::createApptCard(lv_obj_t* parent) {
         _lblApptTitles[i] = lv_label_create(_cardAppt);
         lv_obj_set_style_text_font(_lblApptTitles[i], &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(_lblApptTitles[i], TEXT_PRIMARY, 0);
-        lv_obj_align(_lblApptTitles[i], LV_ALIGN_TOP_LEFT, 0, rowY + 20);
-        lv_obj_set_width(_lblApptTitles[i], 340);
+        lv_obj_align(_lblApptTitles[i], LV_ALIGN_TOP_LEFT, 0, rowY + SY(20));
+        lv_obj_set_width(_lblApptTitles[i], CARD_RIGHT_W - SU(24));
         lv_label_set_long_mode(_lblApptTitles[i], LV_LABEL_LONG_DOT);
         lv_label_set_text(_lblApptTitles[i], "");
     }
@@ -256,7 +263,7 @@ void HomeScreen::updateAppt(const DashboardData& data) {
 /* ========== WEATHER ========== */
 
 void HomeScreen::createWeatherCard(lv_obj_t* parent) {
-    _cardWeather = makeCard(parent, PAD, CONTENT_Y + 200, 380, 190);
+    _cardWeather = makeCard(parent, PAD, ROW2_Y, CARD_LEFT_W, BOT_CARD_H);
 
     lv_obj_t* header = lv_label_create(_cardWeather);
     lv_label_set_text(header, "Weather");
@@ -265,24 +272,24 @@ void HomeScreen::createWeatherCard(lv_obj_t* parent) {
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _weatherCanvas = WeatherIcon::create(_cardWeather);
-    lv_obj_align(_weatherCanvas, LV_ALIGN_TOP_LEFT, 0, 24);
+    lv_obj_align(_weatherCanvas, LV_ALIGN_TOP_LEFT, 0, SY(24));
 
     _lblTemp = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblTemp, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(_lblTemp, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, 58, 24);
+    lv_obj_align(_lblTemp, LV_ALIGN_TOP_LEFT, SX(58), SY(24));
     lv_label_set_text(_lblTemp, "--" "\xC2\xB0");
 
     _lblHighLow = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblHighLow, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblHighLow, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, 58, 68);
+    lv_obj_align(_lblHighLow, LV_ALIGN_TOP_LEFT, SX(58), SY(68));
     lv_label_set_text(_lblHighLow, "H: --  L: --");
 
     _lblCondition = lv_label_create(_cardWeather);
     lv_obj_set_style_text_font(_lblCondition, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblCondition, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 0, 96);
+    lv_obj_align(_lblCondition, LV_ALIGN_TOP_LEFT, 0, SY(96));
     lv_label_set_text(_lblCondition, "No data");
 }
 
@@ -313,7 +320,7 @@ void HomeScreen::updateWeather(const DashboardData& data) {
 /* ========== TASKS SUMMARY ========== */
 
 void HomeScreen::createTasksCard(lv_obj_t* parent) {
-    _cardTasks = makeCard(parent, 400, CONTENT_Y + 200, 390, 190);
+    _cardTasks = makeCard(parent, COL2_X, ROW2_Y, CARD_RIGHT_W, BOT_CARD_H);
 
     lv_obj_t* header = lv_label_create(_cardTasks);
     lv_label_set_text(header, "Tasks");
@@ -322,25 +329,25 @@ void HomeScreen::createTasksCard(lv_obj_t* parent) {
     lv_obj_align(header, LV_ALIGN_TOP_LEFT, 0, 0);
 
     for (uint8_t i = 0; i < 5; i++) {
-        int16_t rowY = 24 + i * 28;
+        int16_t rowY = SY(24) + i * SY(28);
 
         /* Priority color dot — 8px circle */
         _taskDots[i] = lv_obj_create(_cardTasks);
-        lv_obj_set_size(_taskDots[i], 8, 8);
+        lv_obj_set_size(_taskDots[i], SU(8), SU(8));
         lv_obj_set_style_radius(_taskDots[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_opa(_taskDots[i], LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(_taskDots[i], PRIO_NONE, 0);
         lv_obj_set_style_border_width(_taskDots[i], 0, 0);
         lv_obj_clear_flag(_taskDots[i], LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_align(_taskDots[i], LV_ALIGN_TOP_LEFT, 0, rowY + 6);
+        lv_obj_align(_taskDots[i], LV_ALIGN_TOP_LEFT, 0, rowY + SU(6));
         lv_obj_add_flag(_taskDots[i], LV_OBJ_FLAG_HIDDEN);
 
         /* Task title label — shifted right to make room for dot */
         _lblTaskItems[i] = lv_label_create(_cardTasks);
         lv_obj_set_style_text_font(_lblTaskItems[i], &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(_lblTaskItems[i], TEXT_PRIMARY, 0);
-        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, 14, rowY);
-        lv_obj_set_width(_lblTaskItems[i], 346);
+        lv_obj_align(_lblTaskItems[i], LV_ALIGN_TOP_LEFT, SU(14), rowY);
+        lv_obj_set_width(_lblTaskItems[i], CARD_RIGHT_W - SU(38));
         lv_label_set_long_mode(_lblTaskItems[i], LV_LABEL_LONG_DOT);
         lv_label_set_text(_lblTaskItems[i], "");
     }

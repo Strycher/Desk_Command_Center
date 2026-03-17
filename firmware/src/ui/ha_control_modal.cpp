@@ -10,6 +10,7 @@
  */
 
 #include "ui/ha_control_modal.h"
+#include "ui/ui_scale.h"
 #include "ha_command.h"
 #include "data_service.h"
 #include "logger.h"
@@ -29,9 +30,9 @@ static const lv_color_t HEAT_CLR      = lv_color_hex(0xFF6633);
 static const lv_color_t COOL_CLR      = lv_color_hex(0x3399FF);
 
 /* -- Layout -- */
-static constexpr int16_t PANEL_W = 400;
-static constexpr int16_t PANEL_H = 280;
-static constexpr int16_t HDR_H   = 40;
+static const int16_t PANEL_W = SX(400);
+static const int16_t PANEL_H = SY(280);
+static const int16_t HDR_H   = SY(40);
 
 /* -- State -- */
 static lv_obj_t* _backdrop  = nullptr;
@@ -172,7 +173,7 @@ void HAControlModal::show(const HAEntity& entity, const char* deviceName) {
 
     /* -- Backdrop -- */
     _backdrop = lv_obj_create(layer);
-    lv_obj_set_size(_backdrop, 800, 480);
+    lv_obj_set_size(_backdrop, LCD_H_RES, LCD_V_RES);
     lv_obj_set_pos(_backdrop, 0, 0);
     lv_obj_set_style_bg_color(_backdrop, BACKDROP_CLR, 0);
     lv_obj_set_style_bg_opa(_backdrop, LV_OPA_50, 0);
@@ -187,10 +188,10 @@ void HAControlModal::show(const HAEntity& entity, const char* deviceName) {
     lv_obj_center(_panel);
     lv_obj_set_style_bg_color(_panel, MODAL_BG, 0);
     lv_obj_set_style_bg_opa(_panel, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(_panel, 12, 0);
+    lv_obj_set_style_radius(_panel, SU(12), 0);
     lv_obj_set_style_border_width(_panel, 1, 0);
     lv_obj_set_style_border_color(_panel, lv_color_hex(0x33335a), 0);
-    lv_obj_set_style_pad_all(_panel, 12, 0);
+    lv_obj_set_style_pad_all(_panel, SU(12), 0);
     lv_obj_clear_flag(_panel, LV_OBJ_FLAG_SCROLLABLE);
     /* Stop clicks on panel from propagating to backdrop */
     lv_obj_add_flag(_panel, LV_OBJ_FLAG_CLICKABLE);
@@ -205,14 +206,14 @@ void HAControlModal::show(const HAEntity& entity, const char* deviceName) {
     lv_obj_t* title = lv_label_create(_panel);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(title, TEXT_PRI, 0);
-    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 28, 2);
-    lv_obj_set_width(title, PANEL_W - 80);
+    lv_obj_align(title, LV_ALIGN_TOP_LEFT, SX(28), SY(2));
+    lv_obj_set_width(title, PANEL_W - SX(80));
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
     lv_label_set_text(title, deviceName);
 
     lv_obj_t* btnClose = lv_btn_create(_panel);
-    lv_obj_set_size(btnClose, 32, 32);
-    lv_obj_align(btnClose, LV_ALIGN_TOP_RIGHT, 0, -4);
+    lv_obj_set_size(btnClose, SU(32), SU(32));
+    lv_obj_align(btnClose, LV_ALIGN_TOP_RIGHT, 0, SY(-4));
     lv_obj_set_style_bg_opa(btnClose, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_width(btnClose, 0, 0);
     lv_obj_t* lblX = lv_label_create(btnClose);
@@ -223,7 +224,7 @@ void HAControlModal::show(const HAEntity& entity, const char* deviceName) {
 
     /* -- Body: domain-specific controls -- */
     lv_obj_t* body = lv_obj_create(_panel);
-    lv_obj_set_size(body, PANEL_W - 24, PANEL_H - HDR_H - 40);
+    lv_obj_set_size(body, PANEL_W - SU(24), PANEL_H - HDR_H - SY(40));
     lv_obj_align(body, LV_ALIGN_TOP_LEFT, 0, HDR_H);
     lv_obj_set_style_bg_opa(body, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(body, 0, 0);
@@ -250,7 +251,7 @@ void HAControlModal::show(const HAEntity& entity, const char* deviceName) {
 
     /* -- Overlay (hidden initially) -- */
     _overlay = lv_obj_create(_panel);
-    lv_obj_set_size(_overlay, PANEL_W - 24, PANEL_H - HDR_H - 40);
+    lv_obj_set_size(_overlay, PANEL_W - SU(24), PANEL_H - HDR_H - SY(40));
     lv_obj_align(_overlay, LV_ALIGN_TOP_LEFT, 0, HDR_H);
     lv_obj_set_style_bg_color(_overlay, MODAL_BG, 0);
     lv_obj_set_style_bg_opa(_overlay, LV_OPA_80, 0);
@@ -259,13 +260,13 @@ void HAControlModal::show(const HAEntity& entity, const char* deviceName) {
     lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t* spinner = lv_spinner_create(_overlay, 1000, 60);
-    lv_obj_set_size(spinner, 40, 40);
-    lv_obj_align(spinner, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_set_size(spinner, SU(40), SU(40));
+    lv_obj_align(spinner, LV_ALIGN_CENTER, 0, SY(-10));
 
     lv_obj_t* lblSending = lv_label_create(_overlay);
     lv_obj_set_style_text_font(lblSending, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblSending, TEXT_SEC, 0);
-    lv_obj_align(lblSending, LV_ALIGN_CENTER, 0, 24);
+    lv_obj_align(lblSending, LV_ALIGN_CENTER, 0, SY(24));
     lv_label_set_text(lblSending, "Sending...");
 
     LOG_INFO("MODAL: opened for %s (%s) state=%s",
@@ -395,7 +396,7 @@ static void buildToggleBody(lv_obj_t* body) {
     /* State label */
     _lblState = lv_label_create(body);
     lv_obj_set_style_text_font(_lblState, &lv_font_montserrat_20, 0);
-    lv_obj_align(_lblState, LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(_lblState, LV_ALIGN_TOP_MID, 0, SY(20));
 
     char stateBuf[48];
     if (isLock) {
@@ -416,11 +417,11 @@ static void buildToggleBody(lv_obj_t* body) {
 
     /* Toggle button */
     lv_obj_t* btn = lv_btn_create(body);
-    lv_obj_set_size(btn, 180, 50);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, 30);
+    lv_obj_set_size(btn, SX(180), SY(50));
+    lv_obj_align(btn, LV_ALIGN_CENTER, 0, SY(30));
     lv_obj_set_style_bg_color(btn, BTN_BG, 0);
     lv_obj_set_style_bg_color(btn, BTN_ACTIVE, LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn, 8, 0);
+    lv_obj_set_style_radius(btn, SU(8), 0);
 
     lv_obj_t* lbl = lv_label_create(btn);
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
@@ -453,10 +454,10 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
 
     /* Target temp: [ - ] value [ + ] */
     lv_obj_t* btnDown = lv_btn_create(body);
-    lv_obj_set_size(btnDown, 50, 40);
-    lv_obj_align(btnDown, LV_ALIGN_TOP_LEFT, 20, 40);
+    lv_obj_set_size(btnDown, SX(50), SY(40));
+    lv_obj_align(btnDown, LV_ALIGN_TOP_LEFT, SX(20), SY(40));
     lv_obj_set_style_bg_color(btnDown, BTN_BG, 0);
-    lv_obj_set_style_radius(btnDown, 8, 0);
+    lv_obj_set_style_radius(btnDown, SU(8), 0);
     lv_obj_t* lblD = lv_label_create(btnDown);
     lv_label_set_text(lblD, LV_SYMBOL_MINUS);
     lv_obj_set_style_text_color(lblD, TEXT_PRI, 0);
@@ -466,16 +467,16 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
     _lblTarget = lv_label_create(body);
     lv_obj_set_style_text_font(_lblTarget, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(_lblTarget, TEXT_PRI, 0);
-    lv_obj_align(_lblTarget, LV_ALIGN_TOP_MID, 0, 44);
+    lv_obj_align(_lblTarget, LV_ALIGN_TOP_MID, 0, SY(44));
     char tbuf[16];
     snprintf(tbuf, sizeof(tbuf), "%.0f\xC2\xB0""F", _targetTemp);
     lv_label_set_text(_lblTarget, tbuf);
 
     lv_obj_t* btnUp = lv_btn_create(body);
-    lv_obj_set_size(btnUp, 50, 40);
-    lv_obj_align(btnUp, LV_ALIGN_TOP_RIGHT, -20, 40);
+    lv_obj_set_size(btnUp, SX(50), SY(40));
+    lv_obj_align(btnUp, LV_ALIGN_TOP_RIGHT, SX(-20), SY(40));
     lv_obj_set_style_bg_color(btnUp, BTN_BG, 0);
-    lv_obj_set_style_radius(btnUp, 8, 0);
+    lv_obj_set_style_radius(btnUp, SU(8), 0);
     lv_obj_t* lblU = lv_label_create(btnUp);
     lv_label_set_text(lblU, LV_SYMBOL_PLUS);
     lv_obj_set_style_text_color(lblU, TEXT_PRI, 0);
@@ -501,23 +502,23 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
 
     /* HVAC mode buttons */
     static const char* modeLabels[] = {"Heat", "Cool", "Off"};
-    int16_t btnW = 90;
-    int16_t startX = (PANEL_W - 24 - btnW * 3 - 16) / 2;
+    int16_t btnW = SX(90);
+    int16_t startX = (PANEL_W - SU(24) - btnW * 3 - SX(16)) / 2;
 
     lv_obj_t* lblMode = lv_label_create(body);
     lv_obj_set_style_text_font(lblMode, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblMode, TEXT_SEC, 0);
-    lv_obj_align(lblMode, LV_ALIGN_TOP_LEFT, 0, 92);
+    lv_obj_align(lblMode, LV_ALIGN_TOP_LEFT, 0, SY(92));
     lv_label_set_text(lblMode, "Mode:");
 
     for (int i = 0; i < CLIMATE_MODE_COUNT; i++) {
         lv_obj_t* btn = lv_btn_create(body);
-        lv_obj_set_size(btn, btnW, 34);
-        lv_obj_set_pos(btn, startX + i * (btnW + 8), 110);
+        lv_obj_set_size(btn, btnW, SY(34));
+        lv_obj_set_pos(btn, startX + i * (btnW + SX(8)), SY(110));
 
         bool active = (strcmp(entity.state, _climateModes[i]) == 0);
         lv_obj_set_style_bg_color(btn, active ? BTN_ACTIVE : BTN_BG, 0);
-        lv_obj_set_style_radius(btn, 6, 0);
+        lv_obj_set_style_radius(btn, SU(6), 0);
 
         lv_obj_t* lbl = lv_label_create(btn);
         lv_label_set_text(lbl, modeLabels[i]);
@@ -538,18 +539,18 @@ static void buildClimateBody(lv_obj_t* body, const HAEntity& entity) {
         lv_obj_t* lblPreset = lv_label_create(body);
         lv_obj_set_style_text_font(lblPreset, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lblPreset, TEXT_SEC, 0);
-        lv_obj_align(lblPreset, LV_ALIGN_TOP_LEFT, 0, 150);
+        lv_obj_align(lblPreset, LV_ALIGN_TOP_LEFT, 0, SY(150));
         lv_label_set_text(lblPreset, "Preset:");
 
         for (int i = 0; i < 2; i++) {
             lv_obj_t* btn = lv_btn_create(body);
-            lv_obj_set_size(btn, 100, 34);
-            lv_obj_set_pos(btn, startX + i * 108, 168);
+            lv_obj_set_size(btn, SX(100), SY(34));
+            lv_obj_set_pos(btn, startX + i * SX(108), SY(168));
 
             bool active = (strcmp(entity.extra.climate.preset_mode,
                                  presets[i]) == 0);
             lv_obj_set_style_bg_color(btn, active ? BTN_ACTIVE : BTN_BG, 0);
-            lv_obj_set_style_radius(btn, 6, 0);
+            lv_obj_set_style_radius(btn, SU(6), 0);
 
             lv_obj_t* lbl = lv_label_create(btn);
             lv_label_set_text(lbl, presetLabels[i]);
@@ -575,8 +576,8 @@ static void buildMediaBody(lv_obj_t* body, const HAEntity& entity) {
         lv_obj_t* lblTitle = lv_label_create(body);
         lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lblTitle, TEXT_PRI, 0);
-        lv_obj_align(lblTitle, LV_ALIGN_TOP_LEFT, 0, 4);
-        lv_obj_set_width(lblTitle, PANEL_W - 48);
+        lv_obj_align(lblTitle, LV_ALIGN_TOP_LEFT, 0, SY(4));
+        lv_obj_set_width(lblTitle, PANEL_W - SX(48));
         lv_label_set_long_mode(lblTitle, LV_LABEL_LONG_DOT);
         char tbuf[64];
         snprintf(tbuf, sizeof(tbuf), "Now Playing: %s",
@@ -588,7 +589,7 @@ static void buildMediaBody(lv_obj_t* body, const HAEntity& entity) {
         lv_obj_t* lblApp = lv_label_create(body);
         lv_obj_set_style_text_font(lblApp, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lblApp, TEXT_SEC, 0);
-        lv_obj_align(lblApp, LV_ALIGN_TOP_LEFT, 0, 28);
+        lv_obj_align(lblApp, LV_ALIGN_TOP_LEFT, 0, SY(28));
         char abuf[32];
         snprintf(abuf, sizeof(abuf), "App: %s",
                  entity.extra.media.app_name);
@@ -599,17 +600,17 @@ static void buildMediaBody(lv_obj_t* body, const HAEntity& entity) {
     _lblState = lv_label_create(body);
     lv_obj_set_style_text_font(_lblState, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblState, TEXT_SEC, 0);
-    lv_obj_align(_lblState, LV_ALIGN_TOP_LEFT, 0, 52);
+    lv_obj_align(_lblState, LV_ALIGN_TOP_LEFT, 0, SY(52));
     char sbuf[32];
     snprintf(sbuf, sizeof(sbuf), "State: %s", _currentState);
     lv_label_set_text(_lblState, sbuf);
 
     /* Play/Pause button */
     lv_obj_t* btnPlay = lv_btn_create(body);
-    lv_obj_set_size(btnPlay, 160, 44);
-    lv_obj_align(btnPlay, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_set_size(btnPlay, SX(160), SY(44));
+    lv_obj_align(btnPlay, LV_ALIGN_CENTER, 0, SY(20));
     lv_obj_set_style_bg_color(btnPlay, BTN_BG, 0);
-    lv_obj_set_style_radius(btnPlay, 8, 0);
+    lv_obj_set_style_radius(btnPlay, SU(8), 0);
     lv_obj_t* lblPlay = lv_label_create(btnPlay);
     lv_obj_set_style_text_font(lblPlay, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblPlay, TEXT_PRI, 0);
@@ -619,10 +620,10 @@ static void buildMediaBody(lv_obj_t* body, const HAEntity& entity) {
 
     /* Volume buttons */
     lv_obj_t* btnVolDown = lv_btn_create(body);
-    lv_obj_set_size(btnVolDown, 100, 40);
-    lv_obj_align(btnVolDown, LV_ALIGN_BOTTOM_LEFT, 30, 0);
+    lv_obj_set_size(btnVolDown, SX(100), SY(40));
+    lv_obj_align(btnVolDown, LV_ALIGN_BOTTOM_LEFT, SX(30), 0);
     lv_obj_set_style_bg_color(btnVolDown, BTN_BG, 0);
-    lv_obj_set_style_radius(btnVolDown, 8, 0);
+    lv_obj_set_style_radius(btnVolDown, SU(8), 0);
     lv_obj_t* lblVD = lv_label_create(btnVolDown);
     lv_label_set_text(lblVD, LV_SYMBOL_VOLUME_MID " -");
     lv_obj_set_style_text_color(lblVD, TEXT_PRI, 0);
@@ -630,10 +631,10 @@ static void buildMediaBody(lv_obj_t* body, const HAEntity& entity) {
     lv_obj_add_event_cb(btnVolDown, onVolDown, LV_EVENT_CLICKED, nullptr);
 
     lv_obj_t* btnVolUp = lv_btn_create(body);
-    lv_obj_set_size(btnVolUp, 100, 40);
-    lv_obj_align(btnVolUp, LV_ALIGN_BOTTOM_RIGHT, -30, 0);
+    lv_obj_set_size(btnVolUp, SX(100), SY(40));
+    lv_obj_align(btnVolUp, LV_ALIGN_BOTTOM_RIGHT, SX(-30), 0);
     lv_obj_set_style_bg_color(btnVolUp, BTN_BG, 0);
-    lv_obj_set_style_radius(btnVolUp, 8, 0);
+    lv_obj_set_style_radius(btnVolUp, SU(8), 0);
     lv_obj_t* lblVU = lv_label_create(btnVolUp);
     lv_label_set_text(lblVU, LV_SYMBOL_VOLUME_MAX " +");
     lv_obj_set_style_text_color(lblVU, TEXT_PRI, 0);
@@ -646,24 +647,24 @@ static void buildCoverBody(lv_obj_t* body) {
     _lblState = lv_label_create(body);
     lv_obj_set_style_text_font(_lblState, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblState, TEXT_PRI, 0);
-    lv_obj_align(_lblState, LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(_lblState, LV_ALIGN_TOP_MID, 0, SY(20));
     char buf[32];
     snprintf(buf, sizeof(buf), "State: %s", _currentState);
     lv_label_set_text(_lblState, buf);
 
-    int16_t btnW = 100;
-    int16_t gap = 12;
-    int16_t startX = (PANEL_W - 24 - btnW * 3 - gap * 2) / 2;
+    int16_t btnW = SX(100);
+    int16_t gap = SX(12);
+    int16_t startX = (PANEL_W - SX(24) - btnW * 3 - gap * 2) / 2;
 
     const char* labels[] = {"Open", "Stop", "Close"};
     lv_event_cb_t cbs[] = {onCoverOpen, onCoverStop, onCoverClose};
 
     for (int i = 0; i < 3; i++) {
         lv_obj_t* btn = lv_btn_create(body);
-        lv_obj_set_size(btn, btnW, 44);
-        lv_obj_set_pos(btn, startX + i * (btnW + gap), 80);
+        lv_obj_set_size(btn, btnW, SY(44));
+        lv_obj_set_pos(btn, startX + i * (btnW + gap), SY(80));
         lv_obj_set_style_bg_color(btn, BTN_BG, 0);
-        lv_obj_set_style_radius(btn, 8, 0);
+        lv_obj_set_style_radius(btn, SU(8), 0);
 
         lv_obj_t* lbl = lv_label_create(btn);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);

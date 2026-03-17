@@ -5,6 +5,7 @@
  */
 
 #include "ui/osk.h"
+#include "ui/ui_scale.h"
 
 static lv_obj_t* s_kb      = nullptr;
 static lv_obj_t* s_overlay  = nullptr;
@@ -20,7 +21,7 @@ static void onKbEvent(lv_event_t* e) {
 void OSK::init() {
     /* Semi-transparent overlay to dim background */
     s_overlay = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_overlay, 800, 480);
+    lv_obj_set_size(s_overlay, LCD_H_RES, LCD_V_RES);
     lv_obj_set_pos(s_overlay, 0, 0);
     lv_obj_set_style_bg_color(s_overlay, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(s_overlay, LV_OPA_50, 0);
@@ -30,7 +31,7 @@ void OSK::init() {
 
     /* LVGL keyboard widget */
     s_kb = lv_keyboard_create(lv_layer_top());
-    lv_obj_set_size(s_kb, 800, 200);
+    lv_obj_set_size(s_kb, LCD_H_RES, SY(200));
     lv_obj_align(s_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
 
     /* Style to match theme */

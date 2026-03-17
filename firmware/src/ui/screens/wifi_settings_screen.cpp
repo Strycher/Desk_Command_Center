@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/wifi_settings_screen.h"
+#include "ui/ui_scale.h"
 #include "ui/osk.h"
 #include "wifi_manager.h"
 #include "logger.h"
@@ -18,8 +19,7 @@ static const lv_color_t DANGER         = lv_color_hex(0xFF4444);
 static const lv_color_t BTN_BG        = lv_color_hex(0x252540);
 static const lv_color_t CONNECTED_CLR = lv_color_hex(0x44BB44);
 
-static constexpr int16_t CONTENT_Y = 30;
-static constexpr int16_t PAD       = 10;
+/* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
 
 /* --- Callbacks --- */
 
@@ -71,22 +71,22 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
     lv_obj_t* header = lv_label_create(_screen);
     lv_obj_set_style_text_font(header, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
-    lv_obj_set_pos(header, PAD + 4, CONTENT_Y + 8);
+    lv_obj_set_pos(header, UI_PAD + SX(4), UI_CONTENT_Y + SY(8));
     lv_label_set_text(header, LV_SYMBOL_WIFI " WiFi Networks");
 
     /* Status label */
     _lblStatus = lv_label_create(_screen);
     lv_obj_set_style_text_font(_lblStatus, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblStatus, TEXT_SECONDARY, 0);
-    lv_obj_align(_lblStatus, LV_ALIGN_TOP_RIGHT, -PAD, CONTENT_Y + 10);
+    lv_obj_align(_lblStatus, LV_ALIGN_TOP_RIGHT, -UI_PAD, UI_CONTENT_Y + SY(10));
     lv_label_set_text(_lblStatus, "");
 
     /* Add button */
     _btnAdd = lv_btn_create(_screen);
-    lv_obj_set_size(_btnAdd, 120, 34);
-    lv_obj_set_pos(_btnAdd, 670, CONTENT_Y + 4);
+    lv_obj_set_size(_btnAdd, SX(120), SY(34));
+    lv_obj_set_pos(_btnAdd, SX(670), UI_CONTENT_Y + SY(4));
     lv_obj_set_style_bg_color(_btnAdd, ACCENT, 0);
-    lv_obj_set_style_radius(_btnAdd, 8, 0);
+    lv_obj_set_style_radius(_btnAdd, SU(8), 0);
     lv_obj_t* lblAdd = lv_label_create(_btnAdd);
     lv_label_set_text(lblAdd, LV_SYMBOL_PLUS " Add");
     lv_obj_set_style_text_color(lblAdd, TEXT_PRIMARY, 0);
@@ -95,24 +95,24 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
 
     /* Network list */
     _networkList = lv_obj_create(_screen);
-    lv_obj_set_size(_networkList, 780, 340);
-    lv_obj_set_pos(_networkList, PAD, CONTENT_Y + 45);
+    lv_obj_set_size(_networkList, UI_CONTENT_W, SY(340));
+    lv_obj_set_pos(_networkList, UI_PAD, UI_CONTENT_Y + SY(45));
     lv_obj_set_style_bg_opa(_networkList, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_networkList, 0, 0);
     lv_obj_set_style_pad_all(_networkList, 0, 0);
-    lv_obj_set_style_pad_row(_networkList, 6, 0);
+    lv_obj_set_style_pad_row(_networkList, SU(6), 0);
     lv_obj_set_flex_flow(_networkList, LV_FLEX_FLOW_COLUMN);
 
     /* Add dialog (hidden initially) */
     _dialogBg = lv_obj_create(_screen);
-    lv_obj_set_size(_dialogBg, 400, 220);
+    lv_obj_set_size(_dialogBg, SX(400), SY(220));
     lv_obj_center(_dialogBg);
     lv_obj_set_style_bg_color(_dialogBg, DIALOG_BG, 0);
     lv_obj_set_style_bg_opa(_dialogBg, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(_dialogBg, 12, 0);
+    lv_obj_set_style_radius(_dialogBg, SU(12), 0);
     lv_obj_set_style_border_width(_dialogBg, 1, 0);
     lv_obj_set_style_border_color(_dialogBg, ACCENT, 0);
-    lv_obj_set_style_pad_all(_dialogBg, 16, 0);
+    lv_obj_set_style_pad_all(_dialogBg, SU(16), 0);
     lv_obj_clear_flag(_dialogBg, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(_dialogBg, LV_OBJ_FLAG_HIDDEN);
 
@@ -127,11 +127,11 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
     lv_label_set_text(lblSSID, "SSID:");
     lv_obj_set_style_text_font(lblSSID, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblSSID, TEXT_SECONDARY, 0);
-    lv_obj_align(lblSSID, LV_ALIGN_TOP_LEFT, 0, 30);
+    lv_obj_align(lblSSID, LV_ALIGN_TOP_LEFT, 0, SY(30));
 
     _taSSID = lv_textarea_create(_dialogBg);
-    lv_obj_set_size(_taSSID, 360, 36);
-    lv_obj_align(_taSSID, LV_ALIGN_TOP_LEFT, 0, 48);
+    lv_obj_set_size(_taSSID, SX(360), SY(36));
+    lv_obj_align(_taSSID, LV_ALIGN_TOP_LEFT, 0, SY(48));
     lv_textarea_set_max_length(_taSSID, DCC_SSID_LEN - 1);
     lv_textarea_set_one_line(_taSSID, true);
     lv_textarea_set_placeholder_text(_taSSID, "Network name");
@@ -144,11 +144,11 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
     lv_label_set_text(lblPass, "Password:");
     lv_obj_set_style_text_font(lblPass, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblPass, TEXT_SECONDARY, 0);
-    lv_obj_align(lblPass, LV_ALIGN_TOP_LEFT, 0, 90);
+    lv_obj_align(lblPass, LV_ALIGN_TOP_LEFT, 0, SY(90));
 
     _taPass = lv_textarea_create(_dialogBg);
-    lv_obj_set_size(_taPass, 360, 36);
-    lv_obj_align(_taPass, LV_ALIGN_TOP_LEFT, 0, 108);
+    lv_obj_set_size(_taPass, SX(360), SY(36));
+    lv_obj_align(_taPass, LV_ALIGN_TOP_LEFT, 0, SY(108));
     lv_textarea_set_max_length(_taPass, DCC_PASS_LEN - 1);
     lv_textarea_set_one_line(_taPass, true);
     lv_textarea_set_placeholder_text(_taPass, "Password (optional)");
@@ -159,10 +159,10 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
 
     /* Save / Cancel buttons */
     _btnSave = lv_btn_create(_dialogBg);
-    lv_obj_set_size(_btnSave, 100, 34);
+    lv_obj_set_size(_btnSave, SX(100), SY(34));
     lv_obj_align(_btnSave, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
     lv_obj_set_style_bg_color(_btnSave, ACCENT, 0);
-    lv_obj_set_style_radius(_btnSave, 8, 0);
+    lv_obj_set_style_radius(_btnSave, SU(8), 0);
     lv_obj_t* lblSave = lv_label_create(_btnSave);
     lv_label_set_text(lblSave, "Save");
     lv_obj_set_style_text_color(lblSave, TEXT_PRIMARY, 0);
@@ -170,10 +170,10 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
     lv_obj_add_event_cb(_btnSave, onSave, LV_EVENT_CLICKED, this);
 
     _btnCancel = lv_btn_create(_dialogBg);
-    lv_obj_set_size(_btnCancel, 100, 34);
+    lv_obj_set_size(_btnCancel, SX(100), SY(34));
     lv_obj_align(_btnCancel, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_obj_set_style_bg_color(_btnCancel, BTN_BG, 0);
-    lv_obj_set_style_radius(_btnCancel, 8, 0);
+    lv_obj_set_style_radius(_btnCancel, SU(8), 0);
     lv_obj_t* lblCancel = lv_label_create(_btnCancel);
     lv_label_set_text(lblCancel, "Cancel");
     lv_obj_set_style_text_color(lblCancel, TEXT_PRIMARY, 0);
@@ -196,20 +196,20 @@ void WifiSettingsScreen::rebuildNetworkList() {
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl, "No saved networks. Tap + to add one.");
-        lv_obj_set_width(lbl, 760);
+        lv_obj_set_width(lbl, UI_CONTENT_W - 2 * UI_PAD);
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_pad_top(lbl, 40, 0);
+        lv_obj_set_style_pad_top(lbl, SY(40), 0);
         return;
     }
 
     for (uint8_t i = 0; i < _cfg.wifi_count; i++) {
         lv_obj_t* card = lv_obj_create(_networkList);
-        lv_obj_set_size(card, 760, 56);
+        lv_obj_set_size(card, UI_CONTENT_W - 2 * UI_PAD, SY(56));
         lv_obj_set_style_bg_color(card, CARD_BG, 0);
         lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(card, 10, 0);
+        lv_obj_set_style_radius(card, SU(10), 0);
         lv_obj_set_style_border_width(card, 0, 0);
-        lv_obj_set_style_pad_all(card, 10, 0);
+        lv_obj_set_style_pad_all(card, SU(10), 0);
         lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
         /* WiFi icon + SSID */
@@ -226,8 +226,8 @@ void WifiSettingsScreen::rebuildNetworkList() {
         lv_obj_t* lblSSID = lv_label_create(card);
         lv_obj_set_style_text_font(lblSSID, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lblSSID, TEXT_PRIMARY, 0);
-        lv_obj_align(lblSSID, LV_ALIGN_LEFT_MID, 28, 0);
-        lv_obj_set_width(lblSSID, 500);
+        lv_obj_align(lblSSID, LV_ALIGN_LEFT_MID, SX(28), 0);
+        lv_obj_set_width(lblSSID, SX(500));
         lv_label_set_long_mode(lblSSID, LV_LABEL_LONG_DOT);
         lv_label_set_text(lblSSID, _cfg.wifi[i].ssid);
 
@@ -235,7 +235,7 @@ void WifiSettingsScreen::rebuildNetworkList() {
         lv_obj_t* lblPrio = lv_label_create(card);
         lv_obj_set_style_text_font(lblPrio, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lblPrio, TEXT_SECONDARY, 0);
-        lv_obj_align(lblPrio, LV_ALIGN_RIGHT_MID, -80, 0);
+        lv_obj_align(lblPrio, LV_ALIGN_RIGHT_MID, SX(-80), 0);
         char prioBuf[16];
         snprintf(prioBuf, sizeof(prioBuf), "P%d", _cfg.wifi[i].priority);
         lv_label_set_text(lblPrio, prioBuf);
@@ -245,16 +245,16 @@ void WifiSettingsScreen::rebuildNetworkList() {
             lv_obj_t* lblConn = lv_label_create(card);
             lv_obj_set_style_text_font(lblConn, &lv_font_montserrat_14, 0);
             lv_obj_set_style_text_color(lblConn, CONNECTED_CLR, 0);
-            lv_obj_align(lblConn, LV_ALIGN_RIGHT_MID, -120, 0);
+            lv_obj_align(lblConn, LV_ALIGN_RIGHT_MID, SX(-120), 0);
             lv_label_set_text(lblConn, "Connected");
         }
 
         /* Delete button */
         lv_obj_t* btnDel = lv_btn_create(card);
-        lv_obj_set_size(btnDel, 60, 30);
+        lv_obj_set_size(btnDel, SX(60), SY(30));
         lv_obj_align(btnDel, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_obj_set_style_bg_color(btnDel, DANGER, 0);
-        lv_obj_set_style_radius(btnDel, 6, 0);
+        lv_obj_set_style_radius(btnDel, SU(6), 0);
         btnDel->user_data = (void*)(uintptr_t)i;
         lv_obj_t* lblDel = lv_label_create(btnDel);
         lv_label_set_text(lblDel, LV_SYMBOL_TRASH);

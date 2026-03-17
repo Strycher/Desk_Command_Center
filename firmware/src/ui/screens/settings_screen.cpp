@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/settings_screen.h"
+#include "ui/ui_scale.h"
 #include "ui/osk.h"
 #include "hal/display_hal.h"
 #include "logger.h"
@@ -15,8 +16,7 @@ static const lv_color_t TEXT_SECONDARY = lv_color_hex(0xB0B0D0);
 static const lv_color_t ACCENT         = lv_color_hex(0x6C63FF);
 static const lv_color_t BTN_BG        = lv_color_hex(0x252540);
 
-static constexpr int16_t CONTENT_Y = 30;
-static constexpr int16_t PAD       = 10;
+/* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
 
 /* Common US/world timezones as POSIX TZ strings */
 static const char* TZ_LABELS =
@@ -48,9 +48,9 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t w, int16_t h) {
     lv_obj_set_size(card, w, h);
     lv_obj_set_style_bg_color(card, CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 12, 0);
+    lv_obj_set_style_radius(card, SU(12), 0);
     lv_obj_set_style_border_width(card, 0, 0);
-    lv_obj_set_style_pad_all(card, 12, 0);
+    lv_obj_set_style_pad_all(card, SU(12), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     return card;
 }
@@ -135,23 +135,23 @@ void SettingsScreen::create(lv_obj_t* parent) {
 
     /* Scrollable container */
     lv_obj_t* scroll = lv_obj_create(_screen);
-    lv_obj_set_size(scroll, 780, 380);
-    lv_obj_set_pos(scroll, PAD, CONTENT_Y + 5);
+    lv_obj_set_size(scroll, UI_CONTENT_W, SY(380));
+    lv_obj_set_pos(scroll, UI_PAD, UI_CONTENT_Y + SY(5));
     lv_obj_set_style_bg_opa(scroll, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(scroll, 0, 0);
     lv_obj_set_style_pad_all(scroll, 0, 0);
-    lv_obj_set_style_pad_row(scroll, 8, 0);
+    lv_obj_set_style_pad_row(scroll, SU(8), 0);
     lv_obj_set_flex_flow(scroll, LV_FLEX_FLOW_COLUMN);
 
     /* Status label */
     _lblStatus = lv_label_create(_screen);
     lv_obj_set_style_text_font(_lblStatus, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblStatus, ACCENT, 0);
-    lv_obj_align(_lblStatus, LV_ALIGN_BOTTOM_MID, 0, -60);
+    lv_obj_align(_lblStatus, LV_ALIGN_BOTTOM_MID, 0, SY(-60));
     lv_label_set_text(_lblStatus, "");
 
     /* === Bridge URL Card === */
-    lv_obj_t* urlCard = makeCard(scroll, 760, 90);
+    lv_obj_t* urlCard = makeCard(scroll, UI_CONTENT_W - 2 * UI_PAD, SY(90));
 
     lv_obj_t* urlHdr = lv_label_create(urlCard);
     lv_label_set_text(urlHdr, "Bridge URL");
@@ -160,8 +160,8 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_align(urlHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _taBridgeURL = lv_textarea_create(urlCard);
-    lv_obj_set_size(_taBridgeURL, 600, 36);
-    lv_obj_align(_taBridgeURL, LV_ALIGN_TOP_LEFT, 0, 28);
+    lv_obj_set_size(_taBridgeURL, SX(600), SY(36));
+    lv_obj_align(_taBridgeURL, LV_ALIGN_TOP_LEFT, 0, SY(28));
     lv_textarea_set_max_length(_taBridgeURL, DCC_URL_LEN - 1);
     lv_textarea_set_one_line(_taBridgeURL, true);
     lv_textarea_set_placeholder_text(_taBridgeURL, "http://bridge:8000");
@@ -170,10 +170,10 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_add_event_cb(_taBridgeURL, onURLFocus, LV_EVENT_FOCUSED, this);
 
     _btnSaveURL = lv_btn_create(urlCard);
-    lv_obj_set_size(_btnSaveURL, 100, 34);
-    lv_obj_align(_btnSaveURL, LV_ALIGN_TOP_RIGHT, 0, 26);
+    lv_obj_set_size(_btnSaveURL, SX(100), SY(34));
+    lv_obj_align(_btnSaveURL, LV_ALIGN_TOP_RIGHT, 0, SY(26));
     lv_obj_set_style_bg_color(_btnSaveURL, ACCENT, 0);
-    lv_obj_set_style_radius(_btnSaveURL, 8, 0);
+    lv_obj_set_style_radius(_btnSaveURL, SU(8), 0);
     lv_obj_t* lblSaveURL = lv_label_create(_btnSaveURL);
     lv_label_set_text(lblSaveURL, "Save");
     lv_obj_set_style_text_color(lblSaveURL, TEXT_PRIMARY, 0);
@@ -181,7 +181,7 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_add_event_cb(_btnSaveURL, onSaveURL, LV_EVENT_CLICKED, this);
 
     /* === Timezone Card === */
-    lv_obj_t* tzCard = makeCard(scroll, 760, 90);
+    lv_obj_t* tzCard = makeCard(scroll, UI_CONTENT_W - 2 * UI_PAD, SY(90));
 
     lv_obj_t* tzHdr = lv_label_create(tzCard);
     lv_label_set_text(tzHdr, "Timezone");
@@ -190,17 +190,17 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_align(tzHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _ddTimezone = lv_dropdown_create(tzCard);
-    lv_obj_set_size(_ddTimezone, 300, 36);
-    lv_obj_align(_ddTimezone, LV_ALIGN_TOP_LEFT, 0, 28);
+    lv_obj_set_size(_ddTimezone, SX(300), SY(36));
+    lv_obj_align(_ddTimezone, LV_ALIGN_TOP_LEFT, 0, SY(28));
     lv_dropdown_set_options(_ddTimezone, TZ_LABELS);
     lv_obj_set_style_bg_color(_ddTimezone, BTN_BG, 0);
     lv_obj_set_style_text_color(_ddTimezone, TEXT_PRIMARY, 0);
 
     _btnSaveTZ = lv_btn_create(tzCard);
-    lv_obj_set_size(_btnSaveTZ, 100, 34);
-    lv_obj_align(_btnSaveTZ, LV_ALIGN_TOP_RIGHT, 0, 26);
+    lv_obj_set_size(_btnSaveTZ, SX(100), SY(34));
+    lv_obj_align(_btnSaveTZ, LV_ALIGN_TOP_RIGHT, 0, SY(26));
     lv_obj_set_style_bg_color(_btnSaveTZ, ACCENT, 0);
-    lv_obj_set_style_radius(_btnSaveTZ, 8, 0);
+    lv_obj_set_style_radius(_btnSaveTZ, SU(8), 0);
     lv_obj_t* lblSaveTZ = lv_label_create(_btnSaveTZ);
     lv_label_set_text(lblSaveTZ, "Save");
     lv_obj_set_style_text_color(lblSaveTZ, TEXT_PRIMARY, 0);
@@ -208,7 +208,7 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_add_event_cb(_btnSaveTZ, onSaveTZ, LV_EVENT_CLICKED, this);
 
     /* === Display Card === */
-    lv_obj_t* dispCard = makeCard(scroll, 760, 110);
+    lv_obj_t* dispCard = makeCard(scroll, UI_CONTENT_W - 2 * UI_PAD, SY(110));
 
     lv_obj_t* dispHdr = lv_label_create(dispCard);
     lv_label_set_text(dispHdr, "Display");
@@ -220,18 +220,18 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_label_set_text(dispHint, "(auto-saved)");
     lv_obj_set_style_text_font(dispHint, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(dispHint, TEXT_SECONDARY, 0);
-    lv_obj_align_to(dispHint, dispHdr, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, 0);
+    lv_obj_align_to(dispHint, dispHdr, LV_ALIGN_OUT_RIGHT_BOTTOM, SX(8), 0);
 
     /* Brightness slider */
     lv_obj_t* lblBright = lv_label_create(dispCard);
     lv_label_set_text(lblBright, "Brightness:");
     lv_obj_set_style_text_font(lblBright, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblBright, TEXT_SECONDARY, 0);
-    lv_obj_align(lblBright, LV_ALIGN_TOP_LEFT, 0, 28);
+    lv_obj_align(lblBright, LV_ALIGN_TOP_LEFT, 0, SY(28));
 
     _sliderBright = lv_slider_create(dispCard);
-    lv_obj_set_size(_sliderBright, 300, 12);
-    lv_obj_align(_sliderBright, LV_ALIGN_TOP_LEFT, 100, 32);
+    lv_obj_set_size(_sliderBright, SX(300), SY(12));
+    lv_obj_align(_sliderBright, LV_ALIGN_TOP_LEFT, SX(100), SY(32));
     lv_slider_set_range(_sliderBright, 10, 100);
     lv_obj_set_style_bg_color(_sliderBright, BTN_BG, 0);
     lv_obj_set_style_bg_color(_sliderBright, ACCENT, LV_PART_INDICATOR);
@@ -244,7 +244,7 @@ void SettingsScreen::create(lv_obj_t* parent) {
     _lblBrightVal = lv_label_create(dispCard);
     lv_obj_set_style_text_font(_lblBrightVal, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(_lblBrightVal, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblBrightVal, LV_ALIGN_TOP_LEFT, 420, 28);
+    lv_obj_align(_lblBrightVal, LV_ALIGN_TOP_LEFT, SX(420), SY(28));
     lv_label_set_text(_lblBrightVal, "--");
 
     /* 24h toggle */
@@ -252,16 +252,16 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_label_set_text(lbl24h, "24-hour clock:");
     lv_obj_set_style_text_font(lbl24h, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lbl24h, TEXT_SECONDARY, 0);
-    lv_obj_align(lbl24h, LV_ALIGN_TOP_LEFT, 0, 60);
+    lv_obj_align(lbl24h, LV_ALIGN_TOP_LEFT, 0, SY(60));
 
     _sw24h = lv_switch_create(dispCard);
-    lv_obj_align(_sw24h, LV_ALIGN_TOP_LEFT, 130, 56);
+    lv_obj_align(_sw24h, LV_ALIGN_TOP_LEFT, SX(130), SY(56));
     lv_obj_set_style_bg_color(_sw24h, BTN_BG, 0);
     lv_obj_set_style_bg_color(_sw24h, ACCENT, LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_event_cb(_sw24h, on24hToggle, LV_EVENT_VALUE_CHANGED, this);
 
     /* === Poll Interval Card === */
-    lv_obj_t* pollCard = makeCard(scroll, 760, 90);
+    lv_obj_t* pollCard = makeCard(scroll, UI_CONTENT_W - 2 * UI_PAD, SY(90));
 
     lv_obj_t* pollHdr = lv_label_create(pollCard);
     lv_label_set_text(pollHdr, "Poll Interval");
@@ -270,8 +270,8 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_align(pollHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _taPollSec = lv_textarea_create(pollCard);
-    lv_obj_set_size(_taPollSec, 120, 36);
-    lv_obj_align(_taPollSec, LV_ALIGN_TOP_LEFT, 0, 28);
+    lv_obj_set_size(_taPollSec, SX(120), SY(36));
+    lv_obj_align(_taPollSec, LV_ALIGN_TOP_LEFT, 0, SY(28));
     lv_textarea_set_max_length(_taPollSec, 4);
     lv_textarea_set_one_line(_taPollSec, true);
     lv_textarea_set_accepted_chars(_taPollSec, "0123456789");
@@ -284,13 +284,13 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_label_set_text(lblSec, "seconds (5-3600)");
     lv_obj_set_style_text_font(lblSec, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblSec, TEXT_SECONDARY, 0);
-    lv_obj_align(lblSec, LV_ALIGN_TOP_LEFT, 130, 34);
+    lv_obj_align(lblSec, LV_ALIGN_TOP_LEFT, SX(130), SY(34));
 
     _btnSavePoll = lv_btn_create(pollCard);
-    lv_obj_set_size(_btnSavePoll, 100, 34);
-    lv_obj_align(_btnSavePoll, LV_ALIGN_TOP_RIGHT, 0, 26);
+    lv_obj_set_size(_btnSavePoll, SX(100), SY(34));
+    lv_obj_align(_btnSavePoll, LV_ALIGN_TOP_RIGHT, 0, SY(26));
     lv_obj_set_style_bg_color(_btnSavePoll, ACCENT, 0);
-    lv_obj_set_style_radius(_btnSavePoll, 8, 0);
+    lv_obj_set_style_radius(_btnSavePoll, SU(8), 0);
     lv_obj_t* lblSavePoll = lv_label_create(_btnSavePoll);
     lv_label_set_text(lblSavePoll, "Save");
     lv_obj_set_style_text_color(lblSavePoll, TEXT_PRIMARY, 0);

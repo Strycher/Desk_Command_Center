@@ -1,9 +1,10 @@
 /**
  * Status Bar — Implementation
- * 800 x 30px top bar on LVGL top layer.
+ * Scales to any resolution via ui_scale.h.
  */
 
 #include "ui/status_bar.h"
+#include "ui/ui_scale.h"
 #include "hal/platform_hal.h"
 #include "ntp_time.h"
 #include "wifi_manager.h"
@@ -16,8 +17,6 @@ static const lv_color_t TEXT_COLOR    = lv_color_hex(0xCCCCDD);
 static const lv_color_t SYNC_OK      = lv_color_hex(0x4CAF50);
 static const lv_color_t SYNC_STALE   = lv_color_hex(0xFFC107);
 static const lv_color_t SYNC_ERROR   = lv_color_hex(0xF44336);
-
-static constexpr int16_t BAR_HEIGHT = 30;
 static constexpr uint32_t STALE_THRESHOLD_MS = 120000; // 2 min
 
 static lv_obj_t* bar       = nullptr;
@@ -55,14 +54,14 @@ void StatusBar::create() {
     lv_obj_t* layer = lv_layer_top();
 
     bar = lv_obj_create(layer);
-    lv_obj_set_size(bar, 800, BAR_HEIGHT);
+    lv_obj_set_size(bar, LCD_H_RES, UI_STATUS_BAR_H);
     lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_bg_color(bar, BAR_BG, 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(bar, 0, 0);
     lv_obj_set_style_radius(bar, 0, 0);
-    lv_obj_set_style_pad_hor(bar, 10, 0);
-    lv_obj_set_style_pad_ver(bar, 2, 0);
+    lv_obj_set_style_pad_hor(bar, UI_PAD, 0);
+    lv_obj_set_style_pad_ver(bar, SU(2), 0);
 
     /* Time — left */
     lblTime = lv_label_create(bar);

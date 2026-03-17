@@ -12,6 +12,7 @@
 
 #include "ui/screens/ha_screen.h"
 #include "ui/ha_control_modal.h"
+#include "ui/ui_scale.h"
 #include <cstring>
 #include "logger.h"
 
@@ -36,23 +37,21 @@ static const lv_color_t SENSOR_ACCENT  = lv_color_hex(0x5C6BC0);
 static const lv_color_t PERSON_ACCENT  = lv_color_hex(0x66BB6A);
 static const lv_color_t DEVICE_ACCENT  = lv_color_hex(0x7E57C2);
 
-/* ── Layout constants ───────────────────────────────── */
-static constexpr int16_t CONTENT_Y   = 30;
-static constexpr int16_t PAD         = 10;
-static constexpr int16_t CARD_STD    = 250;   /* 3 per row: 250*3 + 6*2 = 762 */
-static constexpr int16_t CARD_WIDE   = 380;   /* 2 per row: 380*2 + 6   = 766 */
-static constexpr int16_t CARD_H      = 80;    /* standard card height */
-static constexpr int16_t CARD_H_TALL = 100;   /* climate / info-dense cards */
-static constexpr int16_t CARD_H_MULTI = 90;   /* multi-entity device cards */
-static constexpr int16_t TILE_GAP    = 6;
-static constexpr int16_t TILE_R      = 10;
-static constexpr int16_t CONTENT_W   = 780;   /* scrollable area width */
+/* ── Layout constants (scaled via ui_scale.h) ──────── */
+/* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
+static const int16_t CARD_STD    = SX(250);   /* 3 per row */
+static const int16_t CARD_WIDE   = SX(380);   /* 2 per row */
+static const int16_t CARD_H      = SY(80);    /* standard card height */
+static const int16_t CARD_H_TALL = SY(100);   /* climate / info-dense cards */
+static const int16_t CARD_H_MULTI = SY(90);   /* multi-entity device cards */
+static const int16_t TILE_GAP    = SU(6);
+static const int16_t TILE_R      = SU(10);
 /* Legacy aliases for domain-mode renderers */
-static constexpr int16_t TILE_W      = CARD_STD;
-static constexpr int16_t TILE_H      = CARD_H;
-static constexpr int16_t TILE_WIDE   = CARD_WIDE;
-static constexpr int16_t TILE_FULL   = 760;
-static constexpr int16_t TILE_TALL   = CARD_H_TALL;
+static const int16_t TILE_W      = CARD_STD;
+static const int16_t TILE_H      = CARD_H;
+static const int16_t TILE_WIDE   = CARD_WIDE;
+static const int16_t TILE_FULL   = UI_CONTENT_W - 2 * UI_PAD;
+static const int16_t TILE_TALL   = CARD_H_TALL;
 
 /* ── Domain helpers ─────────────────────────────────── */
 static const char* domainLabel(const char* d) {
@@ -143,7 +142,7 @@ static lv_obj_t* makeTile(lv_obj_t* parent, int16_t w, int16_t h) {
     lv_obj_set_style_bg_opa(t, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(t, TILE_R, 0);
     lv_obj_set_style_border_width(t, 0, 0);
-    lv_obj_set_style_pad_all(t, 8, 0);
+    lv_obj_set_style_pad_all(t, SU(8), 0);
     lv_obj_clear_flag(t, LV_OBJ_FLAG_SCROLLABLE);
     return t;
 }
@@ -248,11 +247,11 @@ void HAScreen::updateToggleStyle() {
 static lv_obj_t* makeToggleBtn(lv_obj_t* parent, const char* text,
                                 lv_coord_t x, bool active) {
     lv_obj_t* btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, 90, 24);
-    lv_obj_set_pos(btn, x, 3);
+    lv_obj_set_size(btn, SX(90), SY(24));
+    lv_obj_set_pos(btn, x, SY(3));
     lv_obj_set_style_bg_color(btn, active ? TOGGLE_ACTIVE : TOGGLE_INACTIVE, 0);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(btn, 6, 0);
+    lv_obj_set_style_radius(btn, SU(6), 0);
     lv_obj_set_style_border_width(btn, 0, 0);
     lv_obj_set_style_shadow_width(btn, 0, 0);
     lv_obj_set_style_pad_all(btn, 0, 0);
@@ -266,10 +265,10 @@ static lv_obj_t* makeToggleBtn(lv_obj_t* parent, const char* text,
     return btn;
 }
 
-/* Toggle row sits below the 30px status bar */
-static constexpr int16_t TOGGLE_Y      = 32;   /* just below status bar */
-static constexpr int16_t ENTITY_LIST_Y = 60;   /* below toggle row */
-static constexpr int16_t ENTITY_LIST_H = 370;  /* 430 - 60 = 370 */
+/* Toggle row sits below the status bar */
+static const int16_t TOGGLE_Y      = UI_CONTENT_Y + SY(2);   /* just below status bar */
+static const int16_t ENTITY_LIST_Y = UI_CONTENT_Y + SY(30);  /* below toggle row */
+static const int16_t ENTITY_LIST_H = UI_CONTENT_H - SY(30);  /* remaining content height */
 
 void HAScreen::create(lv_obj_t* parent) {
     _screen = lv_obj_create(nullptr);
@@ -278,25 +277,25 @@ void HAScreen::create(lv_obj_t* parent) {
 
     /* Toggle buttons: [Room] [Type] at top-right, below status bar */
     _btnRoom = makeToggleBtn(_screen, LV_SYMBOL_HOME " Room",
-                              586, _groupByRoom);
-    lv_obj_set_pos(_btnRoom, 586, TOGGLE_Y);
+                              SX(586), _groupByRoom);
+    lv_obj_set_pos(_btnRoom, SX(586), TOGGLE_Y);
     lv_obj_add_event_cb(_btnRoom, onToggleClick, LV_EVENT_CLICKED,
                         (void*)(uintptr_t)1);
 
     _btnCategory = makeToggleBtn(_screen, LV_SYMBOL_LIST " Type",
-                                  682, !_groupByRoom);
-    lv_obj_set_pos(_btnCategory, 682, TOGGLE_Y);
+                                  SX(682), !_groupByRoom);
+    lv_obj_set_pos(_btnCategory, SX(682), TOGGLE_Y);
     lv_obj_add_event_cb(_btnCategory, onToggleClick, LV_EVENT_CLICKED,
                         (void*)(uintptr_t)0);
 
     /* Scrollable tile container — below toggle row */
     _entityList = lv_obj_create(_screen);
-    lv_obj_set_size(_entityList, 780, ENTITY_LIST_H);
-    lv_obj_set_pos(_entityList, PAD, ENTITY_LIST_Y);
+    lv_obj_set_size(_entityList, UI_CONTENT_W, ENTITY_LIST_H);
+    lv_obj_set_pos(_entityList, UI_PAD, ENTITY_LIST_Y);
     lv_obj_set_style_bg_opa(_entityList, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_entityList, 0, 0);
     lv_obj_set_style_pad_all(_entityList, 0, 0);
-    lv_obj_set_style_pad_row(_entityList, 6, 0);
+    lv_obj_set_style_pad_row(_entityList, SU(6), 0);
     lv_obj_set_flex_flow(_entityList, LV_FLEX_FLOW_COLUMN);
 
     LOG_INFO("HA: screen created");
@@ -323,8 +322,8 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 28, 2);
-    lv_obj_set_width(name, 200);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(28), SY(2));
+    lv_obj_set_width(name, SX(200));
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -332,7 +331,7 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
     lv_obj_t* cur = lv_label_create(tile);
     lv_obj_set_style_text_font(cur, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(cur, TEXT_PRIMARY, 0);
-    lv_obj_align(cur, LV_ALIGN_TOP_RIGHT, 0, -4);
+    lv_obj_align(cur, LV_ALIGN_TOP_RIGHT, 0, SY(-4));
     char buf[16];
     if (e.extra.climate.current_temp > 0)
         snprintf(buf, sizeof(buf), "%.0fF", e.extra.climate.current_temp);
@@ -342,17 +341,17 @@ void HAScreen::addClimateCard(lv_obj_t* parent, const HAEntity& e) {
 
     /* HVAC action — colored dot + text, bottom left */
     lv_obj_t* dot = lv_obj_create(tile);
-    lv_obj_set_size(dot, 10, 10);
+    lv_obj_set_size(dot, SU(10), SU(10));
     lv_obj_set_style_bg_color(dot, accent, 0);
     lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_border_width(dot, 0, 0);
-    lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, 0, -2);
+    lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, 0, SY(-2));
 
     lv_obj_t* action = lv_label_create(tile);
     lv_obj_set_style_text_font(action, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(action, accent, 0);
-    lv_obj_align(action, LV_ALIGN_BOTTOM_LEFT, 16, 0);
+    lv_obj_align(action, LV_ALIGN_BOTTOM_LEFT, SX(16), 0);
     const char* hvac = e.extra.climate.hvac_action;
     if (hvac[0]) {
         char abuf[16];
@@ -397,8 +396,8 @@ void HAScreen::addSensorRow(lv_obj_t* parent, const HAEntity& e, int16_t w) {
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 22, 2);
-    lv_obj_set_width(name, w - 40);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(22), SY(2));
+    lv_obj_set_width(name, w - SX(40));
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -440,8 +439,8 @@ void HAScreen::addLightSwitchRow(lv_obj_t* parent, const HAEntity& e,
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
-    lv_obj_set_width(name, w - 44);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(26), SY(2));
+    lv_obj_set_width(name, w - SX(44));
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, displayName ? displayName : entityName(e));
 
@@ -473,8 +472,8 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e, int16_t w) {
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 28, 2);
-    lv_obj_set_width(name, w - 120);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(28), SY(2));
+    lv_obj_set_width(name, w - SX(120));
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -482,7 +481,7 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e, int16_t w) {
     lv_obj_t* stLbl = lv_label_create(tile);
     lv_obj_set_style_text_font(stLbl, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(stLbl, playing ? MEDIA_ACCENT : TEXT_DIM, 0);
-    lv_obj_align(stLbl, LV_ALIGN_TOP_RIGHT, 0, 2);
+    lv_obj_align(stLbl, LV_ALIGN_TOP_RIGHT, 0, SY(2));
     char stBuf[32];
     strncpy(stBuf, e.state, sizeof(stBuf) - 1);
     stBuf[sizeof(stBuf) - 1] = '\0';
@@ -495,7 +494,7 @@ void HAScreen::addMediaCard(lv_obj_t* parent, const HAEntity& e, int16_t w) {
         lv_obj_set_style_text_font(info, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(info, MEDIA_ACCENT, 0);
         lv_obj_align(info, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-        lv_obj_set_width(info, w - 24);
+        lv_obj_set_width(info, w - SX(24));
         lv_label_set_long_mode(info, LV_LABEL_LONG_DOT);
         char buf[80];
         if (e.extra.media.app_name[0] && e.extra.media.media_title[0])
@@ -530,8 +529,8 @@ void HAScreen::addGenericRow(lv_obj_t* parent, const HAEntity& e, int16_t w) {
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_SECONDARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
-    lv_obj_set_width(name, w - 44);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(26), SY(2));
+    lv_obj_set_width(name, w - SX(44));
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, entityName(e));
 
@@ -584,7 +583,7 @@ void HAScreen::addPersonCard(lv_obj_t* parent, const HADeviceGroup& grp,
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(26), SY(2));
     lv_label_set_text(name, pname);
 
     /* Find tracker and battery sensor */
@@ -634,7 +633,7 @@ void HAScreen::addPersonCard(lv_obj_t* parent, const HADeviceGroup& grp,
 void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
                                    const HAEntity* entities, int16_t w) {
     int16_t h = CARD_H_MULTI;
-    if (grp.entity_count > 4) h = 110;
+    if (grp.entity_count > 4) h = SY(110);
 
     lv_obj_t* tile = makeTile(parent, w, h);
 
@@ -650,22 +649,22 @@ void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
     lv_obj_t* name = lv_label_create(tile);
     lv_obj_set_style_text_font(name, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(name, TEXT_PRIMARY, 0);
-    lv_obj_align(name, LV_ALIGN_TOP_LEFT, 26, 2);
-    lv_obj_set_width(name, w - 44);
+    lv_obj_align(name, LV_ALIGN_TOP_LEFT, SX(26), SY(2));
+    lv_obj_set_width(name, w - SX(44));
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     lv_label_set_text(name, grp.device_name);
 
     /* Entity states — compact flex row */
     lv_obj_t* row = lv_obj_create(tile);
-    lv_obj_set_size(row, w - 24, LV_SIZE_CONTENT);
+    lv_obj_set_size(row, w - SX(24), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(row, 0, 0);
     lv_obj_set_style_pad_all(row, 0, 0);
-    lv_obj_set_style_pad_column(row, 12, 0);
-    lv_obj_set_style_pad_row(row, 2, 0);
+    lv_obj_set_style_pad_column(row, SX(12), 0);
+    lv_obj_set_style_pad_row(row, SY(2), 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(row, LV_ALIGN_TOP_LEFT, 4, 24);
+    lv_obj_align(row, LV_ALIGN_TOP_LEFT, SX(4), SY(24));
 
     for (uint8_t i = 0; i < grp.entity_count; i++) {
         const HAEntity& ent = entities[grp.entity_start + i];
@@ -713,7 +712,7 @@ void HAScreen::addMultiEntityCard(lv_obj_t* parent, const HADeviceGroup& grp,
 
 void HAScreen::addRoomHeader(const char* roomName, uint8_t count) {
     lv_obj_t* hdr = lv_obj_create(_entityList);
-    lv_obj_set_size(hdr, CONTENT_W, 24);
+    lv_obj_set_size(hdr, UI_CONTENT_W, SY(24));
     lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
     lv_obj_set_style_pad_all(hdr, 0, 0);
@@ -722,13 +721,13 @@ void HAScreen::addRoomHeader(const char* roomName, uint8_t count) {
     lv_obj_t* lblIcon = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblIcon, ACCENT, 0);
-    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, 4, -2);
+    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, SX(4), SY(-2));
     lv_label_set_text(lblIcon, LV_SYMBOL_HOME);
 
     lv_obj_t* lblName = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
-    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 26, -2);
+    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, SX(26), SY(-2));
     char buf[48];
     snprintf(buf, sizeof(buf), "%s (%d)", roomName, count);
     lv_label_set_text(lblName, buf);
@@ -844,7 +843,7 @@ void HAScreen::addSectionHeader(const char* domain, uint8_t count) {
     lv_color_t accent = domainAccent(domain);
 
     lv_obj_t* hdr = lv_obj_create(_entityList);
-    lv_obj_set_size(hdr, CONTENT_W, 24);
+    lv_obj_set_size(hdr, UI_CONTENT_W, SY(24));
     lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
     lv_obj_set_style_pad_all(hdr, 0, 0);
@@ -853,13 +852,13 @@ void HAScreen::addSectionHeader(const char* domain, uint8_t count) {
     lv_obj_t* lblIcon = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblIcon, accent, 0);
-    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, 4, -2);
+    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, SX(4), SY(-2));
     lv_label_set_text(lblIcon, domainIcon(domain));
 
     lv_obj_t* lblName = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
-    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 26, -2);
+    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, SX(26), SY(-2));
     char buf[48];
     snprintf(buf, sizeof(buf), "%s (%d)", domainLabel(domain), count);
     lv_label_set_text(lblName, buf);
@@ -868,7 +867,7 @@ void HAScreen::addSectionHeader(const char* domain, uint8_t count) {
 /* ── Section Grid: row-wrap flex container for cards ── */
 lv_obj_t* HAScreen::makeSectionGrid() {
     lv_obj_t* grid = lv_obj_create(_entityList);
-    lv_obj_set_size(grid, CONTENT_W, LV_SIZE_CONTENT);
+    lv_obj_set_size(grid, UI_CONTENT_W, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(grid, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(grid, 0, 0);
     lv_obj_set_style_pad_all(grid, 0, 0);
@@ -1028,7 +1027,7 @@ void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
 
     /* Section header */
     lv_obj_t* hdr = lv_obj_create(_entityList);
-    lv_obj_set_size(hdr, 760, 26);
+    lv_obj_set_size(hdr, TILE_FULL, SY(26));
     lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
     lv_obj_set_style_pad_all(hdr, 0, 0);
@@ -1037,20 +1036,20 @@ void HAScreen::addDomainGroup(const char* domain, const HAEntity* entities,
     lv_obj_t* lblIcon = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblIcon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblIcon, accent, 0);
-    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, 4, 0);
+    lv_obj_align(lblIcon, LV_ALIGN_LEFT_MID, SX(4), 0);
     lv_label_set_text(lblIcon, domainIcon(domain));
 
     lv_obj_t* lblName = lv_label_create(hdr);
     lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblName, TEXT_SECONDARY, 0);
-    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 26, 0);
+    lv_obj_align(lblName, LV_ALIGN_LEFT_MID, SX(26), 0);
     char hdrBuf[48];
     snprintf(hdrBuf, sizeof(hdrBuf), "%s (%d)", domainLabel(domain), count);
     lv_label_set_text(lblName, hdrBuf);
 
     /* Tile grid — row-wrap flex for tile layout */
     lv_obj_t* grid = lv_obj_create(_entityList);
-    lv_obj_set_size(grid, 760, LV_SIZE_CONTENT);
+    lv_obj_set_size(grid, TILE_FULL, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(grid, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(grid, 0, 0);
     lv_obj_set_style_pad_all(grid, 0, 0);
@@ -1142,9 +1141,9 @@ void HAScreen::rebuildEntityList(const HAData& ha) {
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
         lv_label_set_text(lbl, "No Home Assistant entities");
-        lv_obj_set_width(lbl, 760);
+        lv_obj_set_width(lbl, TILE_FULL);
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_pad_top(lbl, 60, 0);
+        lv_obj_set_style_pad_top(lbl, SY(60), 0);
         return;
     }
 
@@ -1187,9 +1186,9 @@ void HAScreen::onShow() {
             _lastData->home_assistant.status == SourceStatus::ERROR
                 ? "Home Assistant: connection error"
                 : "No Home Assistant data");
-        lv_obj_set_width(lbl, 760);
+        lv_obj_set_width(lbl, TILE_FULL);
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_pad_top(lbl, 60, 0);
+        lv_obj_set_style_pad_top(lbl, SY(60), 0);
     }
     _dirty = false;
 }
@@ -1216,9 +1215,9 @@ void HAScreen::update(const DashboardData& data) {
                 data.home_assistant.status == SourceStatus::ERROR
                     ? "Home Assistant: connection error"
                     : "No Home Assistant data");
-            lv_obj_set_width(lbl, 760);
+            lv_obj_set_width(lbl, TILE_FULL);
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_set_style_pad_top(lbl, 60, 0);
+            lv_obj_set_style_pad_top(lbl, SY(60), 0);
         }
         _dirty = false;
     }

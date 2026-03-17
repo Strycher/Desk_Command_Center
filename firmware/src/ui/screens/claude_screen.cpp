@@ -5,6 +5,7 @@
  */
 
 #include "ui/screens/claude_screen.h"
+#include "ui/ui_scale.h"
 #include <cstring>
 #include "logger.h"
 
@@ -17,8 +18,7 @@ static const lv_color_t STATUS_ACTIVE  = lv_color_hex(0x44BB44);
 static const lv_color_t STATUS_IDLE    = lv_color_hex(0xFFAA00);
 static const lv_color_t STATUS_OFF     = lv_color_hex(0xFF4444);
 
-static constexpr int16_t CONTENT_Y = 30;
-static constexpr int16_t PAD       = 10;
+/* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
 
 static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
                            int16_t w, int16_t h) {
@@ -27,9 +27,9 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
     lv_obj_set_size(card, w, h);
     lv_obj_set_style_bg_color(card, CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 12, 0);
+    lv_obj_set_style_radius(card, SU(12), 0);
     lv_obj_set_style_border_width(card, 0, 0);
-    lv_obj_set_style_pad_all(card, 16, 0);
+    lv_obj_set_style_pad_all(card, SU(16), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     return card;
 }
@@ -43,16 +43,17 @@ void ClaudeScreen::create(lv_obj_t* parent) {
     lv_obj_t* header = lv_label_create(_screen);
     lv_obj_set_style_text_font(header, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
-    lv_obj_set_pos(header, PAD + 4, CONTENT_Y + 8);
+    lv_obj_set_pos(header, UI_PAD + SX(4), UI_CONTENT_Y + SY(8));
     lv_label_set_text(header, LV_SYMBOL_CHARGE " Claude Agent");
 
     /* === Agent Status Card === */
-    lv_obj_t* agentCard = makeCard(_screen, PAD, CONTENT_Y + 35, 780, 160);
+    lv_obj_t* agentCard = makeCard(_screen, UI_PAD, UI_CONTENT_Y + SY(35),
+                                      UI_CONTENT_W, SY(160));
 
     /* Status dot */
     _statusDot = lv_obj_create(agentCard);
-    lv_obj_set_size(_statusDot, 16, 16);
-    lv_obj_align(_statusDot, LV_ALIGN_TOP_LEFT, 0, 4);
+    lv_obj_set_size(_statusDot, SU(16), SU(16));
+    lv_obj_align(_statusDot, LV_ALIGN_TOP_LEFT, 0, SU(4));
     lv_obj_set_style_bg_color(_statusDot, STATUS_OFF, 0);
     lv_obj_set_style_bg_opa(_statusDot, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(_statusDot, LV_RADIUS_CIRCLE, 0);
@@ -62,7 +63,7 @@ void ClaudeScreen::create(lv_obj_t* parent) {
     _lblStatus = lv_label_create(agentCard);
     lv_obj_set_style_text_font(_lblStatus, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblStatus, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblStatus, LV_ALIGN_TOP_LEFT, 26, 0);
+    lv_obj_align(_lblStatus, LV_ALIGN_TOP_LEFT, SX(26), 0);
     lv_label_set_text(_lblStatus, "Offline");
 
     /* Current task */
@@ -70,18 +71,19 @@ void ClaudeScreen::create(lv_obj_t* parent) {
     lv_label_set_text(taskHdr, "Current Task:");
     lv_obj_set_style_text_font(taskHdr, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(taskHdr, TEXT_SECONDARY, 0);
-    lv_obj_align(taskHdr, LV_ALIGN_TOP_LEFT, 0, 40);
+    lv_obj_align(taskHdr, LV_ALIGN_TOP_LEFT, 0, SY(40));
 
     _lblTask = lv_label_create(agentCard);
     lv_obj_set_style_text_font(_lblTask, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_lblTask, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblTask, LV_ALIGN_TOP_LEFT, 0, 62);
-    lv_obj_set_width(_lblTask, 740);
+    lv_obj_align(_lblTask, LV_ALIGN_TOP_LEFT, 0, SY(62));
+    lv_obj_set_width(_lblTask, UI_CONTENT_W - SU(40));
     lv_label_set_long_mode(_lblTask, LV_LABEL_LONG_WRAP);
     lv_label_set_text(_lblTask, "No active task");
 
     /* === Beads Summary Card === */
-    lv_obj_t* beadsCard = makeCard(_screen, PAD, CONTENT_Y + 210, 780, 120);
+    lv_obj_t* beadsCard = makeCard(_screen, UI_PAD, UI_CONTENT_Y + SY(210),
+                                      UI_CONTENT_W, SY(120));
 
     lv_obj_t* beadsHdr = lv_label_create(beadsCard);
     lv_label_set_text(beadsHdr, "Beads Task Tracker");
@@ -92,19 +94,19 @@ void ClaudeScreen::create(lv_obj_t* parent) {
     _lblBeadsOpen = lv_label_create(beadsCard);
     lv_obj_set_style_text_font(_lblBeadsOpen, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblBeadsOpen, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblBeadsOpen, LV_ALIGN_TOP_LEFT, 0, 30);
+    lv_obj_align(_lblBeadsOpen, LV_ALIGN_TOP_LEFT, 0, SY(30));
     lv_label_set_text(_lblBeadsOpen, "Open: --");
 
     _lblBeadsIP = lv_label_create(beadsCard);
     lv_obj_set_style_text_font(_lblBeadsIP, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblBeadsIP, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblBeadsIP, LV_ALIGN_TOP_LEFT, 250, 30);
+    lv_obj_align(_lblBeadsIP, LV_ALIGN_TOP_LEFT, SX(250), SY(30));
     lv_label_set_text(_lblBeadsIP, "In Progress: --");
 
     _lblBeadsBlk = lv_label_create(beadsCard);
     lv_obj_set_style_text_font(_lblBeadsBlk, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblBeadsBlk, STATUS_OFF, 0);
-    lv_obj_align(_lblBeadsBlk, LV_ALIGN_TOP_LEFT, 540, 30);
+    lv_obj_align(_lblBeadsBlk, LV_ALIGN_TOP_LEFT, SX(540), SY(30));
     lv_label_set_text(_lblBeadsBlk, "Blocked: --");
 
     LOG_INFO("CLAUDE: screen created");
