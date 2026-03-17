@@ -4,7 +4,6 @@
  */
 
 #include "ui/nav_bar.h"
-#include <Arduino.h>
 #include "logger.h"
 
 static const lv_color_t BAR_BG      = lv_color_hex(0x1a1a2e);

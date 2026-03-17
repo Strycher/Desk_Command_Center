@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/diagnostics_screen.h"
+#include "hal/platform_hal.h"
 #include "wifi_manager.h"
 #include "data_service.h"
 #include "config_store.h"
@@ -131,19 +132,19 @@ void DiagnosticsScreen::refreshSystemInfo() {
 
     /* Heap */
     char buf[64];
-    uint32_t freeHeap = ESP.getFreeHeap();
+    uint32_t freeHeap = hal::platform::heapFree();
     snprintf(buf, sizeof(buf), "%lu KB", freeHeap / 1024);
     lv_label_set_text(_lblHeap, buf);
     lv_obj_set_style_text_color(_lblHeap,
         freeHeap < 30000 ? BAD : (freeHeap < 60000 ? WARN : GOOD), 0);
 
     /* PSRAM */
-    uint32_t freePSRAM = ESP.getFreePsram();
+    uint32_t freePSRAM = hal::platform::psramFree();
     snprintf(buf, sizeof(buf), "%lu KB", freePSRAM / 1024);
     lv_label_set_text(_lblPSRAM, buf);
 
     /* Uptime */
-    uint32_t sec = millis() / 1000;
+    uint32_t sec = hal::platform::uptimeMs() / 1000;
     uint32_t hr = sec / 3600;
     uint32_t mn = (sec % 3600) / 60;
     uint32_t sc = sec % 60;

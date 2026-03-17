@@ -3,7 +3,7 @@
  */
 
 #include "ui/screen_manager.h"
-#include <Arduino.h>
+#include "hal/platform_hal.h"
 #include "logger.h"
 
 static BaseScreen* screens[static_cast<uint8_t>(ScreenId::_COUNT)] = {};
@@ -57,7 +57,7 @@ void ScreenManager::show(ScreenId id, lv_scr_load_anim_t anim,
     lv_mem_monitor(&mon);
     LOG_INFO("SCR: %d→%d heap=%lu lv_free=%lu/%lu frag=%d%%",
              cur_idx, idx,
-             (unsigned long)ESP.getFreeHeap(),
+             (unsigned long)hal::platform::heapFree(),
              (unsigned long)mon.free_size,
              (unsigned long)mon.total_size,
              (int)mon.frag_pct);
