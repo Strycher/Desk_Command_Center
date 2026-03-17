@@ -120,9 +120,9 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         return;
     }
 
-    /* Google Calendar — bridge key: calendar_google
+    /* Google Calendar — bridge key: google_calendar
        data.calendars.<name>.events[] with {title, start, end, all_day, location, color_id} */
-    JsonObjectConst gc = sources["calendar_google"];
+    JsonObjectConst gc = sources["google_calendar"];
     if (!gc.isNull()) {
         parseSourceMeta(gc, out.google_calendar);
         JsonObjectConst gcData = gc["data"];
