@@ -8,12 +8,13 @@
  */
 
 #include "ha_command.h"
+#include "hal/network_hal.h"
 #include "logger.h"
-#include <HTTPClient.h>
-#include <WiFi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
+#include <cstring>
+#include <cstdio>
 
 /* ── Command structure (sent through queue) ── */
 struct HACmd {
@@ -39,7 +40,36 @@ static volatile bool _resultReady = false;
 static HACmdResult _result = {};
 static HACommand::ResultCallback _callback = nullptr;
 
-static constexpr int HTTP_CMD_TIMEOUT_MS = 5000;
+static constexpr uint32_t HTTP_CMD_TIMEOUT_MS = 5000;
+
+/**
+ * Extract a JSON string value for a given key from a raw JSON string.
+ * Writes up to maxLen-1 chars into dest. Returns true if found.
+ * Simple — no nested objects or escaped quotes.
+ */
+static bool extractJsonString(const char* json, const char* key,
+                              char* dest, size_t maxLen) {
+    /* Search for "key":"value" */
+    char pattern[80];
+    snprintf(pattern, sizeof(pattern), "\"%s\":\"", key);
+    const char* start = strstr(json, pattern);
+    if (!start) {
+        /* Try with space: "key": "value" */
+        snprintf(pattern, sizeof(pattern), "\"%s\": \"", key);
+        start = strstr(json, pattern);
+    }
+    if (!start) return false;
+
+    start += strlen(pattern);
+    const char* end = strchr(start, '"');
+    if (!end) return false;
+
+    size_t len = end - start;
+    if (len >= maxLen) len = maxLen - 1;
+    memcpy(dest, start, len);
+    dest[len] = '\0';
+    return true;
+}
 
 void HACommand::init(const char* bridgeUrl) {
     strncpy(_bridgeUrl, bridgeUrl, sizeof(_bridgeUrl) - 1);
@@ -84,16 +114,12 @@ bool HACommand::processQueue() {
     HACmdResult res = {};
     strncpy(res.entityId, cmd.entityId, sizeof(res.entityId) - 1);
 
-    if (WiFi.status() != WL_CONNECTED) {
+    if (!hal::network::isConnected()) {
         res.success = false;
         strncpy(res.error, "WiFi not connected", sizeof(res.error) - 1);
     } else {
-        HTTPClient http;
-        String url = String("http://") + _bridgeUrl + "/api/ha/command";
-        http.begin(url);
-        http.setTimeout(HTTP_CMD_TIMEOUT_MS);
-        http.setConnectTimeout(HTTP_CMD_TIMEOUT_MS);
-        http.addHeader("Content-Type", "application/json");
+        char url[384];
+        snprintf(url, sizeof(url), "http://%s/api/ha/command", _bridgeUrl);
 
         /* Build JSON body */
         char body[256];
@@ -107,51 +133,36 @@ bool HACommand::processQueue() {
                      cmd.entityId, cmd.service);
         }
 
-        int code = http.POST(body);
+        hal::network::HttpResponse resp = hal::network::httpPost(
+            url, body, "application/json", nullptr, HTTP_CMD_TIMEOUT_MS);
 
-        if (code == HTTP_CODE_OK) {
-            String payload = http.getString();
+        if (resp.status == 200 && resp.body) {
             /* Quick parse — extract "success" and "state" from response */
-            res.success = payload.indexOf("\"success\":true") >= 0
-                       || payload.indexOf("\"success\": true") >= 0;
+            res.success = (strstr(resp.body, "\"success\":true") != nullptr)
+                       || (strstr(resp.body, "\"success\": true") != nullptr);
 
-            /* Extract new state from "state":"<value>" */
-            int stateIdx = payload.indexOf("\"state\":\"");
-            if (stateIdx >= 0) {
-                stateIdx += 9;  // skip past "state":"
-                int endIdx = payload.indexOf("\"", stateIdx);
-                if (endIdx > stateIdx) {
-                    int len = endIdx - stateIdx;
-                    if (len >= (int)sizeof(res.newState))
-                        len = sizeof(res.newState) - 1;
-                    payload.substring(stateIdx, endIdx).toCharArray(
-                        res.newState, sizeof(res.newState));
-                }
-            }
+            extractJsonString(resp.body, "state", res.newState,
+                              sizeof(res.newState));
 
             if (!res.success) {
-                /* Extract error message */
-                int errIdx = payload.indexOf("\"error\":\"");
-                if (errIdx >= 0) {
-                    errIdx += 9;
-                    int endIdx = payload.indexOf("\"", errIdx);
-                    if (endIdx > errIdx) {
-                        payload.substring(errIdx, endIdx).toCharArray(
-                            res.error, sizeof(res.error));
-                    }
-                } else {
+                if (!extractJsonString(resp.body, "error", res.error,
+                                       sizeof(res.error))) {
                     strncpy(res.error, "Unknown error",
                             sizeof(res.error) - 1);
                 }
             }
             LOG_INFO("HACMD: response code=%d success=%d state=%s",
-                     code, res.success, res.newState);
+                     resp.status, res.success, res.newState);
         } else {
             res.success = false;
-            snprintf(res.error, sizeof(res.error), "HTTP %d", code);
-            LOG_ERROR("HACMD: HTTP error %d", code);
+            if (resp.error[0] != '\0') {
+                snprintf(res.error, sizeof(res.error), "%s", resp.error);
+            } else {
+                snprintf(res.error, sizeof(res.error), "HTTP %d", resp.status);
+            }
+            LOG_ERROR("HACMD: %s", res.error);
         }
-        http.end();
+        hal::network::httpResponseFree(&resp);
     }
 
     /* Store result and signal main loop */

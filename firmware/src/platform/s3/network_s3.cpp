@@ -25,12 +25,26 @@ namespace network {
 
 void init()
 {
-    /* S3: WiFi.mode(WIFI_STA) is called by WifiManager::init().
-       Here we just populate the chip ID from the eFuse MAC. */
+    /* Set station mode and disable auto-reconnect
+       (WifiManager handles reconnect with backoff). */
+    WiFi.mode(WIFI_STA);
+    WiFi.setAutoReconnect(false);
+
+    /* Populate chip ID from the eFuse MAC. */
     uint64_t mac = ESP.getEfuseMac();
     uint8_t* m = (uint8_t*)&mac;
     snprintf(s_chipId, sizeof(s_chipId), "%02X%02X%02X%02X%02X%02X",
              m[0], m[1], m[2], m[3], m[4], m[5]);
+}
+
+void connect(const char* ssid, const char* password)
+{
+    WiFi.begin(ssid, password);
+}
+
+void disconnect()
+{
+    WiFi.disconnect();
 }
 
 bool isConnected()

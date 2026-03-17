@@ -7,14 +7,15 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
+#include <time.h>
 
 namespace NtpTime {
     void init(const char* timezone);
     void check();                       // Main loop — first-sync detection only
     bool isSynced();
-    String timeStr(bool h24 = false);   // "10:42 AM" or "10:42"
-    String dateStr();                   // "Wed, Mar 5"
+    const char* timeStr(bool h24 = false);   // "10:42 AM" or "10:42"
+    const char* dateStr();                   // "Wed, Mar 5"
     time_t now();
     void setTimezone(const char* tz);
 

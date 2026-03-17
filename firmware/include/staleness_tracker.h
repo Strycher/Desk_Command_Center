@@ -4,7 +4,7 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
 
 enum class Freshness : uint8_t { FRESH, AGING, STALE, UNKNOWN };
 

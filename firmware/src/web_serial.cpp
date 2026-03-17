@@ -148,8 +148,9 @@ static void handleSerial() {
  * Tracks s_webReadPos across calls for a single-client model.
  */
 static void handleSerialData() {
-    String out = Logger::ringReadIncremental(s_webReadPos);
-    s_server.send(200, "text/plain", out);
+    static char buf[1025];
+    uint16_t len = Logger::ringReadIncremental(s_webReadPos, buf, sizeof(buf));
+    s_server.send(200, "text/plain", buf);
 }
 
 /**

@@ -4,6 +4,8 @@
  */
 
 #include "error_state.h"
+#include "hal/platform_hal.h"
+#include <cstring>
 
 static bool     s_wifiConnected    = false;
 static bool     s_bridgeReachable  = false;
@@ -39,7 +41,7 @@ void ErrorState::setBridgeReachable(bool reachable) {
 }
 
 void ErrorState::recordSuccess() {
-    s_lastSuccessMs   = millis();
+    s_lastSuccessMs   = hal::platform::uptimeMs();
     s_failureCount    = 0;
     s_bridgeReachable = true;
     s_lastError[0]    = '\0';
@@ -48,7 +50,7 @@ void ErrorState::recordSuccess() {
 void ErrorState::recordFailure(const char* reason) {
     s_failureCount++;
     s_bridgeReachable = false;
-    s_lastRetryMs     = millis();
+    s_lastRetryMs     = hal::platform::uptimeMs();
     if (reason) {
         strncpy(s_lastError, reason, sizeof(s_lastError) - 1);
         s_lastError[sizeof(s_lastError) - 1] = '\0';
@@ -91,7 +93,7 @@ void ErrorState::setCachedDataAvailable(bool available) {
 
 uint32_t ErrorState::secondsSinceLastSuccess() {
     if (s_lastSuccessMs == 0) return UINT32_MAX;
-    return (millis() - s_lastSuccessMs) / 1000;
+    return (hal::platform::uptimeMs() - s_lastSuccessMs) / 1000;
 }
 
 bool ErrorState::shouldRetry() {
@@ -104,5 +106,5 @@ bool ErrorState::shouldRetry() {
     }
     if (backoff > MAX_RETRY_MS) backoff = MAX_RETRY_MS;
 
-    return (millis() - s_lastRetryMs) >= backoff;
+    return (hal::platform::uptimeMs() - s_lastRetryMs) >= backoff;
 }

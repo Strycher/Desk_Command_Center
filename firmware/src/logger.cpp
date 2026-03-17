@@ -9,11 +9,25 @@
  */
 
 #include "logger.h"
+#include "hal/platform_hal.h"
 #include "sd_manager.h"
 #include "ntp_time.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <stdarg.h>
+#include <cstdio>
+
+/* Serial output — Arduino uses Serial.print, ESP-IDF uses printf (UART) */
+#if !defined(CROWPANEL_P4)
+#include <Arduino.h>
+#define LOG_SERIAL_PRINT(buf) Serial.print(buf)
+#define LOG_SERIAL_PRINTLN(msg) Serial.println(msg)
+#define LOG_SERIAL_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
+#else
+#define LOG_SERIAL_PRINT(buf) printf("%s", buf)
+#define LOG_SERIAL_PRINTLN(msg) printf("%s\n", msg)
+#define LOG_SERIAL_PRINTF(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#endif
 
 /* ═══════════════════════════════════════════════════════════
  *  Ring Buffer — 4KB SRAM, spinlock-protected
@@ -62,7 +76,7 @@ void Logger::init() {
 
 void Logger::initSDLog() {
     if (!SDManager::isMounted()) {
-        Serial.println("[LOG] SD not mounted — file logging disabled");
+        LOG_SERIAL_PRINTLN("[LOG] SD not mounted — file logging disabled");
         return;
     }
 
@@ -78,7 +92,7 @@ void Logger::initSDLog() {
                  ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday,
                  ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {
-        unsigned long s = millis() / 1000;
+        unsigned long s = hal::platform::uptimeMs() / 1000;
         snprintf(s_logFilename, sizeof(s_logFilename),
                  LOG_DIR "/serial_boot_%lu.log", s);
     }
@@ -89,21 +103,21 @@ void Logger::initSDLog() {
     /* Open log file for append (kept open for session) */
     s_logFile = SDManager::openAppend(s_logFilename);
     if (!s_logFile) {
-        Serial.printf("[LOG] Failed to open %s\n", s_logFilename);
+        LOG_SERIAL_PRINTF("[LOG] Failed to open %s\n", s_logFilename);
         return;
     }
 
     s_sdLogActive = true;
     s_sdBufPos = 0;
-    s_lastFlushMs = millis();
-    s_lastRotationMs = millis();
-    Serial.printf("[LOG] Logging to %s\n", s_logFilename);
+    s_lastFlushMs = hal::platform::uptimeMs();
+    s_lastRotationMs = hal::platform::uptimeMs();
+    LOG_SERIAL_PRINTF("[LOG] Logging to %s\n", s_logFilename);
 }
 
 void Logger::tick() {
     if (!s_sdLogActive) return;
 
-    uint32_t now = millis();
+    uint32_t now = hal::platform::uptimeMs();
 
     /* Flush SD buffer every 5 seconds */
     if (now - s_lastFlushMs >= FLUSH_INTERVAL_MS) {
@@ -156,7 +170,7 @@ void Logger::logPrintf(const char* fmt, ...) {
     }
 
     /* 3. USB Serial (ESP32 Arduino Serial is thread-safe) */
-    Serial.print(buf);
+    LOG_SERIAL_PRINT(buf);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -175,7 +189,7 @@ const char* Logger::timestamp() {
         snprintf(tsBuf[core], sizeof(tsBuf[core]), "[%02d:%02d:%02d] ",
                  ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {
-        unsigned long s = millis() / 1000;
+        unsigned long s = hal::platform::uptimeMs() / 1000;
         snprintf(tsBuf[core], sizeof(tsBuf[core]), "[%03lu:%02lu:%02lu] ",
                  s / 3600, (s % 3600) / 60, s % 60);
     }
@@ -193,9 +207,8 @@ uint16_t Logger::ringHead() {
     return h;
 }
 
-String Logger::ringReadIncremental(uint16_t& readPos) {
-    String out;
-    out.reserve(1024);
+uint16_t Logger::ringReadIncremental(uint16_t& readPos, char* buf, uint16_t bufLen) {
+    if (!buf || bufLen < 2) return 0;
 
     portENTER_CRITICAL(&s_ringMux);
 
@@ -210,19 +223,20 @@ String Logger::ringReadIncremental(uint16_t& readPos) {
         readPos = tail;
     }
 
-    /* Read available data (max ~1024 chars to avoid large responses) */
+    /* Read available data (max bufLen-1 chars) */
     uint16_t count = 0;
-    while (readPos != head && count < 1024) {
+    uint16_t maxRead = bufLen - 1;
+    while (readPos != head && count < maxRead) {
         char c = s_ring[readPos];
         readPos = (readPos + 1) % RING_SIZE;
         if (c != '\r') {       /* strip carriage returns */
-            out += c;
-            count++;
+            buf[count++] = c;
         }
     }
 
     portEXIT_CRITICAL(&s_ringMux);
-    return out;
+    buf[count] = '\0';
+    return count;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -235,7 +249,7 @@ void Logger::flushSD() {
         sdFlushInternal();
         xSemaphoreGive(s_sdMutex);
     }
-    s_lastFlushMs = millis();
+    s_lastFlushMs = hal::platform::uptimeMs();
 }
 
 /** Internal flush — must be called with s_sdMutex held. */
@@ -251,7 +265,7 @@ static void sdFlushInternal() {
                 s_logFile.write((uint8_t*)s_sdBuf, s_sdBufPos);
             } else {
                 s_sdLogActive = false;
-                Serial.println("[LOG] SD write failed — logging disabled");
+                LOG_SERIAL_PRINTLN("[LOG] SD write failed — logging disabled");
             }
         }
         s_logFile.flush();
@@ -317,7 +331,7 @@ static void sdRotate() {
                                   ? difftime(now, s_rotNewest) / 3600.0
                                   : 0;
     if (hoursSinceNewest >= (double)RETENTION_HOURS) {
-        Serial.printf("[LOG] Grace mode: last log %.0fh old, keeping all\n",
+        LOG_SERIAL_PRINTF("[LOG] Grace mode: last log %.0fh old, keeping all\n",
                       hoursSinceNewest);
         return;
     }
@@ -332,7 +346,7 @@ static void sdRotate() {
         }
     }
     if (deleted > 0) {
-        Serial.printf("[LOG] Rotation: deleted %d files older than %luh\n",
+        LOG_SERIAL_PRINTF("[LOG] Rotation: deleted %d files older than %luh\n",
                       deleted, (unsigned long)RETENTION_HOURS);
     }
 }

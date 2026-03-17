@@ -13,7 +13,7 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
 #include <ArduinoJson.h>
 
 enum class FetchState : uint8_t { IDLE, FETCHING, SUCCESS, ERROR };
@@ -24,7 +24,7 @@ namespace DataService {
     void init(const char* bridgeUrl, uint16_t pollIntervalSec,
               const char* deviceKey = nullptr);
 
-    /** Return 12-char hex chip ID (from ESP.getEfuseMac()). Available after init(). */
+    /** Return 12-char hex chip ID (from eFuse MAC). Available after init(). */
     const char* chipId();
 
     /** Launch background FreeRTOS task on Core 0. Call once from setup(). */
@@ -40,6 +40,6 @@ namespace DataService {
     FetchState state();
     JsonDocument& data();
     uint32_t lastFetchMs();
-    String lastError();
+    const char* lastError();
     void onData(DataCallback cb);
 }

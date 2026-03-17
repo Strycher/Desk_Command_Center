@@ -1,10 +1,11 @@
 /**
  * WiFi Manager — Multi-SSID with auto-reconnect and backoff.
  * Non-blocking: call check() from loop().
+ * Uses hal::network for platform-independent WiFi operations.
  */
 
 #pragma once
-#include <WiFi.h>
+#include <stdint.h>
 #include "config_store.h"
 
 enum class WifiState : uint8_t {
@@ -19,6 +20,6 @@ namespace WifiManager {
     void check();
     WifiState state();
     int8_t rssi();
-    String ip();
-    String ssid();
+    const char* ip();
+    const char* ssid();
 }

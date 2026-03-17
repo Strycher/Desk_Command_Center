@@ -4,6 +4,7 @@
  */
 
 #include "dashboard_data.h"
+#include "hal/platform_hal.h"
 #include <ArduinoJson.h>
 #include "logger.h"
 
@@ -111,7 +112,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
     /* No memset — preserve stale data for sources the bridge omits.
      * Each source section fully overwrites its block when present,
      * or sets status = MISSING when absent. */
-    out.last_updated_ms = millis();
+    out.last_updated_ms = hal::platform::uptimeMs();
 
     JsonObjectConst sources = doc["sources"];
     if (sources.isNull()) {

@@ -1,9 +1,10 @@
 /**
  * Staleness Tracker — Implementation
- * Uses millis() for timing. Sources start as UNKNOWN until first update.
+ * Uses hal::platform::uptimeMs() for timing. Sources start as UNKNOWN until first update.
  */
 
 #include "staleness_tracker.h"
+#include "hal/platform_hal.h"
 
 static uint32_t s_lastUpdated[static_cast<uint8_t>(DataSource::_COUNT)];
 static bool     s_hasData[static_cast<uint8_t>(DataSource::_COUNT)];
@@ -21,7 +22,7 @@ void StalenessTracker::init(uint32_t aging_ms, uint32_t stale_ms) {
 
 void StalenessTracker::markUpdated(DataSource source) {
     uint8_t idx = static_cast<uint8_t>(source);
-    s_lastUpdated[idx] = millis();
+    s_lastUpdated[idx] = hal::platform::uptimeMs();
     s_hasData[idx] = true;
 }
 
@@ -29,7 +30,7 @@ Freshness StalenessTracker::getFreshness(DataSource source) {
     uint8_t idx = static_cast<uint8_t>(source);
     if (!s_hasData[idx]) return Freshness::UNKNOWN;
 
-    uint32_t age = millis() - s_lastUpdated[idx];
+    uint32_t age = hal::platform::uptimeMs() - s_lastUpdated[idx];
     if (age >= s_staleMs) return Freshness::STALE;
     if (age >= s_agingMs) return Freshness::AGING;
     return Freshness::FRESH;
@@ -38,7 +39,7 @@ Freshness StalenessTracker::getFreshness(DataSource source) {
 uint32_t StalenessTracker::getAge(DataSource source) {
     uint8_t idx = static_cast<uint8_t>(source);
     if (!s_hasData[idx]) return UINT32_MAX;
-    return millis() - s_lastUpdated[idx];
+    return hal::platform::uptimeMs() - s_lastUpdated[idx];
 }
 
 bool StalenessTracker::anyStale() {

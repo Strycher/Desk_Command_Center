@@ -11,7 +11,7 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
 
 /* ── Log level constants ── */
 #define LOG_LEVEL_NONE  0
@@ -47,8 +47,9 @@ namespace Logger {
 
     /* ── Ring buffer access (for WebSerial) ── */
 
-    /** Read new data since readPos. Updates readPos. Max 1024 chars. */
-    String ringReadIncremental(uint16_t& readPos);
+    /** Read new data since readPos into buf (up to bufLen-1 chars).
+     *  Updates readPos. Returns bytes written (excluding null). */
+    uint16_t ringReadIncremental(uint16_t& readPos, char* buf, uint16_t bufLen);
 
     /** Current ring head position (init a new web client's readPos). */
     uint16_t ringHead();

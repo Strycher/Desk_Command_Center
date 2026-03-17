@@ -12,21 +12,26 @@
  */
 
 #include "data_service.h"
+#include "hal/network_hal.h"
+#include "hal/platform_hal.h"
 #include "logger.h"
 #include "ntp_time.h"
 #include "ha_command.h"
-#include <HTTPClient.h>
-#include <WiFi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <cstring>
+#include <cstdio>
+#include <esp_heap_caps.h>
 
 /* --- PSRAM allocator for ArduinoJson --- */
 struct SpiRamAllocator : ArduinoJson::Allocator {
-    void* allocate(size_t size) override { return ps_malloc(size); }
+    void* allocate(size_t size) override {
+        return heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+    }
     void deallocate(void* ptr) override { free(ptr); }
     void* reallocate(void* ptr, size_t new_size) override {
-        return ps_realloc(ptr, new_size);
+        return heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM);
     }
 };
 
@@ -41,7 +46,7 @@ static char         _deviceKey[48] = {}; // pre-shared auth token
 
 /* --- State (written by net task, read by main loop) --- */
 static volatile FetchState _state = FetchState::IDLE;
-static String       _lastError;
+static char         _lastError[64] = {};
 static uint32_t     _lastSuccessMs = 0;
 static DataCallback _callback = nullptr;
 static volatile bool _forcePoll = false;
@@ -57,57 +62,64 @@ static constexpr BaseType_t NET_TASK_CORE = 0;
 static constexpr TickType_t MUTEX_WAIT = pdMS_TO_TICKS(50);
 
 /* --- HTTP timeout (covers connect + response, but not DNS) --- */
-static constexpr int HTTP_TIMEOUT_MS = 8000;
+static constexpr uint32_t HTTP_TIMEOUT_MS = 8000;
 
 /**
  * Perform one HTTP GET + JSON parse cycle.
  * Runs on Core 0 — allowed to block.
  */
 static void doFetch() {
-    if (WiFi.status() != WL_CONNECTED) {
+    if (!hal::network::isConnected()) {
         _state = FetchState::ERROR;
-        _lastError = "WiFi not connected";
+        snprintf(_lastError, sizeof(_lastError), "WiFi not connected");
         return;
     }
 
     _state = FetchState::FETCHING;
-    HTTPClient http;
 
-    String url = String("http://") + _url + "/api/dashboard";
-    LOG_INFO("DATA: [Core %d] fetching %s", xPortGetCoreID(), url.c_str());
+    /* Build URL */
+    char fullUrl[384];
+    snprintf(fullUrl, sizeof(fullUrl), "http://%s/api/dashboard", _url);
+    LOG_INFO("DATA: [Core %d] fetching %s", xPortGetCoreID(), fullUrl);
 
-    http.begin(url);
-    http.setTimeout(HTTP_TIMEOUT_MS);
-    http.setConnectTimeout(HTTP_TIMEOUT_MS);
+    /* Build headers */
+    const char* hdrs[4] = {};
+    char idHdr[64] = {};
+    char keyHdr[96] = {};
+    int hIdx = 0;
+
     if (_chipId[0] != '\0') {
-        http.addHeader("X-Device-ID", _chipId);
+        snprintf(idHdr, sizeof(idHdr), "X-Device-ID: %s", _chipId);
+        hdrs[hIdx++] = idHdr;
     }
     if (_deviceKey[0] != '\0') {
-        http.addHeader("X-Device-Key", _deviceKey);
+        snprintf(keyHdr, sizeof(keyHdr), "X-Device-Key: %s", _deviceKey);
+        hdrs[hIdx++] = keyHdr;
     }
-    int code = http.GET();
+    hdrs[hIdx] = nullptr;
 
-    if (code == HTTP_CODE_OK) {
-        String payload = http.getString();
+    hal::network::HttpResponse resp = hal::network::httpGet(
+        fullUrl, hIdx > 0 ? hdrs : nullptr, HTTP_TIMEOUT_MS);
 
+    if (resp.status == 200 && resp.body) {
         /* Lock mutex to write to shared _doc */
         if (xSemaphoreTake(_dataMutex, MUTEX_WAIT) == pdTRUE) {
             _doc.clear();
-            DeserializationError err = deserializeJson(_doc, payload);
+            DeserializationError err = deserializeJson(_doc, resp.body, resp.bodyLen);
 
             if (err) {
                 xSemaphoreGive(_dataMutex);
                 _state = FetchState::ERROR;
-                _lastError = String("JSON: ") + err.c_str();
+                snprintf(_lastError, sizeof(_lastError), "JSON: %s", err.c_str());
                 LOG_ERROR("DATA: parse error — %s", err.c_str());
             } else {
                 _state = FetchState::SUCCESS;
-                _lastSuccessMs = millis();
-                _lastError = "";
+                _lastSuccessMs = hal::platform::uptimeMs();
+                _lastError[0] = '\0';
                 _dataReady = true;  /* Signal main loop */
                 xSemaphoreGive(_dataMutex);
-                LOG_INFO("DATA: OK — %d bytes, %d keys",
-                         payload.length(), _doc.size());
+                LOG_INFO("DATA: OK — %lu bytes, %d keys",
+                         (unsigned long)resp.bodyLen, _doc.size());
             }
         } else {
             /* Couldn't acquire mutex — skip this cycle */
@@ -115,11 +127,15 @@ static void doFetch() {
         }
     } else {
         _state = FetchState::ERROR;
-        _lastError = String("HTTP ") + String(code);
-        LOG_ERROR("DATA: HTTP error %d", code);
+        if (resp.error[0] != '\0') {
+            snprintf(_lastError, sizeof(_lastError), "%s", resp.error);
+        } else {
+            snprintf(_lastError, sizeof(_lastError), "HTTP %d", resp.status);
+        }
+        LOG_ERROR("DATA: %s", _lastError);
     }
 
-    http.end();
+    hal::network::httpResponseFree(&resp);
 }
 
 /**
@@ -140,7 +156,7 @@ static void networkTask(void* param) {
         HACommand::processQueue();
 
         LOG_DEBUG("DATA: heap=%lu PSRAM=%lu",
-                  ESP.getFreeHeap(), ESP.getFreePsram());
+                  hal::platform::heapFree(), hal::platform::psramFree());
 
         uint32_t sleepMs = _intervalMs;
         if (_forcePoll) {
@@ -175,10 +191,8 @@ void DataService::init(const char* bridgeUrl, uint16_t pollIntervalSec,
     _intervalMs = (uint32_t)pollIntervalSec * 1000;
     _dataMutex = xSemaphoreCreateMutex();
 
-    // Read chip ID from eFuse MAC (6 bytes → 12 hex chars)
-    uint64_t mac = ESP.getEfuseMac();
-    snprintf(_chipId, sizeof(_chipId), "%04X%08X",
-             (uint16_t)(mac >> 32), (uint32_t)mac);
+    /* Use chip ID from network HAL (populated during hal::network::init()) */
+    strncpy(_chipId, hal::network::chipId(), sizeof(_chipId) - 1);
 
     if (deviceKey && deviceKey[0] != '\0') {
         strncpy(_deviceKey, deviceKey, sizeof(_deviceKey) - 1);
@@ -228,6 +242,6 @@ JsonDocument& DataService::data() { return _doc; }
 
 uint32_t DataService::lastFetchMs() { return _lastSuccessMs; }
 
-String DataService::lastError() { return _lastError; }
+const char* DataService::lastError() { return _lastError; }
 
 void DataService::onData(DataCallback cb) { _callback = cb; }
