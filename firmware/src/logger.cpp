@@ -53,10 +53,13 @@ static char              s_sdBuf[SD_BUF_SIZE];
 static uint16_t          s_sdBufPos       = 0;
 static bool              s_sdLogActive    = false;
 static char              s_logFilename[48];    /* "/logs/serial_YYYYMMDD_HHMMSS.log" */
-static File              s_logFile;            /* kept open for session */
 static SemaphoreHandle_t s_sdMutex        = nullptr;
 static uint32_t          s_lastFlushMs    = 0;
 static uint32_t          s_lastRotationMs = 0;
+
+#if !defined(CROWPANEL_P4)
+static File              s_logFile;            /* kept open for session — S3 only */
+#endif
 
 /* Forward declarations (internal) */
 static void sdFlushInternal();
@@ -75,6 +78,7 @@ void Logger::init() {
 }
 
 void Logger::initSDLog() {
+#if !defined(CROWPANEL_P4)
     if (!SDManager::isMounted()) {
         LOG_SERIAL_PRINTLN("[LOG] SD not mounted — file logging disabled");
         return;
@@ -112,6 +116,7 @@ void Logger::initSDLog() {
     s_lastFlushMs = hal::platform::uptimeMs();
     s_lastRotationMs = hal::platform::uptimeMs();
     LOG_SERIAL_PRINTF("[LOG] Logging to %s\n", s_logFilename);
+#endif  /* !CROWPANEL_P4 */
 }
 
 void Logger::tick() {
@@ -252,13 +257,15 @@ void Logger::flushSD() {
     s_lastFlushMs = hal::platform::uptimeMs();
 }
 
+/* SD file I/O + rotation — S3 only (needs File, SD.h) */
+#if !defined(CROWPANEL_P4)
+
 /** Internal flush — must be called with s_sdMutex held. */
 static void sdFlushInternal() {
     if (s_sdBufPos == 0) return;
     if (s_logFile) {
         size_t written = s_logFile.write((uint8_t*)s_sdBuf, s_sdBufPos);
         if (written != (size_t)s_sdBufPos) {
-            /* Write failure — reopen and retry once */
             s_logFile.close();
             s_logFile = SDManager::openAppend(s_logFilename);
             if (s_logFile) {
@@ -273,7 +280,7 @@ static void sdFlushInternal() {
     s_sdBufPos = 0;
 }
 
-/* ── Rotation scratch space (file-static so captureless lambda can access) ── */
+/* ── Rotation scratch space ── */
 struct RotEntry {
     char name[48];
     time_t ts;
@@ -315,7 +322,6 @@ static void sdRotate() {
     if (!SDManager::isMounted()) return;
     if (!SDManager::exists(LOG_DIR)) return;
 
-    /* Collect log file timestamps */
     s_rotCount  = 0;
     s_rotNewest = 0;
 
@@ -326,7 +332,6 @@ static void sdRotate() {
 
     if (s_rotCount == 0) return;
 
-    /* Grace mode: if newest log is very old, keep all files */
     double hoursSinceNewest = (s_rotNewest > 0)
                                   ? difftime(now, s_rotNewest) / 3600.0
                                   : 0;
@@ -336,7 +341,6 @@ static void sdRotate() {
         return;
     }
 
-    /* Normal mode: delete files older than RETENTION_HOURS */
     time_t cutoff = now - ((time_t)RETENTION_HOURS * 3600);
     int deleted = 0;
     for (int i = 0; i < s_rotCount; i++) {
@@ -350,3 +354,11 @@ static void sdRotate() {
                       deleted, (unsigned long)RETENTION_HOURS);
     }
 }
+
+#else  /* CROWPANEL_P4 */
+
+/* P4: No SD card — stubs */
+static void sdFlushInternal() { s_sdBufPos = 0; }
+static void sdRotate() {}
+
+#endif  /* !CROWPANEL_P4 */
