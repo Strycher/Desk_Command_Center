@@ -188,7 +188,7 @@ void WifiSettingsScreen::create(lv_obj_t* parent) {
 void WifiSettingsScreen::rebuildNetworkList() {
     lv_obj_clean(_networkList);
 
-    String currentSSID = WifiManager::ssid();
+    const char* currentSSID = WifiManager::ssid();
     bool isConnected = (WifiManager::state() == WifiState::CONNECTED);
 
     if (_cfg.wifi_count == 0) {
@@ -219,7 +219,7 @@ void WifiSettingsScreen::rebuildNetworkList() {
         lv_label_set_text(lblIcon, LV_SYMBOL_WIFI);
 
         bool active = isConnected &&
-                      strcmp(_cfg.wifi[i].ssid, currentSSID.c_str()) == 0;
+                      strcmp(_cfg.wifi[i].ssid, currentSSID) == 0;
         lv_obj_set_style_text_color(lblIcon,
             active ? CONNECTED_CLR : TEXT_SECONDARY, 0);
 

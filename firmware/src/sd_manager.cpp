@@ -1,8 +1,10 @@
 /**
- * SD Card Manager — Implementation
+ * SD Card Manager — Implementation (S3 only)
  * SPI mode on GPIO 4 (CS), 5 (MOSI), 6 (MISO), 7 (CLK).
  * Note: pin assignment from CrowPanel schematic — verify with hardware.
  */
+
+#if !defined(CROWPANEL_P4)
 
 #include "sd_manager.h"
 #include <SD.h>
@@ -152,3 +154,5 @@ void SDManager::listDir(const char* path,
     }
     dir.close();
 }
+
+#endif  // !CROWPANEL_P4

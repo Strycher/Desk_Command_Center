@@ -1,9 +1,11 @@
 /**
- * Web Serial Monitor — Implementation
+ * Web Serial Monitor — Implementation (S3 only)
  *
  * Adapted from Field Compass web serial monitor for DCC.
  * HTML stored as PROGMEM to save ~3KB SRAM on ESP32-S3.
  */
+
+#if !defined(CROWPANEL_P4)
 
 #include "web_serial.h"
 #include "logger.h"
@@ -296,3 +298,5 @@ void WebSerial::handleClient() {
 bool WebSerial::isRunning() {
     return s_started;
 }
+
+#endif  // !CROWPANEL_P4
