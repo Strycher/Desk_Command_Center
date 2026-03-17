@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/diagnostics_screen.h"
+#include "ui/ui_scale.h"
 #include "hal/platform_hal.h"
 #include "wifi_manager.h"
 #include "data_service.h"
@@ -19,8 +20,7 @@ static const lv_color_t GOOD           = lv_color_hex(0x44BB44);
 static const lv_color_t WARN           = lv_color_hex(0xFFAA00);
 static const lv_color_t BAD            = lv_color_hex(0xFF4444);
 
-static constexpr int16_t CONTENT_Y = 30;
-static constexpr int16_t PAD       = 10;
+/* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
 
 #define FW_VERSION "0.2.0-dev"
 
@@ -31,9 +31,9 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
     lv_obj_set_size(card, w, h);
     lv_obj_set_style_bg_color(card, CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 12, 0);
+    lv_obj_set_style_radius(card, SU(12), 0);
     lv_obj_set_style_border_width(card, 0, 0);
-    lv_obj_set_style_pad_all(card, 12, 0);
+    lv_obj_set_style_pad_all(card, SU(12), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     return card;
 }
@@ -48,7 +48,7 @@ static lv_obj_t* addRow(lv_obj_t* parent, const char* label, int16_t y) {
     lv_obj_t* val = lv_label_create(parent);
     lv_obj_set_style_text_font(val, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(val, TEXT_PRIMARY, 0);
-    lv_obj_align(val, LV_ALIGN_TOP_LEFT, 140, y);
+    lv_obj_align(val, LV_ALIGN_TOP_LEFT, SX(140), y);
     lv_label_set_text(val, "--");
     return val;
 }
@@ -67,11 +67,12 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     lv_obj_t* header = lv_label_create(_screen);
     lv_obj_set_style_text_font(header, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(header, TEXT_SECONDARY, 0);
-    lv_obj_set_pos(header, PAD + 4, CONTENT_Y + 8);
+    lv_obj_set_pos(header, UI_PAD + SX(4), UI_CONTENT_Y + SY(8));
     lv_label_set_text(header, LV_SYMBOL_SETTINGS " Diagnostics");
 
     /* === System Card (left) === */
-    lv_obj_t* sysCard = makeCard(_screen, PAD, CONTENT_Y + 35, 380, 228);
+    lv_obj_t* sysCard = makeCard(_screen, UI_PAD, UI_CONTENT_Y + SY(35),
+                                    SX(380), SY(228));
 
     lv_obj_t* sysHdr = lv_label_create(sysCard);
     lv_label_set_text(sysHdr, "System");
@@ -79,15 +80,16 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_color(sysHdr, TEXT_PRIMARY, 0);
     lv_obj_align(sysHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblDevName = addRow(sysCard, "Device:", 28);
-    _lblChipId  = addRow(sysCard, "Chip ID:", 52);
-    _lblVersion = addRow(sysCard, "FW Version:", 76);
-    _lblHeap    = addRow(sysCard, "Free Heap:", 100);
-    _lblPSRAM   = addRow(sysCard, "Free PSRAM:", 124);
-    _lblUptime  = addRow(sysCard, "Uptime:", 148);
+    _lblDevName = addRow(sysCard, "Device:", SY(28));
+    _lblChipId  = addRow(sysCard, "Chip ID:", SY(52));
+    _lblVersion = addRow(sysCard, "FW Version:", SY(76));
+    _lblHeap    = addRow(sysCard, "Free Heap:", SY(100));
+    _lblPSRAM   = addRow(sysCard, "Free PSRAM:", SY(124));
+    _lblUptime  = addRow(sysCard, "Uptime:", SY(148));
 
     /* === WiFi Card (right) === */
-    lv_obj_t* wifiCard = makeCard(_screen, 400, CONTENT_Y + 35, 390, 228);
+    lv_obj_t* wifiCard = makeCard(_screen, SX(400), UI_CONTENT_Y + SY(35),
+                                     SX(390), SY(228));
 
     lv_obj_t* wifiHdr = lv_label_create(wifiCard);
     lv_label_set_text(wifiHdr, "WiFi");
@@ -95,12 +97,13 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_color(wifiHdr, TEXT_PRIMARY, 0);
     lv_obj_align(wifiHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblWifiSSID = addRow(wifiCard, "SSID:", 28);
-    _lblWifiIP   = addRow(wifiCard, "IP:", 52);
-    _lblWifiRSSI = addRow(wifiCard, "RSSI:", 76);
+    _lblWifiSSID = addRow(wifiCard, "SSID:", SY(28));
+    _lblWifiIP   = addRow(wifiCard, "IP:", SY(52));
+    _lblWifiRSSI = addRow(wifiCard, "RSSI:", SY(76));
 
     /* === Data Service Card (bottom) === */
-    lv_obj_t* dataCard = makeCard(_screen, PAD, CONTENT_Y + 278, 780, 120);
+    lv_obj_t* dataCard = makeCard(_screen, UI_PAD, UI_CONTENT_Y + SY(278),
+                                     UI_CONTENT_W, SY(120));
 
     lv_obj_t* dataHdr = lv_label_create(dataCard);
     lv_label_set_text(dataHdr, "Bridge Data Service");
@@ -108,8 +111,8 @@ void DiagnosticsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_color(dataHdr, TEXT_PRIMARY, 0);
     lv_obj_align(dataHdr, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblLastFetch = addRow(dataCard, "Last Fetch:", 28);
-    _lblFetchErr  = addRow(dataCard, "Last Error:", 52);
+    _lblLastFetch = addRow(dataCard, "Last Fetch:", SY(28));
+    _lblFetchErr  = addRow(dataCard, "Last Error:", SY(52));
 
     /* Auto-refresh timer (2s, paused until shown) */
     _refreshTimer = lv_timer_create(onRefreshTimer, 2000, this);

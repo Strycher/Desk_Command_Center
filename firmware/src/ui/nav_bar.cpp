@@ -1,17 +1,15 @@
 /**
  * Navigation Bar — Implementation
- * 800 x 50px bottom bar with 8 icons. "More" opens submenu.
+ * Bottom bar with 8 icons. Scales via ui_scale.h. "More" opens submenu.
  */
 
 #include "ui/nav_bar.h"
+#include "ui/ui_scale.h"
 #include "logger.h"
 
 static const lv_color_t BAR_BG      = lv_color_hex(0x1a1a2e);
 static const lv_color_t ICON_NORMAL  = lv_color_hex(0x888899);
 static const lv_color_t ICON_ACTIVE  = lv_color_hex(0x6C63FF);
-
-static constexpr int16_t BAR_HEIGHT  = 50;
-static constexpr int16_t BTN_WIDTH   = 100;
 static constexpr uint8_t NUM_MAIN    = 8;
 
 struct NavItem {
@@ -74,22 +72,22 @@ static void showMoreMenu() {
 
     lv_obj_t* layer = lv_layer_top();
     moreMenu = lv_obj_create(layer);
-    lv_obj_set_size(moreMenu, 160, MORE_COUNT * 40 + 10);
-    lv_obj_align(moreMenu, LV_ALIGN_BOTTOM_RIGHT, 0, -(BAR_HEIGHT + 5));
+    lv_obj_set_size(moreMenu, SX(160), MORE_COUNT * SY(40) + SU(10));
+    lv_obj_align(moreMenu, LV_ALIGN_BOTTOM_RIGHT, 0, -(UI_NAV_BAR_H + SU(5)));
     lv_obj_set_style_bg_color(moreMenu, lv_color_hex(0x252540), 0);
     lv_obj_set_style_bg_opa(moreMenu, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(moreMenu, 8, 0);
     lv_obj_set_style_border_width(moreMenu, 0, 0);
-    lv_obj_set_style_pad_all(moreMenu, 5, 0);
+    lv_obj_set_style_pad_all(moreMenu, SU(5), 0);
     lv_obj_set_flex_flow(moreMenu, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(moreMenu, 2, 0);
 
     for (uint8_t i = 0; i < MORE_COUNT; i++) {
         lv_obj_t* btn = lv_btn_create(moreMenu);
-        lv_obj_set_size(btn, 145, 36);
+        lv_obj_set_size(btn, SX(145), SY(36));
         lv_obj_set_style_bg_color(btn, lv_color_hex(0x33335a), 0);
         lv_obj_set_style_bg_color(btn, lv_color_hex(0x4444aa), LV_STATE_PRESSED);
-        lv_obj_set_style_radius(btn, 6, 0);
+        lv_obj_set_style_radius(btn, SU(6), 0);
 
         lv_obj_t* lbl = lv_label_create(btn);
         lv_label_set_text(lbl, moreItems[i].label);
@@ -116,7 +114,7 @@ void NavBar::create() {
     lv_obj_t* layer = lv_layer_top();
 
     bar = lv_obj_create(layer);
-    lv_obj_set_size(bar, 800, BAR_HEIGHT);
+    lv_obj_set_size(bar, LCD_H_RES, UI_NAV_BAR_H);
     lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(bar, BAR_BG, 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
@@ -129,11 +127,12 @@ void NavBar::create() {
 
     for (uint8_t i = 0; i < NUM_MAIN; i++) {
         lv_obj_t* btn = lv_btn_create(bar);
-        lv_obj_set_size(btn, BTN_WIDTH - 10, BAR_HEIGHT - 6);
+        int16_t btnW = LCD_H_RES / NUM_MAIN - SU(10);
+        lv_obj_set_size(btn, btnW, UI_NAV_BAR_H - SU(6));
         lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
         lv_obj_set_style_bg_color(btn, ICON_ACTIVE, LV_STATE_PRESSED);
         lv_obj_set_style_bg_opa(btn, LV_OPA_30, LV_STATE_PRESSED);
-        lv_obj_set_style_radius(btn, 8, 0);
+        lv_obj_set_style_radius(btn, SU(8), 0);
         lv_obj_set_style_shadow_width(btn, 0, 0);
 
         lv_obj_t* icon = lv_label_create(btn);

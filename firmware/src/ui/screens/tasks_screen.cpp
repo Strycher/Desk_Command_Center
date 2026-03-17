@@ -4,6 +4,7 @@
  */
 
 #include "ui/screens/tasks_screen.h"
+#include "ui/ui_scale.h"
 #include "ui/task_priority.h"
 #include "logger.h"
 
@@ -15,7 +16,7 @@ static const lv_color_t ACCENT         = lv_color_hex(0x6C63FF);
 static const lv_color_t BTN_BG        = lv_color_hex(0x252540);
 static const lv_color_t COMPLETED_CLR = lv_color_hex(0x336633);
 
-static constexpr int16_t CONTENT_Y = 30;
+/* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
 
 /* --- Tab button callbacks --- */
 
@@ -55,18 +56,18 @@ void TasksScreen::create(lv_obj_t* parent) {
 
     /* Tab bar */
     lv_obj_t* tabBar = lv_obj_create(_screen);
-    lv_obj_set_size(tabBar, 780, 40);
-    lv_obj_set_pos(tabBar, 10, CONTENT_Y + 5);
+    lv_obj_set_size(tabBar, UI_CONTENT_W, SY(40));
+    lv_obj_set_pos(tabBar, UI_PAD, UI_CONTENT_Y + SY(5));
     lv_obj_set_style_bg_opa(tabBar, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(tabBar, 0, 0);
     lv_obj_set_style_pad_all(tabBar, 0, 0);
     lv_obj_clear_flag(tabBar, LV_OBJ_FLAG_SCROLLABLE);
 
     _btnAll = lv_btn_create(tabBar);
-    lv_obj_set_size(_btnAll, 90, 34);
+    lv_obj_set_size(_btnAll, SX(90), SY(34));
     lv_obj_align(_btnAll, LV_ALIGN_LEFT_MID, 0, 0);
     lv_obj_set_style_bg_color(_btnAll, ACCENT, 0);
-    lv_obj_set_style_radius(_btnAll, 8, 0);
+    lv_obj_set_style_radius(_btnAll, SU(8), 0);
     lv_obj_t* lblAll = lv_label_create(_btnAll);
     lv_label_set_text(lblAll, "All");
     lv_obj_set_style_text_color(lblAll, TEXT_PRIMARY, 0);
@@ -74,10 +75,10 @@ void TasksScreen::create(lv_obj_t* parent) {
     lv_obj_add_event_cb(_btnAll, onTabAll, LV_EVENT_CLICKED, this);
 
     _btnUnfocused = lv_btn_create(tabBar);
-    lv_obj_set_size(_btnUnfocused, 120, 34);
-    lv_obj_align(_btnUnfocused, LV_ALIGN_LEFT_MID, 100, 0);
+    lv_obj_set_size(_btnUnfocused, SX(120), SY(34));
+    lv_obj_align(_btnUnfocused, LV_ALIGN_LEFT_MID, SX(100), 0);
     lv_obj_set_style_bg_color(_btnUnfocused, BTN_BG, 0);
-    lv_obj_set_style_radius(_btnUnfocused, 8, 0);
+    lv_obj_set_style_radius(_btnUnfocused, SU(8), 0);
     lv_obj_t* lblUF = lv_label_create(_btnUnfocused);
     lv_label_set_text(lblUF, "Unfocused");
     lv_obj_set_style_text_color(lblUF, TEXT_PRIMARY, 0);
@@ -85,10 +86,10 @@ void TasksScreen::create(lv_obj_t* parent) {
     lv_obj_add_event_cb(_btnUnfocused, onTabUnfocused, LV_EVENT_CLICKED, this);
 
     _btnMonday = lv_btn_create(tabBar);
-    lv_obj_set_size(_btnMonday, 120, 34);
-    lv_obj_align(_btnMonday, LV_ALIGN_LEFT_MID, 230, 0);
+    lv_obj_set_size(_btnMonday, SX(120), SY(34));
+    lv_obj_align(_btnMonday, LV_ALIGN_LEFT_MID, SX(230), 0);
     lv_obj_set_style_bg_color(_btnMonday, BTN_BG, 0);
-    lv_obj_set_style_radius(_btnMonday, 8, 0);
+    lv_obj_set_style_radius(_btnMonday, SU(8), 0);
     lv_obj_t* lblMO = lv_label_create(_btnMonday);
     lv_label_set_text(lblMO, "Monday");
     lv_obj_set_style_text_color(lblMO, TEXT_PRIMARY, 0);
@@ -97,12 +98,12 @@ void TasksScreen::create(lv_obj_t* parent) {
 
     /* Scrollable task list */
     _taskList = lv_obj_create(_screen);
-    lv_obj_set_size(_taskList, 780, 340);
-    lv_obj_set_pos(_taskList, 10, CONTENT_Y + 50);
+    lv_obj_set_size(_taskList, UI_CONTENT_W, SY(340));
+    lv_obj_set_pos(_taskList, UI_PAD, UI_CONTENT_Y + SY(50));
     lv_obj_set_style_bg_opa(_taskList, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_taskList, 0, 0);
     lv_obj_set_style_pad_all(_taskList, 0, 0);
-    lv_obj_set_style_pad_row(_taskList, 6, 0);
+    lv_obj_set_style_pad_row(_taskList, SU(6), 0);
     lv_obj_set_flex_flow(_taskList, LV_FLEX_FLOW_COLUMN);
 
     /* Initial empty state */
@@ -110,7 +111,7 @@ void TasksScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_font(_lblEmpty, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_lblEmpty, TEXT_SECONDARY, 0);
     lv_label_set_text(_lblEmpty, "No tasks");
-    lv_obj_set_width(_lblEmpty, 780);
+    lv_obj_set_width(_lblEmpty, UI_CONTENT_W);
     lv_obj_set_style_text_align(_lblEmpty, LV_TEXT_ALIGN_CENTER, 0);
 
     LOG_INFO("TASKS: screen created");
@@ -122,13 +123,13 @@ void TasksScreen::addTaskCard(const char* title, const char* due,
                                const char* priority, const char* source,
                                bool completed) {
     lv_obj_t* card = lv_obj_create(_taskList);
-    lv_obj_set_size(card, 760, LV_SIZE_CONTENT);
-    lv_obj_set_style_min_height(card, 50, 0);
+    lv_obj_set_size(card, UI_CONTENT_W - 2 * UI_PAD, LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(card, SY(50), 0);
     lv_obj_set_style_bg_color(card, completed ? COMPLETED_CLR : CARD_BG, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 10, 0);
+    lv_obj_set_style_radius(card, SU(10), 0);
     lv_obj_set_style_border_width(card, 0, 0);
-    lv_obj_set_style_pad_all(card, 10, 0);
+    lv_obj_set_style_pad_all(card, SU(10), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     /* Priority stripe */
@@ -139,15 +140,15 @@ void TasksScreen::addTaskCard(const char* title, const char* due,
     lv_obj_align(stripe, LV_ALIGN_LEFT_MID, -6, 0);
     lv_obj_set_style_bg_color(stripe, stripeColor, 0);
     lv_obj_set_style_bg_opa(stripe, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(stripe, 2, 0);
+    lv_obj_set_style_radius(stripe, SU(2), 0);
     lv_obj_set_style_border_width(stripe, 0, 0);
 
     /* Title */
     lv_obj_t* lblTitle = lv_label_create(card);
     lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblTitle, TEXT_PRIMARY, 0);
-    lv_obj_align(lblTitle, LV_ALIGN_TOP_LEFT, 6, 0);
-    lv_obj_set_width(lblTitle, 580);
+    lv_obj_align(lblTitle, LV_ALIGN_TOP_LEFT, SX(6), 0);
+    lv_obj_set_width(lblTitle, SX(580));
     lv_label_set_long_mode(lblTitle, LV_LABEL_LONG_WRAP);
     lv_label_set_text(lblTitle, title);
 
@@ -160,7 +161,7 @@ void TasksScreen::addTaskCard(const char* title, const char* due,
     lv_obj_t* lblSource = lv_label_create(card);
     lv_obj_set_style_text_font(lblSource, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lblSource, TEXT_SECONDARY, 0);
-    lv_obj_align(lblSource, LV_ALIGN_TOP_RIGHT, -6, 0);
+    lv_obj_align(lblSource, LV_ALIGN_TOP_RIGHT, SX(-6), 0);
     lv_label_set_text(lblSource, source);
 
     /* Due date (if present) */
@@ -168,7 +169,7 @@ void TasksScreen::addTaskCard(const char* title, const char* due,
         lv_obj_t* lblDue = lv_label_create(card);
         lv_obj_set_style_text_font(lblDue, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lblDue, TEXT_SECONDARY, 0);
-        lv_obj_align(lblDue, LV_ALIGN_TOP_LEFT, 6, 22);
+        lv_obj_align(lblDue, LV_ALIGN_TOP_LEFT, SX(6), SY(22));
         char dueBuf[48];
         snprintf(dueBuf, sizeof(dueBuf), "Due: %s", due);
         lv_label_set_text(lblDue, dueBuf);
@@ -245,9 +246,9 @@ void TasksScreen::rebuildTaskList() {
         _lblEmpty = lv_label_create(_taskList);
         lv_obj_set_style_text_font(_lblEmpty, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(_lblEmpty, TEXT_SECONDARY, 0);
-        lv_obj_set_width(_lblEmpty, 760);
+        lv_obj_set_width(_lblEmpty, UI_CONTENT_W - 2 * UI_PAD);
         lv_obj_set_style_text_align(_lblEmpty, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_pad_top(_lblEmpty, 60, 0);
+        lv_obj_set_style_pad_top(_lblEmpty, SY(60), 0);
 
         const char* msg = "No tasks";
         if (_activeTab == TabFilter::UNFOCUSED) {
