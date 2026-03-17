@@ -8,6 +8,7 @@
 #if defined(CROWPANEL_P4)
 
 #include "hal/display_hal.h"
+#include "pins_config.h"
 
 #include "esp_log.h"
 #include "esp_err.h"
@@ -17,8 +18,10 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lvgl_port.h"
+#include "esp_lcd_touch_gt911.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "driver/i2c_master.h"
 #include "lvgl.h"
 
 static const char* TAG = "display_p4";
@@ -31,12 +34,14 @@ static const char* TAG = "display_p4";
 #define BACKLIGHT_PWM_HZ   30000
 
 // ----- Handles -----
-static esp_lcd_panel_handle_t   s_panel     = NULL;
-static esp_lcd_dsi_bus_handle_t s_dsi_bus   = NULL;
-static esp_lcd_panel_io_handle_t s_dbi_io   = NULL;
-static esp_ldo_channel_handle_t s_ldo3      = NULL;
-static esp_ldo_channel_handle_t s_ldo4      = NULL;
-static lv_display_t*            s_lvgl_disp = NULL;
+static esp_lcd_panel_handle_t    s_panel     = NULL;
+static esp_lcd_dsi_bus_handle_t  s_dsi_bus   = NULL;
+static esp_lcd_panel_io_handle_t s_dbi_io    = NULL;
+static esp_ldo_channel_handle_t  s_ldo3      = NULL;
+static esp_ldo_channel_handle_t  s_ldo4      = NULL;
+static lv_display_t*             s_lvgl_disp = NULL;
+static esp_lcd_touch_handle_t    s_touch     = NULL;
+static lv_indev_t*               s_touch_indev = NULL;
 
 // ---- Backlight (LEDC PWM) ----
 
@@ -199,6 +204,86 @@ static esp_err_t lvgl_init()
     return ESP_OK;
 }
 
+// ---- GT911 Touch ----
+
+static esp_err_t touch_init()
+{
+    /* I2C master bus for GT911 */
+    i2c_master_bus_handle_t i2c_bus = NULL;
+    const i2c_master_bus_config_t bus_cfg = {
+        .i2c_port   = I2C_NUM_0,
+        .sda_io_num = (gpio_num_t)P4_TOUCH_SDA,
+        .scl_io_num = (gpio_num_t)P4_TOUCH_SCL,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags = { .enable_internal_pullup = true },
+    };
+    esp_err_t err = i2c_new_master_bus(&bus_cfg, &i2c_bus);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "I2C bus init failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    /* I2C panel IO for GT911 */
+    esp_lcd_panel_io_handle_t tp_io = NULL;
+    esp_lcd_panel_io_i2c_config_t io_cfg = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+    io_cfg.scl_speed_hz = P4_TOUCH_I2C_FREQ;
+    err = esp_lcd_new_panel_io_i2c(i2c_bus, &io_cfg, &tp_io);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Touch I2C IO failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    /* GT911 touch config */
+    const esp_lcd_touch_config_t tp_cfg = {
+        .x_max          = LCD_H_RES,
+        .y_max          = LCD_V_RES,
+        .rst_gpio_num   = (gpio_num_t)P4_TOUCH_RST,
+        .int_gpio_num   = (gpio_num_t)P4_TOUCH_INT,
+        .levels = {
+            .reset     = 0,
+            .interrupt = 0,
+        },
+        .flags = {
+            .swap_xy  = false,
+            .mirror_x = false,
+            .mirror_y = false,
+        },
+    };
+
+    /* Try primary address (0x5D), then backup (0x14) */
+    err = esp_lcd_touch_new_i2c_gt911(tp_io, &tp_cfg, &s_touch);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "GT911 @ 0x5D failed, trying 0x14...");
+        io_cfg.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
+        esp_lcd_panel_io_handle_t tp_io2 = NULL;
+        err = esp_lcd_new_panel_io_i2c(i2c_bus, &io_cfg, &tp_io2);
+        if (err == ESP_OK) {
+            err = esp_lcd_touch_new_i2c_gt911(tp_io2, &tp_cfg, &s_touch);
+        }
+    }
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "GT911 touch init failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    /* Register with LVGL via esp_lvgl_port */
+    const lvgl_port_touch_cfg_t touch_cfg = {
+        .disp   = s_lvgl_disp,
+        .handle = s_touch,
+    };
+    s_touch_indev = lvgl_port_add_touch(&touch_cfg);
+    if (s_touch_indev == NULL) {
+        ESP_LOGE(TAG, "LVGL touch registration failed");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "GT911 touch initialized (SDA=%d SCL=%d INT=%d RST=%d)",
+             P4_TOUCH_SDA, P4_TOUCH_SCL, P4_TOUCH_INT, P4_TOUCH_RST);
+    return ESP_OK;
+}
+
 // ---- HAL interface implementation ----
 
 namespace hal {
@@ -251,6 +336,13 @@ bool init()
         return false;
     }
     ESP_LOGI(TAG, "LVGL initialized (%dx%d)", LCD_H_RES, LCD_V_RES);
+
+    // GT911 capacitive touch
+    err = touch_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Touch init failed — display works but no touch input");
+        /* Non-fatal: display still usable for demo/debug */
+    }
 
     return true;
 }
