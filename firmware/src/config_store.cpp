@@ -1,8 +1,10 @@
 /**
- * NVS Config Store — Implementation
+ * NVS Config Store — S3 Implementation
  * Uses Arduino Preferences for typed key-value persistence.
  * NVS key names are max 15 chars.
  */
+
+#if !defined(CROWPANEL_P4)
 
 #include "config_store.h"
 #include <Preferences.h>
@@ -117,3 +119,5 @@ void ConfigStore::reset() {
     prefs.clear();
     LOG_WARN("CFG: factory reset — NVS cleared");
 }
+
+#endif  // !CROWPANEL_P4
