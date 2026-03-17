@@ -1,9 +1,12 @@
 /**
  * WiFi Manager — Implementation
  * Tries SSIDs in priority order. Exponential backoff on disconnect.
+ * Uses hal::network + hal::platform for portability across S3/P4.
  */
 
 #include "wifi_manager.h"
+#include "hal/network_hal.h"
+#include "hal/platform_hal.h"
 #include "logger.h"
 
 static WifiState    _state = WifiState::DISCONNECTED;
@@ -40,19 +43,12 @@ static void tryConnect() {
     const char* pass = _networks[_tryIdx].password;
 
     LOG_INFO("WIFI: connecting to '%s' (%d/%d)...", ssid, _tryIdx + 1, _count);
-    WiFi.begin(ssid, pass);
-    _lastAttemptMs = millis();
+    hal::network::connect(ssid, pass);
+    _lastAttemptMs = hal::platform::uptimeMs();
 }
 
 void WifiManager::init(const DeviceConfig& cfg) {
-#if defined(CROWPANEL_P4)
-    /* P4: WiFi via ESP32-C6 companion over SDIO
-       CLK=18, CMD=19, D0=14, D1=15, D2=16, D3=17, RST=32 */
-    WiFi.setPins(18, 19, 14, 15, 16, 17, 32);
-    LOG_INFO("WIFI: P4 SDIO pins configured for ESP32-C6 companion");
-#endif
-    WiFi.mode(WIFI_STA);
-    WiFi.setAutoReconnect(false);
+    hal::network::init();
 
     _count = cfg.wifi_count;
     if (_count > DCC_MAX_WIFI) _count = DCC_MAX_WIFI;
@@ -75,7 +71,7 @@ void WifiManager::init(const DeviceConfig& cfg) {
 
 void WifiManager::check() {
     if (_state == WifiState::CONNECTED) {
-        if (WiFi.status() != WL_CONNECTED) {
+        if (!hal::network::isConnected()) {
             LOG_WARN("WIFI: connection lost");
             _state = WifiState::DISCONNECTED;
             _tryIdx = 0;
@@ -85,25 +81,26 @@ void WifiManager::check() {
     }
 
     if (_state == WifiState::CONNECTING) {
-        if (WiFi.status() == WL_CONNECTED) {
+        if (hal::network::isConnected()) {
             _state = WifiState::CONNECTED;
             _backoffMs = 1000;
             LOG_INFO("WIFI: connected — IP=%s RSSI=%d",
-                     WiFi.localIP().toString().c_str(), WiFi.RSSI());
+                     hal::network::ipAddress(), hal::network::rssi());
             return;
         }
 
         /* Timeout on current SSID */
-        if (millis() - _lastAttemptMs > CONNECT_TIMEOUT_MS) {
+        uint32_t now = hal::platform::uptimeMs();
+        if (now - _lastAttemptMs > CONNECT_TIMEOUT_MS) {
             LOG_WARN("WIFI: timeout on '%s'", _networks[_tryIdx].ssid);
-            WiFi.disconnect();
+            hal::network::disconnect();
             _tryIdx++;
 
             if (_tryIdx >= _count) {
                 /* Exhausted all SSIDs — backoff then retry */
                 _tryIdx = 0;
                 _state = WifiState::DISCONNECTED;
-                _lastAttemptMs = millis();
+                _lastAttemptMs = now;
                 LOG_WARN("WIFI: all SSIDs failed, backoff %lums", _backoffMs);
             } else {
                 tryConnect();
@@ -113,8 +110,9 @@ void WifiManager::check() {
     }
 
     /* DISCONNECTED or FAILED — wait for backoff then retry */
-    if (_count > 0 && millis() - _lastAttemptMs > _backoffMs) {
-        _backoffMs = min(_backoffMs * 2, MAX_BACKOFF_MS);
+    uint32_t now = hal::platform::uptimeMs();
+    if (_count > 0 && now - _lastAttemptMs > _backoffMs) {
+        _backoffMs = (_backoffMs * 2 > MAX_BACKOFF_MS) ? MAX_BACKOFF_MS : _backoffMs * 2;
         tryConnect();
     }
 }
@@ -122,13 +120,13 @@ void WifiManager::check() {
 WifiState WifiManager::state() { return _state; }
 
 int8_t WifiManager::rssi() {
-    return (_state == WifiState::CONNECTED) ? WiFi.RSSI() : 0;
+    return (_state == WifiState::CONNECTED) ? hal::network::rssi() : 0;
 }
 
-String WifiManager::ip() {
-    return (_state == WifiState::CONNECTED) ? WiFi.localIP().toString() : String("--");
+const char* WifiManager::ip() {
+    return (_state == WifiState::CONNECTED) ? hal::network::ipAddress() : "--";
 }
 
-String WifiManager::ssid() {
-    return (_state == WifiState::CONNECTED) ? WiFi.SSID() : String("--");
+const char* WifiManager::ssid() {
+    return (_state == WifiState::CONNECTED) ? hal::network::ssid() : "--";
 }

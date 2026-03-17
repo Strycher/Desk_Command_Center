@@ -9,7 +9,8 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 namespace HACommand {
     /** Initialize command infrastructure. Call from setup(). */

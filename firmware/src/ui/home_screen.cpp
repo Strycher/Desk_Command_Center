@@ -63,14 +63,14 @@ void HomeScreen::updateClock() {
 
     /* Only set label when text changes — avoids LVGL dirty-rect
      * invalidation that causes visible redraw flicker. */
-    String t = NtpTime::timeStr(false);
-    if (strcmp(lv_label_get_text(_lblClock), t.c_str()) != 0) {
-        lv_label_set_text(_lblClock, t.c_str());
+    const char* t = NtpTime::timeStr(false);
+    if (strcmp(lv_label_get_text(_lblClock), t) != 0) {
+        lv_label_set_text(_lblClock, t);
     }
 
-    String d = NtpTime::dateStr();
-    if (strcmp(lv_label_get_text(_lblDate), d.c_str()) != 0) {
-        lv_label_set_text(_lblDate, d.c_str());
+    const char* d = NtpTime::dateStr();
+    if (strcmp(lv_label_get_text(_lblDate), d) != 0) {
+        lv_label_set_text(_lblDate, d);
     }
 }
 

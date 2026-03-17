@@ -153,8 +153,8 @@ void DiagnosticsScreen::refreshSystemInfo() {
 
     /* WiFi */
     if (WifiManager::state() == WifiState::CONNECTED) {
-        lv_label_set_text(_lblWifiSSID, WifiManager::ssid().c_str());
-        lv_label_set_text(_lblWifiIP, WifiManager::ip().c_str());
+        lv_label_set_text(_lblWifiSSID, WifiManager::ssid());
+        lv_label_set_text(_lblWifiIP, WifiManager::ip());
         snprintf(buf, sizeof(buf), "%d dBm", WifiManager::rssi());
         lv_label_set_text(_lblWifiRSSI, buf);
         lv_obj_set_style_text_color(_lblWifiRSSI,
@@ -168,16 +168,16 @@ void DiagnosticsScreen::refreshSystemInfo() {
     /* Data service */
     uint32_t lastMs = DataService::lastFetchMs();
     if (lastMs > 0) {
-        uint32_t ago = (millis() - lastMs) / 1000;
+        uint32_t ago = (hal::platform::uptimeMs() - lastMs) / 1000;
         snprintf(buf, sizeof(buf), "%lus ago", ago);
         lv_label_set_text(_lblLastFetch, buf);
     } else {
         lv_label_set_text(_lblLastFetch, "Never");
     }
 
-    String err = DataService::lastError();
-    if (err.length() > 0) {
-        lv_label_set_text(_lblFetchErr, err.c_str());
+    const char* err = DataService::lastError();
+    if (err && err[0] != '\0') {
+        lv_label_set_text(_lblFetchErr, err);
         lv_obj_set_style_text_color(_lblFetchErr, BAD, 0);
     } else {
         lv_label_set_text(_lblFetchErr, "None");

@@ -4,7 +4,7 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
 #include <ArduinoJson.h>
 
 static constexpr uint8_t MAX_EVENTS = 20;

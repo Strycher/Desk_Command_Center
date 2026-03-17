@@ -127,6 +127,31 @@ void init()
     ESP_LOGI(TAG, "Network init done, chipId=%s", s_chipId);
 }
 
+void connect(const char* ssid, const char* password)
+{
+    wifi_config_t wifi_config = {};
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    wifi_config.sta.pmf_cfg.capable = true;
+    wifi_config.sta.pmf_cfg.required = false;
+    strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
+    strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
+
+    esp_wifi_stop();
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    esp_wifi_connect();
+
+    ESP_LOGI(TAG, "Connecting to '%s'...", ssid);
+}
+
+void disconnect()
+{
+    esp_wifi_disconnect();
+    s_connected = false;
+    s_ip[0] = '\0';
+    s_ssid[0] = '\0';
+}
+
 bool isConnected() { return s_connected; }
 int8_t rssi()      { return s_rssi; }
 const char* ipAddress() { return s_ip; }

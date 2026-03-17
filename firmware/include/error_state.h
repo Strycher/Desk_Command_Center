@@ -4,7 +4,8 @@
  */
 
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 enum class ConnState : uint8_t {
     CONNECTED,      // WiFi + bridge both reachable

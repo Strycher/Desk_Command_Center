@@ -25,6 +25,16 @@ namespace network {
  */
 void init();
 
+/**
+ * Connect to a WiFi network. Non-blocking — check isConnected().
+ * S3: WiFi.begin(ssid, pass)
+ * P4: esp_wifi_set_config + esp_wifi_connect
+ */
+void connect(const char* ssid, const char* password);
+
+/** Disconnect from WiFi. */
+void disconnect();
+
 /** True if WiFi station is connected with an IP address. */
 bool isConnected();
 

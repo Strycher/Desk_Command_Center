@@ -324,7 +324,7 @@ void WifiSettingsScreen::update(const DashboardData& data) {
     if (WifiManager::state() == WifiState::CONNECTED) {
         char buf[64];
         snprintf(buf, sizeof(buf), "%s (%ddBm)",
-                 WifiManager::ssid().c_str(), WifiManager::rssi());
+                 WifiManager::ssid(), WifiManager::rssi());
         lv_label_set_text(_lblStatus, buf);
     } else {
         lv_label_set_text(_lblStatus, "Disconnected");

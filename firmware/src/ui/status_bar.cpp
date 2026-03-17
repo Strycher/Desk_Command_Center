@@ -4,6 +4,7 @@
  */
 
 #include "ui/status_bar.h"
+#include "hal/platform_hal.h"
 #include "ntp_time.h"
 #include "wifi_manager.h"
 #include "data_service.h"
@@ -44,7 +45,7 @@ static lv_color_t syncColor() {
     FetchState fs = DataService::state();
     if (fs == FetchState::ERROR) return SYNC_ERROR;
     if (fs == FetchState::SUCCESS) {
-        uint32_t age = millis() - DataService::lastFetchMs();
+        uint32_t age = hal::platform::uptimeMs() - DataService::lastFetchMs();
         return (age > STALE_THRESHOLD_MS) ? SYNC_STALE : SYNC_OK;
     }
     return SYNC_STALE; // IDLE or FETCHING
@@ -101,15 +102,15 @@ void StatusBar::update() {
     if (!lblTime) return;
 
     /* Time — only set label when text changes to avoid LVGL invalidation */
-    String t = NtpTime::timeStr(_clock24h);
-    if (strcmp(lv_label_get_text(lblTime), t.c_str()) != 0) {
-        lv_label_set_text(lblTime, t.c_str());
+    const char* t = NtpTime::timeStr(_clock24h);
+    if (strcmp(lv_label_get_text(lblTime), t) != 0) {
+        lv_label_set_text(lblTime, t);
     }
 
     /* Date — only set label when text changes */
-    String d = NtpTime::dateStr();
-    if (strcmp(lv_label_get_text(lblDate), d.c_str()) != 0) {
-        lv_label_set_text(lblDate, d.c_str());
+    const char* d = NtpTime::dateStr();
+    if (strcmp(lv_label_get_text(lblDate), d) != 0) {
+        lv_label_set_text(lblDate, d);
     }
 
     /* WiFi */
