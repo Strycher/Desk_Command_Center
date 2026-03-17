@@ -7,7 +7,7 @@
 #if !defined(CROWPANEL_P4)
 
 #include "backlight.h"
-#include <Wire.h>
+#include "driver/i2c.h"
 #include "pins_config.h"
 #include "logger.h"
 
@@ -24,11 +24,17 @@ static uint8_t percentToReg(uint8_t percent) {
 }
 
 static void writeReg(uint8_t val) {
-    Wire.beginTransmission(BL_ADDR);
-    Wire.write(val);
-    uint8_t err = Wire.endTransmission();
-    if (err != 0) {
-        LOG_ERROR("BL: I2C write error %d", err);
+    /* Use ESP-IDF i2c driver directly — LovyanGFX owns I2C_NUM_0 for
+       GT911 touch, and Arduino Wire silently fails on the shared bus. */
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (BL_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, val, true);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(TOUCH_I2C_PORT, cmd, pdMS_TO_TICKS(100));
+    i2c_cmd_link_delete(cmd);
+    if (err != ESP_OK) {
+        LOG_ERROR("BL: I2C write 0x%02X error %d (%s)", val, err, esp_err_to_name(err));
     }
 }
 
