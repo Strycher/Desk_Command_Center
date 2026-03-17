@@ -21,6 +21,7 @@
 #include "esp_mac.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "esp_hosted.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
@@ -49,7 +50,8 @@ static void wifiEventHandler(void* arg, esp_event_base_t base,
         case WIFI_EVENT_STA_CONNECTED:
             ESP_LOGI(TAG, "WiFi STA connected to AP");
             break;
-        case WIFI_EVENT_STA_DISCONNECTED:
+        case WIFI_EVENT_STA_DISCONNECTED: {
+            auto* disc = (wifi_event_sta_disconnected_t*)data;
             s_connected = false;
             s_ip[0] = '\0';
             s_rssi = 0;
@@ -57,8 +59,10 @@ static void wifiEventHandler(void* arg, esp_event_base_t base,
                 xEventGroupSetBits(s_wifiEvents, WIFI_DISCONNECTED_BIT);
                 xEventGroupClearBits(s_wifiEvents, WIFI_CONNECTED_BIT);
             }
-            ESP_LOGW(TAG, "WiFi disconnected");
+            ESP_LOGW(TAG, "WiFi disconnected — reason=%d ssid='%.*s'",
+                     disc->reason, disc->ssid_len, disc->ssid);
             break;
+        }
         }
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         auto* event = (ip_event_got_ip_t*)data;
@@ -100,7 +104,15 @@ void init()
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     s_netif = esp_netif_create_default_wifi_sta();
 
-    /* WiFi driver (ESP-Hosted handles C6 SDIO transparently) */
+    /* ESP-Hosted: bring up SDIO transport to the C6 companion.
+       Must complete before esp_wifi_init() — the WiFi driver
+       delegates to the C6 via esp_wifi_remote. */
+    ESP_LOGI(TAG, "Initializing ESP-Hosted transport...");
+    ESP_ERROR_CHECK(esp_hosted_init());
+    ESP_ERROR_CHECK(esp_hosted_connect_to_slave());
+    ESP_LOGI(TAG, "ESP-Hosted link up");
+
+    /* WiFi driver (routed to C6 via ESP-Hosted) */
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
@@ -125,23 +137,52 @@ void init()
 
     s_initialized = true;
     ESP_LOGI(TAG, "Network init done, chipId=%s", s_chipId);
+
+    /* Debug: quick scan to verify C6 radio is functional */
+    wifi_scan_config_t scan_cfg = {};
+    scan_cfg.show_hidden = true;
+    esp_err_t scanErr = esp_wifi_scan_start(&scan_cfg, true);  // blocking
+    if (scanErr == ESP_OK) {
+        uint16_t apCount = 0;
+        esp_wifi_scan_get_ap_num(&apCount);
+        ESP_LOGI(TAG, "Scan found %d APs", apCount);
+        if (apCount > 0) {
+            uint16_t maxAps = (apCount > 10) ? 10 : apCount;
+            wifi_ap_record_t* aps = (wifi_ap_record_t*)malloc(maxAps * sizeof(wifi_ap_record_t));
+            if (aps) {
+                esp_wifi_scan_get_ap_records(&maxAps, aps);
+                for (int i = 0; i < maxAps; i++) {
+                    ESP_LOGI(TAG, "  [%d] %-20s  ch=%d  rssi=%d  auth=%d",
+                             i, aps[i].ssid, aps[i].primary, aps[i].rssi, aps[i].authmode);
+                }
+                free(aps);
+            }
+        }
+    } else {
+        ESP_LOGW(TAG, "Scan failed: %s", esp_err_to_name(scanErr));
+    }
 }
 
 void connect(const char* ssid, const char* password)
 {
+    /* ESP-Hosted requires a full stop→config→start→connect cycle to push
+       the new SSID/password to the C6 companion via SDIO RPC.  Just calling
+       set_config without restart doesn't apply on the remote chip. */
     wifi_config_t wifi_config = {};
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-    wifi_config.sta.pmf_cfg.capable = true;
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
+    wifi_config.sta.pmf_cfg.capable = false;
     wifi_config.sta.pmf_cfg.required = false;
     strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
     strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
 
-    esp_wifi_stop();
+    /* Disconnect + reconfigure without stop/start — avoids losing C6 state */
+    esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(200));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    vTaskDelay(pdMS_TO_TICKS(100));
     esp_wifi_connect();
 
-    ESP_LOGI(TAG, "Connecting to '%s'...", ssid);
+    ESP_LOGI(TAG, "Connecting to '%s' (pw=%d chars)...", ssid, (int)strlen(password));
 }
 
 void disconnect()

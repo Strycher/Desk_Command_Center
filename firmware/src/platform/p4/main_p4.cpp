@@ -221,7 +221,9 @@ extern "C" void app_main(void)
         WebSerial::init();
         WebSerial::handleClient();
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        /* pdMS_TO_TICKS(5) = 0 at CONFIG_FREERTOS_HZ=100 (10ms/tick),
+           starving IDLE task → watchdog timeout. Minimum 1 tick. */
+        vTaskDelay(1);
     }
 }
 

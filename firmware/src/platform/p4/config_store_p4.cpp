@@ -20,7 +20,7 @@ static const char* NVS_NAMESPACE = "dcc_cfg";
 static nvs_handle_t s_nvs = 0;
 
 /* Defaults */
-static constexpr const char* DEFAULT_BRIDGE  = "genx2k.dynu.net";
+static constexpr const char* DEFAULT_BRIDGE  = "192.168.50.24:8080";
 static constexpr const char* DEFAULT_TZ      = "EST5EDT,M3.2.0,M11.1.0";
 static constexpr uint8_t     DEFAULT_BRIGHT  = 0x10;
 static constexpr bool        DEFAULT_24H     = false;
@@ -121,6 +121,23 @@ DeviceConfig ConfigStore::load() {
     nvsGetStr(KEY_DEV_NAME, cfg.device_name, DCC_DEV_NAME_LEN);
     nvsGetStr(KEY_DEV_KEY, cfg.device_key, DCC_DEV_KEY_LEN);
     nvsGetStr(KEY_HOME_SSID, cfg.home_ssid, DCC_SSID_LEN);
+
+    /* First-boot WiFi provisioning — seed home network if NVS is empty.
+       Only 2.4 GHz — the ESP32-C6 companion doesn't support 5 GHz. */
+    if (cfg.wifi_count == 0) {
+        ESP_LOGW(TAG, "No WiFi networks — provisioning defaults");
+        strncpy(cfg.wifi[0].ssid, "tsunami", DCC_SSID_LEN - 1);
+        strncpy(cfg.wifi[0].password, "Ch33t0s!", DCC_PASS_LEN - 1);
+        cfg.wifi[0].priority = 0;
+
+        cfg.wifi_count = 1;
+        strncpy(cfg.home_ssid, "tsunami", DCC_SSID_LEN - 1);
+
+        /* Persist so this only runs once */
+        saveWifi(cfg);
+        nvs_set_str(s_nvs, KEY_HOME_SSID, cfg.home_ssid);
+        nvs_commit(s_nvs);
+    }
 
     /* Apply defaults for empty strings */
     if (cfg.bridge_url[0] == '\0') {
