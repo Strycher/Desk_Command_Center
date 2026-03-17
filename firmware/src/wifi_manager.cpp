@@ -15,7 +15,8 @@ static uint8_t      _count = 0;
 static uint8_t      _tryIdx = 0;
 static uint32_t     _lastAttemptMs = 0;
 static uint32_t     _backoffMs = 1000;
-static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
+/* 15s allows for ESP-Hosted SDIO latency on P4 (C6 companion) */
+static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
 static constexpr uint32_t MAX_BACKOFF_MS     = 60000;
 
 static void sortByPriority() {
