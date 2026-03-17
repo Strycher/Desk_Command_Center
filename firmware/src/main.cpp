@@ -1,26 +1,21 @@
 /**
- * Desk Command Center — Main Entry Point
+ * Desk Command Center — Main Entry Point (S3 / Arduino)
  * CrowPanel Advance 5.0" (ESP32-S3-WROOM-1-N16R8)
  *
- * Boot sequence: Serial → Logger → Config → Display → LVGL → Splash →
+ * Boot sequence: Serial → Logger → Config → Display (HAL) → Splash →
  *                Backlight → WiFi → NTP → SD → Logger SD → DataService →
  *                WebSerial → UI screens → Home
+ *
+ * P4 uses a separate entry point: platform/p4/main_p4.cpp
  */
 
 #include <Arduino.h>
 #include <lvgl.h>
-#if defined(CROWPANEL_P4)
-#include "display_driver_p4.h"
-#else
-#include "display_driver.h"
-#endif
-#include "pins_config.h"
+#include "hal/display_hal.h"
+#include "hal/platform_hal.h"
 #include "logger.h"
 #include "config_store.h"
 #include "wifi_manager.h"
-#if !defined(CROWPANEL_P4)
-#include "backlight.h"
-#endif
 #include "ntp_time.h"
 #include "sd_manager.h"
 #include "web_serial.h"
@@ -48,17 +43,6 @@
 #include "ui/screens/settings_screen.h"
 #include "ui/screens/diagnostics_screen.h"
 
-#if !defined(CROWPANEL_P4)
-static LGFX lcd;
-#endif
-static lv_disp_draw_buf_t draw_buf;
-static lv_disp_drv_t disp_drv;
-static lv_indev_drv_t indev_drv;
-
-/* LVGL draw buffer — 1/10 screen in SRAM (avoids PSRAM bus contention
-   with the RGB DMA peripheral that reads the frame buffer from PSRAM) */
-static lv_color_t disp_draw_buf[SCREEN_WIDTH * SCREEN_HEIGHT / 10];
-
 /* Screens — allocated once, never destroyed */
 static SplashScreen         splash;
 static HomeScreen           homeScreen;
@@ -75,48 +59,10 @@ static DiagnosticsScreen    diagnosticsScreen;
 /* Dashboard data — parsed from bridge JSON */
 static DashboardData dashData;
 
-#if !defined(CROWPANEL_P4)
-/* --- LVGL display flush callback (sync copy to RGB frame buffer) --- */
-static void lvglFlush(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_p) {
-    uint32_t w = (area->x2 - area->x1 + 1);
-    uint32_t h = (area->y2 - area->y1 + 1);
-    lcd.pushImage(area->x1, area->y1, w, h,
-                  (lgfx::rgb565_t*)&color_p->full);
-    lv_disp_flush_ready(drv);
-}
-
-
-/* --- LVGL touch read callback --- */
-static uint32_t _touchPolls = 0;
-static uint32_t _touchHits  = 0;
-
-static void lvglTouchRead(lv_indev_drv_t* drv, lv_indev_data_t* data) {
-    _touchPolls++;
-    uint16_t x, y;
-    if (lcd.getTouch(&x, &y)) {
-        _touchHits++;
-        data->state = LV_INDEV_STATE_PR;
-        data->point.x = x;
-        data->point.y = y;
-        /* Log first 5 touches + every 50th after that */
-        if (_touchHits <= 5 || _touchHits % 50 == 0) {
-            LOG_DEBUG("TOUCH: hit #%lu at (%d,%d) [polls=%lu]",
-                      _touchHits, x, y, _touchPolls);
-        }
-    } else {
-        data->state = LV_INDEV_STATE_REL;
-    }
-    /* Report first poll + every ~5 seconds (500 polls at ~33/sec) */
-    if (_touchPolls == 1 || _touchPolls % 500 == 0) {
-        LOG_DEBUG("TOUCH: polls=%lu hits=%lu", _touchPolls, _touchHits);
-    }
-}
-#endif /* !CROWPANEL_P4 */
-
 /* --- Data callback: bridge JSON → DashboardData → all screens --- */
 static void onBridgeData(JsonDocument& doc) {
     DashboardParser::parse(doc, dashData);
-    dashData.last_updated_ms = millis();
+    dashData.last_updated_ms = hal::platform::uptimeMs();
 
     /* Mark all sources that have data as updated */
     if (dashData.google_calendar.status == SourceStatus::OK ||
@@ -147,103 +93,42 @@ static void onBridgeData(JsonDocument& doc) {
     /* Push data to all screens */
     ScreenManager::updateAll(dashData);
 
-    LOG_INFO("DCC: data updated, heap=%lu", ESP.getFreeHeap());
+    LOG_INFO("DCC: data updated, heap=%lu", hal::platform::heapFree());
 }
 
 void setup() {
-    Serial.begin(115200);
+    hal::platform::earlyInit();
     Logger::init();  /* Ring buffer + spinlock — before any LOG_* calls */
-    LOG_INFO("=== Desk Command Center ===");
+    LOG_INFO("=== Desk Command Center (%s) ===", hal::platform::chipModel());
 
     /* Init config store */
     ConfigStore::init();
     DeviceConfig cfg = ConfigStore::load();
 
-#if defined(CROWPANEL_P4)
-    /* P4: MIPI-DSI display + GT911 touch (different pins) */
-    if (!P4Display::init()) {
-        LOG_ERROR("P4 DSI: display init FAILED — halting");
-        while (true) delay(1000);
+    /* Init display hardware + LVGL + touch (platform-specific via HAL) */
+    if (!hal::display::init()) {
+        LOG_ERROR("Display init FAILED — halting");
+        while (true) hal::platform::delayMs(1000);
     }
-#else
-    /* S3: GT911 touch reset — pull RST low for 120ms then release.
-       Must happen BEFORE lcd.begin() which runs Touch_GT911::init().
-       Factory V1.1 firmware uses GPIO 1 for GT911 reset.
-       Verified via I2C scan: GT911 appears at 0x5D after this reset. */
-    pinMode(PIN_TOUCH_RST_GPIO, OUTPUT);
-    digitalWrite(PIN_TOUCH_RST_GPIO, LOW);
-    delay(120);
-    pinMode(PIN_TOUCH_RST_GPIO, INPUT);
-    delay(300);  /* GT911 post-reset init time */
-    LOG_INFO("TOUCH: GT911 reset done (GPIO 1, 300ms post-reset)");
-
-    /* Init display + touch (PIN_TOUCH_RST=-1 → LovyanGFX skips its own
-       1ms reset which is too short for GT911; our manual 120ms reset
-       already brought the GT911 online at 0x5D). */
-    lcd.begin();
-    lcd.setColorDepth(16);
-    lcd.fillScreen(TFT_BLACK);
-#endif
-
-
-    /* Init LVGL */
-    lv_init();
-
-    /* Single SRAM draw buffer, 1/10 screen size — matches Elecrow factory
-       approach. SRAM buffer avoids bus contention with RGB DMA on PSRAM. */
-    lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, nullptr,
-                          SCREEN_WIDTH * SCREEN_HEIGHT / 10);
-
-    /* Display driver */
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.hor_res  = SCREEN_WIDTH;
-    disp_drv.ver_res  = SCREEN_HEIGHT;
-#if defined(CROWPANEL_P4)
-    disp_drv.flush_cb = P4Display::lvglFlush;
-#else
-    disp_drv.flush_cb = lvglFlush;
-#endif
-    disp_drv.draw_buf = &draw_buf;
-    lv_disp_drv_register(&disp_drv);
-
-    /* Touch input driver */
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.type    = LV_INDEV_TYPE_POINTER;
-#if defined(CROWPANEL_P4)
-    indev_drv.read_cb = P4Display::lvglTouchRead;
-#else
-    indev_drv.read_cb = lvglTouchRead;
-#endif
-    lv_indev_drv_register(&indev_drv);
-
-    LOG_INFO("DCC: LVGL ready (%dx%d, SRAM buf %lu KB, pushImageDMA)",
-             SCREEN_WIDTH, SCREEN_HEIGHT,
-             sizeof(disp_draw_buf) / 1024);
 
     /* Show splash screen immediately */
     splash.create(nullptr);
     lv_scr_load(splash.screen());
     splash.updateStatus("Initializing...");
-    lv_timer_handler();
+    hal::display::tick();
 
-#if defined(CROWPANEL_P4)
-    /* P4: backlight already initialized by P4Display::init() */
-    P4Display::setBacklight(cfg.brightness);
-#else
-    /* S3: backlight via STC8H1K28 co-processor */
-    Backlight::init();
-    Backlight::setBrightness(cfg.brightness);
-#endif
+    /* Backlight on */
+    hal::display::setBacklight(cfg.brightness);
 
     /* Init subsystems */
     splash.updateStatus("Connecting to WiFi...");
-    lv_timer_handler();
+    hal::display::tick();
     WifiManager::init(cfg);
     ErrorState::init();
     ErrorState::setWifiConnected(WifiManager::state() == WifiState::CONNECTED);
 
     splash.updateStatus("Syncing time...");
-    lv_timer_handler();
+    hal::display::tick();
     NtpTime::init(cfg.timezone);
 
     /* Init SD card + open session log file */
@@ -251,7 +136,7 @@ void setup() {
     Logger::initSDLog();
 
     splash.updateStatus("Starting data service...");
-    lv_timer_handler();
+    hal::display::tick();
     StalenessTracker::init();
     DataService::init(cfg.bridge_url, cfg.poll_interval_sec, cfg.device_key);
     HACommand::init(cfg.bridge_url);
@@ -267,7 +152,7 @@ void setup() {
 
     /* Register all screens */
     splash.updateStatus("Building UI...");
-    lv_timer_handler();
+    hal::display::tick();
     ScreenManager::init();
     ScreenManager::registerScreen(ScreenId::HOME,        &homeScreen);
     ScreenManager::registerScreen(ScreenId::CALENDAR,    &calendarScreen);
@@ -286,17 +171,17 @@ void setup() {
 
     /* Transition from splash to home */
     splash.updateStatus("Ready!");
-    lv_timer_handler();
-    delay(500);
+    hal::display::tick();
+    hal::platform::delayMs(500);
 
     ScreenManager::show(ScreenId::HOME);
 
     LOG_INFO("DCC: boot complete, heap=%lu, PSRAM=%lu",
-             ESP.getFreeHeap(), ESP.getFreePsram());
+             hal::platform::heapFree(), hal::platform::psramFree());
 }
 
 void loop() {
-    lv_timer_handler();
+    hal::display::tick();
     WifiManager::check();
     NtpTime::check();
 
@@ -314,5 +199,5 @@ void loop() {
     WebSerial::init();  /* no-op if already started or no WiFi */
     WebSerial::handleClient();
 
-    delay(5);
+    hal::platform::delayMs(5);
 }

@@ -5,11 +5,7 @@
 
 #include "ui/screens/settings_screen.h"
 #include "ui/osk.h"
-#if defined(CROWPANEL_P4)
-#include "display_driver_p4.h"
-#else
-#include "backlight.h"
-#endif
+#include "hal/display_hal.h"
 #include "logger.h"
 
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
@@ -88,11 +84,7 @@ void SettingsScreen::onBrightnessChanged(lv_event_t* e) {
     auto* self = (SettingsScreen*)lv_event_get_user_data(e);
     int32_t val = lv_slider_get_value(self->_sliderBright);
     self->_cfg.brightness = (uint8_t)val;
-#if defined(CROWPANEL_P4)
-    P4Display::setBacklight((uint8_t)val);
-#else
-    Backlight::setBrightness((uint8_t)val);
-#endif
+    hal::display::setBacklight((uint8_t)val);
     char buf[16];
     snprintf(buf, sizeof(buf), "%d%%", val);
     lv_label_set_text(self->_lblBrightVal, buf);
