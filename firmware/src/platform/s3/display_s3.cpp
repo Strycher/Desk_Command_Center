@@ -14,7 +14,7 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
-#include <Wire.h>
+#include "driver/i2c.h"
 #include "display_driver.h"
 #include "pins_config.h"
 #include "logger.h"
@@ -41,11 +41,18 @@ static uint8_t percentToReg(uint8_t percent) {
 }
 
 static void backlightWrite(uint8_t val) {
-    Wire.beginTransmission(BL_ADDR);
-    Wire.write(val);
-    uint8_t err = Wire.endTransmission();
-    if (err != 0) {
-        LOG_ERROR("BL: I2C write error %d", err);
+    /* Use ESP-IDF i2c driver directly — LovyanGFX owns I2C_NUM_0 for
+       GT911 touch, and Arduino Wire silently fails on the shared bus
+       (endTransmission returns 0 but no bytes are actually sent). */
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (BL_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, val, true);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(TOUCH_I2C_PORT, cmd, pdMS_TO_TICKS(100));
+    i2c_cmd_link_delete(cmd);
+    if (err != ESP_OK) {
+        LOG_ERROR("BL: I2C write 0x%02X error %d (%s)", val, err, esp_err_to_name(err));
     }
 }
 
@@ -132,8 +139,10 @@ bool init()
              SCREEN_WIDTH, SCREEN_HEIGHT,
              sizeof(s_disp_buf) / 1024);
 
-    /* Init backlight hardware (starts off, caller sets brightness) */
-    s_brightness = 0;
+    /* Wake backlight chip — STC8H1K28 requires an initial write
+       before it responds to brightness commands. */
+    backlightWrite(BL_REG_MAX);
+    s_brightness = 100;
 
     return true;
 }
