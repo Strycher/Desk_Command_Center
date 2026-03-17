@@ -146,6 +146,11 @@ DeviceConfig ConfigStore::load() {
     if (cfg.timezone[0] == '\0') {
         strncpy(cfg.timezone, DEFAULT_TZ, DCC_TZ_LEN - 1);
     }
+    if (cfg.device_name[0] == '\0') {
+        strncpy(cfg.device_name, "DCC-7inch", DCC_DEV_NAME_LEN - 1);
+        nvs_set_str(s_nvs, KEY_DEV_NAME, cfg.device_name);
+        nvs_commit(s_nvs);
+    }
 
     ESP_LOGI(TAG, "loaded — bridge=%s tz=%s bright=0x%02X poll=%ds wifi=%d",
              cfg.bridge_url, cfg.timezone, cfg.brightness,
