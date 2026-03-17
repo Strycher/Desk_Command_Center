@@ -12,6 +12,14 @@
 #define LCD_H_RES  1024
 #define LCD_V_RES  600
 
+/* --- Touch (GT911 capacitive, I2C) --- */
+#define P4_TOUCH_SDA   45
+#define P4_TOUCH_SCL   46
+#define P4_TOUCH_INT   42
+#define P4_TOUCH_RST   40
+#define P4_TOUCH_ADDR  0x5D
+#define P4_TOUCH_I2C_FREQ 400000
+
 #else  /* ESP32-S3 CrowPanel 5.0" */
 
 /* --- Display (ST7262 RGB interface) --- */
