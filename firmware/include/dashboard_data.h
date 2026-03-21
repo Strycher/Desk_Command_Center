@@ -65,11 +65,33 @@ struct WeatherData {
     uint8_t daily_count;
 };
 
+static constexpr uint8_t MAX_BEADS_PROJECTS = 6;
+static constexpr uint8_t MAX_CI_RUNS = 5;
+
+struct BeadsProject {
+    char    name[32];       // display_name from bridge ("DCC", "Rossum", etc.)
+    uint8_t open;
+    uint8_t in_progress;
+    uint8_t blocked;
+};
+
+struct CIRun {
+    char workflow[32];      // workflow name
+    char conclusion[16];    // "success", "failure", "cancelled", ""
+    char status[16];        // "completed", "in_progress", "queued"
+    char branch[32];
+};
+
 struct RepoStatus {
     char    name[64];
     uint8_t open_prs;
     uint8_t open_issues;
-    char    ci_status[16];  // "passing", "failing", "pending"
+    char    ci_status[16];      // summary: "passing", "failing", "pending"
+    uint8_t draft_prs;          // count of draft PRs (ready = open_prs - draft_prs)
+    uint8_t oldest_pr_days;     // age of oldest open PR in days (255 = unknown/NTP not synced)
+    uint8_t health;             // 0=green, 1=yellow, 2=red (computed in parser)
+    CIRun   ci_runs[MAX_CI_RUNS];
+    uint8_t ci_run_count;
 };
 
 struct HAEntity {
@@ -110,9 +132,11 @@ struct HAData {
 };
 
 struct BeadsData {
-    uint8_t open_count;
+    uint8_t open_count;         // aggregate totals (backward compat)
     uint8_t in_progress_count;
     uint8_t blocked_count;
+    BeadsProject projects[MAX_BEADS_PROJECTS];
+    uint8_t project_count;
 };
 
 struct ClaudeData {
