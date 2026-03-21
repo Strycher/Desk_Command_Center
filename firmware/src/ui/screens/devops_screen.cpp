@@ -18,6 +18,18 @@ static const lv_color_t CI_PASS       = lv_color_hex(0x44BB44);
 static const lv_color_t CI_FAIL       = lv_color_hex(0xFF4444);
 static const lv_color_t CI_PEND       = lv_color_hex(0xFFAA00);
 
+static const lv_color_t HEALTH_GREEN  = lv_color_hex(0x44BB44);
+static const lv_color_t HEALTH_YELLOW = lv_color_hex(0xFFAA00);
+static const lv_color_t HEALTH_RED    = lv_color_hex(0xFF4444);
+
+static lv_color_t healthColor(uint8_t health) {
+    switch (health) {
+        case 0: return HEALTH_GREEN;
+        case 1: return HEALTH_YELLOW;
+        default: return HEALTH_RED;
+    }
+}
+
 /* Use UI_CONTENT_Y, UI_PAD, UI_CONTENT_W from ui_scale.h */
 
 static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
@@ -55,36 +67,27 @@ void DevOpsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_pad_row(_repoList, SU(6), 0);
     lv_obj_set_flex_flow(_repoList, LV_FLEX_FLOW_COLUMN);
 
-    /* === Right: Beads summary card === */
+    /* === Right: Beads per-project card === */
     lv_obj_t* beadsCard = makeCard(_screen, SX(500), UI_CONTENT_Y + UI_PAD,
-                                      SX(290), SY(130));
+                                      SX(290), SY(180));
 
     lv_obj_t* beadsHeader = lv_label_create(beadsCard);
-    lv_label_set_text(beadsHeader, "Beads Tasks");
+    lv_label_set_text(beadsHeader, "Beads Projects");
     lv_obj_set_style_text_font(beadsHeader, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(beadsHeader, TEXT_SECONDARY, 0);
     lv_obj_align(beadsHeader, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _lblBeadsOpen = lv_label_create(beadsCard);
-    lv_obj_set_style_text_font(_lblBeadsOpen, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(_lblBeadsOpen, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblBeadsOpen, LV_ALIGN_TOP_LEFT, 0, SY(26));
-    lv_label_set_text(_lblBeadsOpen, "Open: --");
-
-    _lblBeadsIP = lv_label_create(beadsCard);
-    lv_obj_set_style_text_font(_lblBeadsIP, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(_lblBeadsIP, TEXT_PRIMARY, 0);
-    lv_obj_align(_lblBeadsIP, LV_ALIGN_TOP_LEFT, 0, SY(52));
-    lv_label_set_text(_lblBeadsIP, "In Progress: --");
-
-    _lblBeadsBlk = lv_label_create(beadsCard);
-    lv_obj_set_style_text_font(_lblBeadsBlk, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(_lblBeadsBlk, CI_FAIL, 0);
-    lv_obj_align(_lblBeadsBlk, LV_ALIGN_TOP_LEFT, 0, SY(78));
-    lv_label_set_text(_lblBeadsBlk, "Blocked: --");
+    _beadsContainer = lv_obj_create(beadsCard);
+    lv_obj_set_size(_beadsContainer, SX(266), SY(146));
+    lv_obj_align(_beadsContainer, LV_ALIGN_TOP_LEFT, 0, SY(22));
+    lv_obj_set_style_bg_opa(_beadsContainer, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(_beadsContainer, 0, 0);
+    lv_obj_set_style_pad_all(_beadsContainer, 0, 0);
+    lv_obj_set_style_pad_row(_beadsContainer, SU(4), 0);
+    lv_obj_set_flex_flow(_beadsContainer, LV_FLEX_FLOW_COLUMN);
 
     /* === Right: Agent status card === */
-    lv_obj_t* agentCard = makeCard(_screen, SX(500), UI_CONTENT_Y + SY(150),
+    lv_obj_t* agentCard = makeCard(_screen, SX(500), UI_CONTENT_Y + SY(200),
                                       SX(290), SY(120));
 
     lv_obj_t* agentHeader = lv_label_create(agentCard);
@@ -120,16 +123,25 @@ void DevOpsScreen::addRepoCard(const RepoStatus& repo) {
     lv_obj_set_style_pad_all(card, SU(10), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* Repo name */
+    /* Health dot — left edge */
+    lv_obj_t* healthDot = lv_obj_create(card);
+    lv_obj_set_size(healthDot, SU(10), SU(10));
+    lv_obj_align(healthDot, LV_ALIGN_TOP_LEFT, 0, SU(4));
+    lv_obj_set_style_bg_color(healthDot, healthColor(repo.health), 0);
+    lv_obj_set_style_bg_opa(healthDot, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(healthDot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(healthDot, 0, 0);
+
+    /* Repo name — offset right for health dot */
     lv_obj_t* lblName = lv_label_create(card);
     lv_obj_set_style_text_font(lblName, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lblName, TEXT_PRIMARY, 0);
-    lv_obj_align(lblName, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_width(lblName, SX(300));
+    lv_obj_align(lblName, LV_ALIGN_TOP_LEFT, SX(18), 0);
+    lv_obj_set_width(lblName, SX(280));
     lv_label_set_long_mode(lblName, LV_LABEL_LONG_DOT);
     lv_label_set_text(lblName, repo.name);
 
-    /* CI badge */
+    /* CI badge + text — top right */
     lv_color_t ciColor = CI_PEND;
     if (strcmp(repo.ci_status, "passing") == 0) ciColor = CI_PASS;
     else if (strcmp(repo.ci_status, "failing") == 0) ciColor = CI_FAIL;
@@ -148,15 +160,39 @@ void DevOpsScreen::addRepoCard(const RepoStatus& repo) {
     lv_obj_align(lblCI, LV_ALIGN_TOP_RIGHT, 0, SY(2));
     lv_label_set_text(lblCI, repo.ci_status);
 
-    /* PRs and Issues */
-    char statsBuf[64];
-    snprintf(statsBuf, sizeof(statsBuf), "PRs: %d  Issues: %d",
-             repo.open_prs, repo.open_issues);
-    lv_obj_t* lblStats = lv_label_create(card);
-    lv_obj_set_style_text_font(lblStats, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lblStats, TEXT_SECONDARY, 0);
-    lv_obj_align(lblStats, LV_ALIGN_TOP_LEFT, 0, SY(26));
-    lv_label_set_text(lblStats, statsBuf);
+    /* PRs: "X ready / Y draft" with age-based coloring */
+    char prBuf[48];
+    uint8_t ready = (repo.draft_prs <= repo.open_prs)
+        ? repo.open_prs - repo.draft_prs : 0;
+    if (repo.draft_prs > 0) {
+        snprintf(prBuf, sizeof(prBuf), "PRs: %d ready / %d draft", ready, repo.draft_prs);
+    } else if (repo.open_prs > 0) {
+        snprintf(prBuf, sizeof(prBuf), "PRs: %d ready", ready);
+    } else {
+        snprintf(prBuf, sizeof(prBuf), "PRs: 0");
+    }
+
+    /* Color by PR age. 255 = NTP not synced, treat as unknown (no color). */
+    lv_color_t prColor = TEXT_SECONDARY;
+    if (repo.oldest_pr_days != 255) {
+        if (repo.oldest_pr_days > 7) prColor = HEALTH_RED;
+        else if (repo.oldest_pr_days > 3) prColor = HEALTH_YELLOW;
+    }
+
+    lv_obj_t* lblPRs = lv_label_create(card);
+    lv_obj_set_style_text_font(lblPRs, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lblPRs, prColor, 0);
+    lv_obj_align(lblPRs, LV_ALIGN_TOP_LEFT, SX(18), SY(26));
+    lv_label_set_text(lblPRs, prBuf);
+
+    /* Issues count — right side of bottom row */
+    char issBuf[32];
+    snprintf(issBuf, sizeof(issBuf), "Issues: %d", repo.open_issues);
+    lv_obj_t* lblIss = lv_label_create(card);
+    lv_obj_set_style_text_font(lblIss, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lblIss, TEXT_SECONDARY, 0);
+    lv_obj_align(lblIss, LV_ALIGN_TOP_RIGHT, 0, SY(26));
+    lv_label_set_text(lblIss, issBuf);
 }
 
 void DevOpsScreen::rebuildRepoList(const GitHubData& gh) {
@@ -215,23 +251,58 @@ void DevOpsScreen::update(const DashboardData& data) {
         _dirty = false;
     }
 
-    /* Beads summary — safe in-place label updates, fine offscreen */
+    /* Beads — per-project rows */
     if (data.beads.status == SourceStatus::OK) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "Open: %d", data.beads.data.open_count);
-        lv_label_set_text(_lblBeadsOpen, buf);
-        snprintf(buf, sizeof(buf), "In Progress: %d",
-                 data.beads.data.in_progress_count);
-        lv_label_set_text(_lblBeadsIP, buf);
-        snprintf(buf, sizeof(buf), "Blocked: %d",
-                 data.beads.data.blocked_count);
-        lv_label_set_text(_lblBeadsBlk, buf);
-        lv_obj_set_style_text_color(_lblBeadsBlk,
-            data.beads.data.blocked_count > 0 ? CI_FAIL : TEXT_PRIMARY, 0);
+        lv_obj_clean(_beadsContainer);
+        const BeadsData& bd = data.beads.data;
+
+        if (bd.project_count == 0) {
+            /* Fallback to aggregate if no per-project data */
+            char buf[48];
+            snprintf(buf, sizeof(buf), "Open: %d  IP: %d  Blk: %d",
+                     bd.open_count, bd.in_progress_count, bd.blocked_count);
+            lv_obj_t* lbl = lv_label_create(_beadsContainer);
+            lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_color(lbl, TEXT_PRIMARY, 0);
+            lv_label_set_text(lbl, buf);
+        } else {
+            for (uint8_t i = 0; i < bd.project_count; i++) {
+                const BeadsProject& proj = bd.projects[i];
+                lv_obj_t* row = lv_obj_create(_beadsContainer);
+                lv_obj_set_size(row, SX(266), SY(28));
+                lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+                lv_obj_set_style_border_width(row, 0, 0);
+                lv_obj_set_style_pad_all(row, 0, 0);
+                lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+
+                /* Project name */
+                lv_obj_t* lblName = lv_label_create(row);
+                lv_obj_set_style_text_font(lblName, &lv_font_montserrat_14, 0);
+                lv_obj_set_style_text_color(lblName, TEXT_PRIMARY, 0);
+                lv_obj_align(lblName, LV_ALIGN_LEFT_MID, 0, 0);
+                lv_label_set_text(lblName, proj.name);
+
+                /* Counts: open / ip / blocked */
+                char buf[48];
+                snprintf(buf, sizeof(buf), "%d / %d / %d",
+                         proj.open, proj.in_progress, proj.blocked);
+                lv_obj_t* lblCounts = lv_label_create(row);
+                lv_obj_set_style_text_font(lblCounts, &lv_font_montserrat_14, 0);
+                lv_obj_align(lblCounts, LV_ALIGN_RIGHT_MID, 0, 0);
+
+                /* Color: red if blocked > open (structurally stuck) */
+                bool stuck = proj.blocked > proj.open && proj.blocked > 0;
+                lv_obj_set_style_text_color(lblCounts,
+                    stuck ? CI_FAIL : TEXT_SECONDARY, 0);
+                lv_label_set_text(lblCounts, buf);
+            }
+        }
     } else {
-        lv_label_set_text(_lblBeadsOpen, "Open: --");
-        lv_label_set_text(_lblBeadsIP, "In Progress: --");
-        lv_label_set_text(_lblBeadsBlk, "Blocked: --");
+        lv_obj_clean(_beadsContainer);
+        lv_obj_t* lbl = lv_label_create(_beadsContainer);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
+        lv_label_set_text(lbl, "No beads data");
     }
 
     /* Claude agent */

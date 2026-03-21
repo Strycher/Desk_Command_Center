@@ -17,10 +17,8 @@ private:
     const DashboardData* _lastData = nullptr;
     bool _dirty = false;
 
-    /* Beads summary */
-    lv_obj_t* _lblBeadsOpen = nullptr;
-    lv_obj_t* _lblBeadsIP   = nullptr;
-    lv_obj_t* _lblBeadsBlk  = nullptr;
+    /* Beads — per-project rows */
+    lv_obj_t* _beadsContainer = nullptr;  // flex column, rebuilt on update
 
     /* Agent status */
     lv_obj_t* _lblAgentStatus = nullptr;
