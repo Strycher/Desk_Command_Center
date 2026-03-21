@@ -59,6 +59,43 @@ static void parseTaskItems(JsonArrayConst arr, TaskItem* items,
     }
 }
 
+#include <time.h>
+
+/**
+ * Parse ISO 8601 UTC date string and return days since that date.
+ * Returns 255 on parse failure or if NTP time unavailable.
+ * Uses timegm() to match GitHub's UTC timestamps against UTC now.
+ */
+static uint8_t daysSinceISO(const char* iso) {
+    if (!iso || iso[0] == '\0') return 255;
+    struct tm tm = {};
+    // Parse "2026-03-21T10:30:00Z" — only need date portion
+    if (sscanf(iso, "%d-%d-%dT", &tm.tm_year, &tm.tm_mon, &tm.tm_mday) != 3)
+        return 255;
+    tm.tm_year -= 1900;
+    tm.tm_mon -= 1;
+    tm.tm_isdst = 0;
+    // timegm() is not available on ESP-IDF; use mktime() + tzoffset workaround.
+    // Force UTC: set TZ to "" so mktime treats local == UTC, then restore.
+    // Alternatively compute epoch manually (no DST, no leap seconds beyond date).
+    // Simple manual approach: days since Unix epoch from Y/M/D.
+    int y = tm.tm_year + 1900;
+    int m = tm.tm_mon + 1;
+    int d = tm.tm_mday;
+    // Days from epoch (1970-01-01) using Gregorian formula
+    int a = (14 - m) / 12;
+    int yr = y - a;
+    int mo = m + 12 * a - 3;
+    long jdn = d + (153 * mo + 2) / 5 + 365L * yr + yr / 4 - yr / 100 + yr / 400 - 32045;
+    long epoch_jdn = 2440588L;  // JDN of 1970-01-01
+    time_t then = (jdn - epoch_jdn) * 86400L;
+    time_t now = time(nullptr);
+    if (now < 1700000000) return 255;  // NTP not synced (epoch < 2023)
+    int diff = (int)difftime(now, then) / 86400;
+    if (diff < 0) return 0;
+    return diff > 255 ? 255 : (uint8_t)diff;
+}
+
 template <typename T>
 static void parseSourceMeta(JsonObjectConst src, SourceBlock<T>& block) {
     block.status = parseStatus(src["status"]);
@@ -264,6 +301,48 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                 rs.open_prs = r["open_prs"] | 0;
                 rs.open_issues = r["open_issues"] | 0;
                 copyStr(rs.ci_status, sizeof(rs.ci_status), r["ci_status"]);
+
+                /* Draft PR count and oldest PR age */
+                rs.draft_prs = 0;
+                rs.oldest_pr_days = 0;
+                JsonArrayConst prs = r["prs"];
+                for (JsonObjectConst pr : prs) {
+                    if (pr["draft"] | false) rs.draft_prs++;
+                    uint8_t age = daysSinceISO(pr["created_at"]);
+                    if (age > rs.oldest_pr_days) rs.oldest_pr_days = age;
+                }
+
+                /* CI workflow runs */
+                rs.ci_run_count = 0;
+                JsonArrayConst ciArr = r["ci"];
+                for (JsonObjectConst ci : ciArr) {
+                    if (rs.ci_run_count >= MAX_CI_RUNS) break;
+                    CIRun& cr = rs.ci_runs[rs.ci_run_count];
+                    copyStr(cr.workflow, sizeof(cr.workflow), ci["workflow"]);
+                    copyStr(cr.conclusion, sizeof(cr.conclusion), ci["conclusion"]);
+                    copyStr(cr.status, sizeof(cr.status), ci["status"]);
+                    copyStr(cr.branch, sizeof(cr.branch), ci["branch"]);
+                    rs.ci_run_count++;
+                }
+
+                /* Compute health: 0=green, 1=yellow, 2=red
+                   Each signal can only escalate, never downgrade. */
+                rs.health = 0;
+                if (strcmp(rs.ci_status, "failing") == 0) {
+                    rs.health = 2;
+                } else if (strcmp(rs.ci_status, "pending") == 0) {
+                    rs.health = 1;
+                }
+                // PR age only escalates health (never downgrades).
+                // 255 = NTP not synced — treat as unknown, don't escalate.
+                if (rs.oldest_pr_days != 255) {
+                    if (rs.oldest_pr_days > 7 && rs.health < 2) {
+                        rs.health = 2;
+                    } else if (rs.oldest_pr_days > 3 && rs.health < 1) {
+                        rs.health = 1;
+                    }
+                }
+
                 out.github.data.repo_count++;
             }
         }
@@ -368,7 +447,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.home_assistant.status = SourceStatus::MISSING;
     }
 
-    /* Beads — bridge: data.{total_open, total_in_progress} */
+    /* Beads — bridge: data.projects{name: {open, in_progress, blocked, display_name}} */
     JsonObjectConst bd = sources["beads"];
     if (!bd.isNull()) {
         parseSourceMeta(bd, out.beads);
@@ -377,6 +456,21 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
             out.beads.data.open_count = bdd["total_open"] | 0;
             out.beads.data.in_progress_count = bdd["total_in_progress"] | 0;
             out.beads.data.blocked_count = bdd["blocked_count"] | 0;
+
+            /* Per-project breakdown */
+            JsonObjectConst projects = bdd["projects"];
+            out.beads.data.project_count = 0;
+            for (JsonPairConst kv : projects) {
+                if (out.beads.data.project_count >= MAX_BEADS_PROJECTS) break;
+                JsonObjectConst proj = kv.value();
+                if (proj["error"].is<const char*>()) continue;  // skip errored projects
+                BeadsProject& bp = out.beads.data.projects[out.beads.data.project_count];
+                copyStr(bp.name, sizeof(bp.name), proj["display_name"]);
+                bp.open = proj["open"] | 0;
+                bp.in_progress = proj["in_progress"] | 0;
+                bp.blocked = proj["blocked"] | 0;
+                out.beads.data.project_count++;
+            }
         }
     } else {
         out.beads.status = SourceStatus::MISSING;
