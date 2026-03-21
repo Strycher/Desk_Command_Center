@@ -5,14 +5,31 @@ name: Sync Labels to Project Board
 # This Action translates those labels into board field updates.
 on:
   issues:
-    types: [labeled]
+    types: [labeled, closed]
 
 jobs:
+  # Safety net: auto-apply board:done when issue is closed without it
+  auto-done:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    if: github.event.action == 'closed'
+    steps:
+      - name: Apply board:done to closed issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          labels=$(gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json labels -q '.labels[].name')
+          if ! echo "$labels" | grep -q "board:done"; then
+            gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "board:done"
+          fi
+
   sync:
     runs-on: ubuntu-latest
     if: >-
+      github.event.action == 'labeled' && (
       startsWith(github.event.label.name, 'board:') ||
-      startsWith(github.event.label.name, 'priority:')
+      startsWith(github.event.label.name, 'priority:'))
     steps:
       - name: Sync label to project board
         uses: actions/github-script@v7
@@ -115,8 +132,15 @@ jobs:
             `;
 
             // ── Sync ALL board/priority labels ──────────────────────
-            const boardLabel = issueLabels.find(l => l.startsWith('board:') && STATUS_OPTIONS[l]);
-            const priorityLabel = issueLabels.find(l => l.startsWith('priority:') && PRIORITY_OPTIONS[l]);
+            // Use the trigger label directly when it matches — the payload's
+            // label array is a stale snapshot and find() may return the old
+            // label instead of the one that triggered this workflow run.
+            const boardLabel = triggerPrefix === 'board:'
+              ? triggerLabel
+              : issueLabels.find(l => l.startsWith('board:') && STATUS_OPTIONS[l]);
+            const priorityLabel = triggerPrefix === 'priority:'
+              ? triggerLabel
+              : issueLabels.find(l => l.startsWith('priority:') && PRIORITY_OPTIONS[l]);
 
             if (boardLabel) {
               try {
