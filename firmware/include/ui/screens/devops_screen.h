@@ -11,6 +11,7 @@ public:
     void create(lv_obj_t* parent) override;
     void update(const DashboardData& data) override;
     void onShow() override;
+    void onHide() override;
 
 private:
     lv_obj_t* _repoList     = nullptr;
@@ -24,6 +25,14 @@ private:
     lv_obj_t* _lblAgentStatus = nullptr;
     lv_obj_t* _lblAgentTask   = nullptr;
 
+    /* CI detail popup */
+    lv_obj_t* _ciPopup = nullptr;
+
     void rebuildRepoList(const GitHubData& gh);
     void addRepoCard(const RepoStatus& repo);
+
+    void showCIDetail(const RepoStatus& repo);
+    void closeCIPopup();
+    static void ciPopupCloseCb(lv_event_t* e);
+    static void repoCardClickCb(lv_event_t* e);
 };

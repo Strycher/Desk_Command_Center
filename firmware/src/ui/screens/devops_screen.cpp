@@ -9,6 +9,8 @@
 #include <cstring>
 #include "logger.h"
 
+static DevOpsScreen* s_instance = nullptr;
+
 static const lv_color_t BG_COLOR       = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG        = lv_color_hex(0x1a1a2e);
 static const lv_color_t TEXT_PRIMARY   = lv_color_hex(0xE0E0FF);
@@ -48,6 +50,7 @@ static lv_obj_t* makeCard(lv_obj_t* parent, int16_t x, int16_t y,
 
 void DevOpsScreen::create(lv_obj_t* parent) {
     _screen = lv_obj_create(nullptr);
+    s_instance = this;
     lv_obj_set_style_bg_color(_screen, BG_COLOR, 0);
     lv_obj_set_style_bg_opa(_screen, LV_OPA_COVER, 0);
 
@@ -193,6 +196,10 @@ void DevOpsScreen::addRepoCard(const RepoStatus& repo) {
     lv_obj_set_style_text_color(lblIss, TEXT_SECONDARY, 0);
     lv_obj_align(lblIss, LV_ALIGN_TOP_RIGHT, 0, SY(26));
     lv_label_set_text(lblIss, issBuf);
+
+    /* Tap to show CI detail — child index = repo array index */
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(card, repoCardClickCb, LV_EVENT_CLICKED, nullptr);
 }
 
 void DevOpsScreen::rebuildRepoList(const GitHubData& gh) {
@@ -232,6 +239,8 @@ void DevOpsScreen::onShow() {
 
 void DevOpsScreen::update(const DashboardData& data) {
     _lastData = &data;
+    /* Close CI popup on data update to avoid stale data references */
+    closeCIPopup();
     _dirty = true;
 
     /* GitHub repos — rebuild only if we're the currently-visible screen.
@@ -324,5 +333,125 @@ void DevOpsScreen::update(const DashboardData& data) {
         lv_label_set_text(_lblAgentStatus, "Status: --");
         lv_obj_set_style_text_color(_lblAgentStatus, TEXT_SECONDARY, 0);
         lv_label_set_text(_lblAgentTask, "");
+    }
+}
+
+void DevOpsScreen::onHide() {
+    closeCIPopup();
+}
+
+void DevOpsScreen::repoCardClickCb(lv_event_t* e) {
+    if (!s_instance || !s_instance->_lastData) return;
+    if (s_instance->_lastData->github.status != SourceStatus::OK) return;
+    lv_obj_t* card = lv_event_get_target(e);
+    uint32_t idx = lv_obj_get_index(card);
+    if (idx >= s_instance->_lastData->github.data.repo_count) return;
+    s_instance->showCIDetail(s_instance->_lastData->github.data.repos[idx]);
+}
+
+void DevOpsScreen::showCIDetail(const RepoStatus& repo) {
+    closeCIPopup();  // close any existing
+
+    _ciPopup = lv_obj_create(_screen);
+    lv_obj_set_size(_ciPopup, SX(400), SY(280));
+    lv_obj_center(_ciPopup);
+    lv_obj_set_style_bg_color(_ciPopup, lv_color_hex(0x16162e), 0);
+    lv_obj_set_style_bg_opa(_ciPopup, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_ciPopup, SU(16), 0);
+    lv_obj_set_style_border_color(_ciPopup, ACCENT, 0);
+    lv_obj_set_style_border_width(_ciPopup, 2, 0);
+    lv_obj_set_style_pad_all(_ciPopup, SU(16), 0);
+    lv_obj_set_style_shadow_width(_ciPopup, SU(20), 0);
+    lv_obj_set_style_shadow_opa(_ciPopup, LV_OPA_50, 0);
+
+    /* Title */
+    lv_obj_t* title = lv_label_create(_ciPopup);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(title, TEXT_PRIMARY, 0);
+    lv_obj_set_width(title, SX(340));
+    lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
+    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_label_set_text(title, repo.name);
+
+    /* CI workflow rows */
+    lv_obj_t* list = lv_obj_create(_ciPopup);
+    lv_obj_set_size(list, SX(368), SY(180));
+    lv_obj_align(list, LV_ALIGN_TOP_LEFT, 0, SY(30));
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(list, 0, 0);
+    lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_style_pad_row(list, SU(6), 0);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+
+    if (repo.ci_run_count == 0) {
+        lv_obj_t* lbl = lv_label_create(list);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
+        lv_label_set_text(lbl, "No CI workflow runs");
+    } else {
+        for (uint8_t i = 0; i < repo.ci_run_count; i++) {
+            const CIRun& run = repo.ci_runs[i];
+
+            lv_obj_t* row = lv_obj_create(list);
+            lv_obj_set_size(row, SX(368), SY(32));
+            lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_border_width(row, 0, 0);
+            lv_obj_set_style_pad_all(row, 0, 0);
+            lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+
+            /* Status dot */
+            lv_color_t runColor = CI_PEND;
+            if (strcmp(run.conclusion, "success") == 0) runColor = CI_PASS;
+            else if (strcmp(run.conclusion, "failure") == 0) runColor = CI_FAIL;
+
+            lv_obj_t* dot = lv_obj_create(row);
+            lv_obj_set_size(dot, SU(8), SU(8));
+            lv_obj_align(dot, LV_ALIGN_LEFT_MID, 0, 0);
+            lv_obj_set_style_bg_color(dot, runColor, 0);
+            lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+            lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+            lv_obj_set_style_border_width(dot, 0, 0);
+
+            /* Workflow name */
+            lv_obj_t* lblWf = lv_label_create(row);
+            lv_obj_set_style_text_font(lblWf, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_color(lblWf, TEXT_PRIMARY, 0);
+            lv_obj_align(lblWf, LV_ALIGN_LEFT_MID, SX(16), 0);
+            lv_obj_set_width(lblWf, SX(200));
+            lv_label_set_long_mode(lblWf, LV_LABEL_LONG_DOT);
+            lv_label_set_text(lblWf, run.workflow);
+
+            /* Branch */
+            lv_obj_t* lblBr = lv_label_create(row);
+            lv_obj_set_style_text_font(lblBr, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_color(lblBr, TEXT_SECONDARY, 0);
+            lv_obj_align(lblBr, LV_ALIGN_RIGHT_MID, 0, 0);
+            lv_obj_set_width(lblBr, SX(120));
+            lv_label_set_long_mode(lblBr, LV_LABEL_LONG_DOT);
+            lv_label_set_text(lblBr, run.branch);
+        }
+    }
+
+    /* Close button — "X" top-right */
+    lv_obj_t* closeBtn = lv_btn_create(_ciPopup);
+    lv_obj_set_size(closeBtn, SU(28), SU(28));
+    lv_obj_align(closeBtn, LV_ALIGN_TOP_RIGHT, SU(4), SU(-4));
+    lv_obj_set_style_bg_color(closeBtn, lv_color_hex(0x333355), 0);
+    lv_obj_set_style_radius(closeBtn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_shadow_width(closeBtn, 0, 0);
+    lv_obj_t* lblX = lv_label_create(closeBtn);
+    lv_label_set_text(lblX, LV_SYMBOL_CLOSE);
+    lv_obj_center(lblX);
+    lv_obj_add_event_cb(closeBtn, ciPopupCloseCb, LV_EVENT_CLICKED, nullptr);
+}
+
+void DevOpsScreen::ciPopupCloseCb(lv_event_t* e) {
+    if (s_instance) s_instance->closeCIPopup();
+}
+
+void DevOpsScreen::closeCIPopup() {
+    if (_ciPopup) {
+        lv_obj_del(_ciPopup);
+        _ciPopup = nullptr;
     }
 }
