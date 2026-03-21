@@ -309,7 +309,7 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
                 for (JsonObjectConst pr : prs) {
                     if (pr["draft"] | false) rs.draft_prs++;
                     uint8_t age = daysSinceISO(pr["created_at"]);
-                    if (age > rs.oldest_pr_days) rs.oldest_pr_days = age;
+                    if (age != 255 && age > rs.oldest_pr_days) rs.oldest_pr_days = age;
                 }
 
                 /* CI workflow runs */
