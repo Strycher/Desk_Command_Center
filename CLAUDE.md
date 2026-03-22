@@ -1,5 +1,9 @@
 # Desk Command Center — Project Guide
 
+> **Standards:** This project follows DifferentWire standards.
+> **Read and apply:** `C:\Dev\CLAUDE-BASE.md`, `C:\Dev\SAFELANE.md`
+> **Credential inventory:** `C:\Dev\.credentials.env`
+
 > **Hardware:** CrowPanel Advance 5.0" HMI (ESP32-S3-WROOM-1-N16R8)
 > **Framework:** ESP-IDF / Arduino + LVGL
 > **Toolchain:** PlatformIO (VSCode) or Arduino IDE
@@ -385,12 +389,13 @@ gh issue edit 42 --add-label "board:ready,priority:P2"
 | Label | Board Column |
 |-------|-------------|
 | `board:backlog` | Backlog |
+| `board:todo` | Todo |
 | `board:ready` | Ready |
-| `board:in-progress` | In progress |
-| `board:testing` | In review |
-| `board:on-hold` | Deferred |
+| `board:in-progress` | In Progress |
+| `board:testing` | Testing |
+| `board:deferred` | Deferred |
 | `board:done` | Done |
-| `priority:P0` through `priority:P3` | Priority field |
+| `priority:P0` through `priority:P4` | Priority field |
 
 Labels are mutually exclusive within their group — the Action auto-removes old labels.
 
