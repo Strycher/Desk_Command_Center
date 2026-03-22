@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Apply board:done to closed issue
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
         run: |
           labels=$(gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json labels -q '.labels[].name')
           if ! echo "$labels" | grep -q "board:done"; then
@@ -41,13 +41,13 @@ jobs:
 
             const STATUS_FIELD_ID = 'PVTSSF_lAHODGcOBc4BQ5xSzg-43pc';
             const STATUS_OPTIONS = {
-              'board:backlog':     'f75ad846',  // Backlog
-              'board:ready':       'e18bf179',  // Ready
-              'board:in-progress': '47fc9ee4',  // In progress
-              'board:testing':     'aba860b9',  // In review (closest match)
-              'board:on-hold':     '0a4cdbf4',  // Deferred (closest match)
-              'board:done':        '98236657',  // Done
-              // board:todo — no matching column on DCC board
+              'board:backlog':     'cc41e1ac',  // Backlog
+              'board:todo':        '35650882',  // Todo
+              'board:ready':       '3c1f90c0',  // Ready
+              'board:in-progress': 'e6c780ff',  // In Progress
+              'board:testing':     '2107e3a5',  // Testing
+              'board:deferred':    '659b453d',  // Deferred
+              'board:done':        '206efbce',  // Done
             };
 
             const PRIORITY_FIELD_ID = 'PVTSSF_lAHODGcOBc4BQ5xSzg-43q4';
@@ -56,6 +56,7 @@ jobs:
               'priority:P1': '0a877460',
               'priority:P2': 'da944a9c',
               'priority:P3': '22a5bedc',
+              'priority:P4': 'bb5bedf4',
             };
 
             // ── Determine what triggered us ─────────────────────────
