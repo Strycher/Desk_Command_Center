@@ -447,8 +447,8 @@ void DashboardParser::parse(const JsonDocument& doc, DashboardData& out) {
         out.home_assistant.status = SourceStatus::MISSING;
     }
 
-    /* Beads — bridge: data.projects{name: {open, in_progress, blocked, display_name}} */
-    JsonObjectConst bd = sources["beads"];
+    /* Citadel — bridge: data.projects{name: {open, in_progress, blocked, display_name}} */
+    JsonObjectConst bd = sources["citadel"];
     if (!bd.isNull()) {
         parseSourceMeta(bd, out.beads);
         JsonObjectConst bdd = bd["data"];

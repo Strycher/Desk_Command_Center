@@ -1,7 +1,7 @@
 /**
  * DevOps Screen — Implementation
  * Content area: y=30..430.
- * Left: scrollable repo cards. Right: Beads + agent status.
+ * Left: scrollable repo cards. Right: Citadel + agent status.
  */
 
 #include "ui/screens/devops_screen.h"
@@ -70,17 +70,17 @@ void DevOpsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_pad_row(_repoList, SU(6), 0);
     lv_obj_set_flex_flow(_repoList, LV_FLEX_FLOW_COLUMN);
 
-    /* === Right: Beads per-project card === */
-    lv_obj_t* beadsCard = makeCard(_screen, SX(500), UI_CONTENT_Y + UI_PAD,
+    /* === Right: Citadel per-project card === */
+    lv_obj_t* citadelCard = makeCard(_screen, SX(500), UI_CONTENT_Y + UI_PAD,
                                       SX(290), SY(180));
 
-    lv_obj_t* beadsHeader = lv_label_create(beadsCard);
-    lv_label_set_text(beadsHeader, "Beads Projects");
-    lv_obj_set_style_text_font(beadsHeader, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(beadsHeader, TEXT_SECONDARY, 0);
-    lv_obj_align(beadsHeader, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_t* citadelHeader = lv_label_create(citadelCard);
+    lv_label_set_text(citadelHeader, "Citadel Projects");
+    lv_obj_set_style_text_font(citadelHeader, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(citadelHeader, TEXT_SECONDARY, 0);
+    lv_obj_align(citadelHeader, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    _beadsContainer = lv_obj_create(beadsCard);
+    _beadsContainer = lv_obj_create(citadelCard);
     lv_obj_set_size(_beadsContainer, SX(266), SY(146));
     lv_obj_align(_beadsContainer, LV_ALIGN_TOP_LEFT, 0, SY(22));
     lv_obj_set_style_bg_opa(_beadsContainer, LV_OPA_TRANSP, 0);
@@ -260,7 +260,7 @@ void DevOpsScreen::update(const DashboardData& data) {
         _dirty = false;
     }
 
-    /* Beads — per-project rows */
+    /* Citadel — per-project rows */
     if (data.beads.status == SourceStatus::OK) {
         lv_obj_clean(_beadsContainer);
         const BeadsData& bd = data.beads.data;
@@ -311,7 +311,7 @@ void DevOpsScreen::update(const DashboardData& data) {
         lv_obj_t* lbl = lv_label_create(_beadsContainer);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl, TEXT_SECONDARY, 0);
-        lv_label_set_text(lbl, "No beads data");
+        lv_label_set_text(lbl, "No Citadel data");
     }
 
     /* Claude agent */
