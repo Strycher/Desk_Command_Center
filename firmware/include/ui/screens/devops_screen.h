@@ -1,5 +1,5 @@
 /**
- * DevOps Screen — GitHub repos + Beads/agent status.
+ * DevOps Screen — GitHub repos + Citadel/agent status.
  * Scrollable repo cards with CI badges, agent activity summary.
  */
 
@@ -18,7 +18,7 @@ private:
     const DashboardData* _lastData = nullptr;
     bool _dirty = false;
 
-    /* Beads — per-project rows */
+    /* Citadel — per-project rows */
     lv_obj_t* _beadsContainer = nullptr;  // flex column, rebuilt on update
 
     /* Agent status */
