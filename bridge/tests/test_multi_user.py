@@ -98,8 +98,11 @@ class TestAdapterFactory:
             create_adapter("nonexistent", {})
 
     def test_all_adapter_classes_registered(self):
-        expected = {"weather", "github", "google_calendar", "beads", "unfocused_tasks", "home_assistant", "claude_status", "monday"}
-        assert set(ADAPTER_CLASSES.keys()) == expected
+        required = {"weather", "github", "google_calendar", "citadel", "overwatch", "unfocused_tasks", "home_assistant"}
+        optional = {"claude_status", "monday"}  # conditional imports
+        actual = set(ADAPTER_CLASSES.keys())
+        assert required <= actual, f"Missing required adapters: {required - actual}"
+        assert actual <= required | optional, f"Unexpected adapters: {actual - required - optional}"
 
     def test_shared_adapter_no_user_scope(self):
         adapter = create_adapter("home_assistant", {"url": "http://ha:8123"})
