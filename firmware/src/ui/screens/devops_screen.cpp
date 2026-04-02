@@ -72,7 +72,7 @@ void DevOpsScreen::create(lv_obj_t* parent) {
 
     /* === Right: Citadel per-project card === */
     lv_obj_t* citadelCard = makeCard(_screen, SX(500), UI_CONTENT_Y + UI_PAD,
-                                      SX(290), SY(180));
+                                      SX(290), SY(220));
 
     lv_obj_t* citadelHeader = lv_label_create(citadelCard);
     lv_label_set_text(citadelHeader, "Citadel Projects");
@@ -81,16 +81,17 @@ void DevOpsScreen::create(lv_obj_t* parent) {
     lv_obj_align(citadelHeader, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _beadsContainer = lv_obj_create(citadelCard);
-    lv_obj_set_size(_beadsContainer, SX(266), SY(146));
+    lv_obj_set_size(_beadsContainer, SX(266), LV_SIZE_CONTENT);
     lv_obj_align(_beadsContainer, LV_ALIGN_TOP_LEFT, 0, SY(22));
     lv_obj_set_style_bg_opa(_beadsContainer, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_beadsContainer, 0, 0);
     lv_obj_set_style_pad_all(_beadsContainer, 0, 0);
     lv_obj_set_style_pad_row(_beadsContainer, SU(4), 0);
     lv_obj_set_flex_flow(_beadsContainer, LV_FLEX_FLOW_COLUMN);
+    lv_obj_clear_flag(_beadsContainer, LV_OBJ_FLAG_SCROLLABLE);
 
     /* === Right: Agent status card === */
-    lv_obj_t* agentCard = makeCard(_screen, SX(500), UI_CONTENT_Y + SY(200),
+    lv_obj_t* agentCard = makeCard(_screen, SX(500), UI_CONTENT_Y + SY(240),
                                       SX(290), SY(120));
 
     lv_obj_t* agentHeader = lv_label_create(agentCard);
