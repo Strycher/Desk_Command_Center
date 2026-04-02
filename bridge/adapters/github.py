@@ -74,6 +74,14 @@ class GitHubAdapter(BaseAdapter):
     async def _poll_repo(self, client: httpx.AsyncClient, repo: str) -> dict[str, Any]:
         headers = self._headers(repo)
 
+        # Repo metadata — open_issues_count is pre-computed, no pagination needed
+        repo_resp = await client.get(
+            f"{API_BASE}/repos/{repo}",
+            headers=headers,
+        )
+        repo_resp.raise_for_status()
+        repo_meta = repo_resp.json()
+
         # Open PRs
         prs_resp = await client.get(
             f"{API_BASE}/repos/{repo}/pulls",
@@ -82,10 +90,11 @@ class GitHubAdapter(BaseAdapter):
         )
         prs_resp.raise_for_status()
 
-        # Open issues (excludes PRs)
+        # Open issues — first page for display details only.
+        # True count comes from repo metadata (open_issues_count).
         issues_resp = await client.get(
             f"{API_BASE}/repos/{repo}/issues",
-            params={"state": "open", "per_page": 100},
+            params={"state": "open", "per_page": 30},
             headers=headers,
         )
         issues_resp.raise_for_status()
@@ -115,10 +124,15 @@ class GitHubAdapter(BaseAdapter):
             if r.get("event") in ci_events
         ]
 
+        # open_issues_count includes PRs — subtract PR count for true issue count
+        total_open_issues = repo_meta.get("open_issues_count", len(issues))
+        true_issue_count = max(0, total_open_issues - len(prs))
+
         return {
             "prs": prs,
             "issues": issues,
             "runs": ci_runs,
+            "open_issues_count": true_issue_count,
         }
 
     def parse(self, raw: dict[str, Any]) -> dict[str, Any]:
@@ -189,10 +203,13 @@ class GitHubAdapter(BaseAdapter):
                 # Absence of failing code CI = clean state.
                 ci_status = "passing"
 
+            # Use pre-computed count from repo metadata (not capped by pagination)
+            open_issues = data.get("open_issues_count", len(issues))
+
             repos[repo_name] = {
                 "status": "ok",
                 "open_prs": len(prs),
-                "open_issues": len(issues),
+                "open_issues": open_issues,
                 "prs": prs,
                 "issues": issues,
                 "ci": ci_runs,
