@@ -27,7 +27,7 @@ SECRET_KEYS = re.compile(
 
 # Source keys that are per-user in multi-user mode
 _PER_USER_SOURCES = {
-    "weather", "google_calendar", "github", "beads",
+    "weather", "google_calendar", "github", "citadel", "overwatch",
     "unfocused_tasks", "claude", "claude_status", "devops", "monday",
 }
 

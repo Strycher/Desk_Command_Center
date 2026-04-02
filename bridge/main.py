@@ -26,14 +26,24 @@ from fastapi.responses import JSONResponse
 
 from adapters import TTLCache, AdapterScheduler
 from adapters.base import BaseAdapter
-from adapters.beads import BeadsAdapter
-from adapters.claude_status import ClaudeStatusAdapter
+from adapters.citadel import CitadelAdapter
+from adapters.overwatch import OverwatchAdapter
 from adapters.github import GitHubAdapter
-from adapters.monday import MondayAdapter
 from adapters.google_calendar import GoogleCalendarAdapter
 from adapters.home_assistant import HomeAssistantAdapter
 from adapters.unfocused_tasks import UnfocusedTasksAdapter
 from adapters.weather import WeatherAdapter
+
+# Optional adapters — may not be deployed on all hosts
+try:
+    from adapters.claude_status import ClaudeStatusAdapter
+except ImportError:
+    ClaudeStatusAdapter = None  # type: ignore[assignment,misc]
+
+try:
+    from adapters.monday import MondayAdapter
+except ImportError:
+    MondayAdapter = None  # type: ignore[assignment,misc]
 from config import BridgeConfig
 from push_store import PushStore
 
@@ -46,12 +56,16 @@ ADAPTER_CLASSES: dict[str, type[BaseAdapter]] = {
     "weather": WeatherAdapter,
     "github": GitHubAdapter,
     "google_calendar": GoogleCalendarAdapter,
-    "beads": BeadsAdapter,
+    "citadel": CitadelAdapter,
+    "overwatch": OverwatchAdapter,
     "unfocused_tasks": UnfocusedTasksAdapter,
     "home_assistant": HomeAssistantAdapter,
-    "claude_status": ClaudeStatusAdapter,
-    "monday": MondayAdapter,
 }
+
+if ClaudeStatusAdapter is not None:
+    ADAPTER_CLASSES["claude_status"] = ClaudeStatusAdapter
+if MondayAdapter is not None:
+    ADAPTER_CLASSES["monday"] = MondayAdapter
 
 
 def create_adapter(
