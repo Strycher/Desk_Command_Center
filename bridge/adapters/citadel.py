@@ -113,6 +113,7 @@ class CitadelAdapter(BaseAdapter):
         projects: dict[str, Any] = {}
         total_open = 0
         total_in_progress = 0
+        total_blocked = 0
 
         for name, data in raw.get("projects", {}).items():
             if "error" in data:
@@ -134,6 +135,7 @@ class CitadelAdapter(BaseAdapter):
             testing = by_status.get("testing", 0)
             done = by_status.get("done", 0)
             deferred = by_status.get("deferred", 0)
+            blocked = by_status.get("blocked", 0)
 
             # "open" = actionable work not yet done
             open_count = backlog + todo + ready + testing
@@ -153,13 +155,14 @@ class CitadelAdapter(BaseAdapter):
 
             total_open += open_count
             total_in_progress += in_progress
+            total_blocked += blocked
 
             projects[name] = {
                 "status": "ok",
                 "display_name": name,
                 "open": open_count,
                 "in_progress": in_progress,
-                "blocked": 0,
+                "blocked": blocked,
                 "done": done,
                 "deferred": deferred,
                 "total": stats.get("total", 0),
@@ -171,5 +174,5 @@ class CitadelAdapter(BaseAdapter):
             "projects": projects,
             "total_open": total_open,
             "total_in_progress": total_in_progress,
-            "blocked_count": 0,
+            "blocked_count": total_blocked,
         }
