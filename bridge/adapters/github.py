@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.github.com"
 
+# Best-effort deploy/release detection — these workflows affect infra,
+# not code quality, so they shouldn't determine CI health status.
+# Matched case-insensitively against workflow name.
+_DEPLOY_KEYWORDS = {"deploy", "release", "publish", "distribute"}
+
 
 class GitHubAdapter(BaseAdapter):
     """Polls GitHub REST API for repo status: open PRs, issues, CI status.
@@ -116,9 +121,10 @@ class GitHubAdapter(BaseAdapter):
         # Filter out PRs from issues endpoint
         issues = [i for i in issues_raw if "pull_request" not in i]
 
-        # Only include code-triggered runs for CI status.
-        # Scheduled (cron) and workflow_dispatch runs are auxiliary — not CI.
-        ci_events = {"push", "pull_request", "pull_request_target"}
+        # Only include code/manual-triggered runs for CI status.
+        # Scheduled (cron) runs are auxiliary — not CI.
+        # workflow_dispatch = manual re-runs (e.g., re-deploy after infra fix).
+        ci_events = {"push", "pull_request", "pull_request_target", "workflow_dispatch"}
         ci_runs = [
             r for r in runs.get("workflow_runs", [])
             if r.get("event") in ci_events
@@ -168,7 +174,7 @@ class GitHubAdapter(BaseAdapter):
                 for i in data.get("issues", [])
             ]
 
-            # Summarize CI: latest run per workflow
+            # Summarize CI: latest run per workflow, tagged as deploy or CI
             ci_runs = []
             seen_workflows: set[str] = set()
             for run in data.get("runs", []):
@@ -176,22 +182,25 @@ class GitHubAdapter(BaseAdapter):
                 if wf_name in seen_workflows:
                     continue
                 seen_workflows.add(wf_name)
+                is_deploy = any(
+                    kw in wf_name.lower() for kw in _DEPLOY_KEYWORDS
+                )
                 ci_runs.append({
                     "workflow": wf_name,
                     "status": run.get("status"),
                     "conclusion": run.get("conclusion"),
                     "branch": run.get("head_branch"),
                     "created_at": run.get("created_at"),
+                    "is_deploy": is_deploy,
                 })
 
             # Derive summary CI status for firmware display.
-            # Only code-triggered runs (push/PR) are included — scheduled
-            # cron jobs are filtered out in _poll_repo().
-            # "failing" if any workflow failed, "pending" if any in-progress,
-            # "passing" if all succeeded, empty if no runs.
-            if ci_runs:
-                has_failure = any(r["conclusion"] == "failure" for r in ci_runs)
-                has_pending = any(r["status"] != "completed" for r in ci_runs)
+            # Deploy/release workflows are excluded — they reflect infra
+            # health, not code quality. Unknown workflows default to CI.
+            code_runs = [r for r in ci_runs if not r.get("is_deploy")]
+            if code_runs:
+                has_failure = any(r["conclusion"] == "failure" for r in code_runs)
+                has_pending = any(r["status"] != "completed" for r in code_runs)
                 if has_failure:
                     ci_status = "failing"
                 elif has_pending:
@@ -199,8 +208,6 @@ class GitHubAdapter(BaseAdapter):
                 else:
                     ci_status = "passing"
             else:
-                # No code-triggered runs in recent history (all cron/schedule).
-                # Absence of failing code CI = clean state.
                 ci_status = "passing"
 
             # Use pre-computed count from repo metadata (not capped by pagination)
