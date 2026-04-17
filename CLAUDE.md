@@ -1,8 +1,8 @@
 # Desk Command Center — Project Guide
 
 > **Standards:** This project follows DifferentWire standards.
-> **Read and apply:** `C:\Dev\CLAUDE-BASE.md`, `C:\Dev\SAFELANE.md`
-> **Credential inventory:** `C:\Dev\.credentials.env`
+> **Read and apply:** `C:\Dev\DifferentWire\standards\CLAUDE-BASE.md`, `C:\Dev\DifferentWire\standards\SAFELANE.md`
+> **Credential inventory:** `C:\Dev\DifferentWire\standards\.credentials.env`
 
 > **Hardware:** CrowPanel Advance 5.0" HMI (ESP32-S3-WROOM-1-N16R8)
 > **Framework:** ESP-IDF / Arduino + LVGL
@@ -47,7 +47,7 @@ peripheral communication.
 
 1. **Register with Agent Mail** — `ensure_project()` → `register_agent()`
 2. **Check inbox** — `fetch_inbox()` for coordination messages
-3. **Find work** — `bd ready` (Beads) for next available task
+3. **Find work** — `dw ready` (Citadel) for next available task
 4. **Claim ONE task** — Move to In Progress, begin work
 
 ### Session Modes
@@ -55,60 +55,59 @@ peripheral communication.
 | Mode          | Trigger      | Behavior                                    |
 |---------------|-------------|---------------------------------------------|
 | **Interactive** | Default     | Answer questions, discuss design, edit docs. Do NOT claim tasks or write code autonomously. |
-| **Worker**      | `/work`     | Full autonomous operation. Claim tasks, write code, commit, repeat until `bd ready` is empty. |
+| **Worker**      | `/work`     | Full autonomous operation. Claim tasks, write code, commit, repeat until `dw ready` is empty. |
 
 ### Between-Task Reset (Worker Mode)
 
 1. Release any file reservations
 2. Check Agent Mail inbox
-3. Run `bd ready` → pick highest-priority task
+3. Run `dw ready` → pick highest-priority task
 4. Repeat until queue is empty
 
 ---
 
-## Task Management — GitHub + Beads
+## Task Management — GitHub + Citadel
 
 **GitHub is the definitive source of truth.** Every task, bug, feature, and epic
-MUST exist as a GitHub Issue first. Beads is the secondary workflow system that
-drives agent task execution.
+MUST exist as a GitHub Issue first. Citadel is the coordination layer that
+drives agent task execution and enforces governance.
 
 ### GitHub-First Workflow (MANDATORY)
 
 **The pattern for ALL work:**
 
 1. **Epic** — Create a GitHub Issue for the epic with checklist of stories
-2. **Beads Epic** — Create a matching Beads epic: `bd create --title="Epic title (GH #N)"`
+2. **Citadel Epic** — Register in Citadel: task title includes `(#N)` referencing GitHub issue
 3. **Story Issues** — During breakdown, create a GitHub Issue for EVERY story/task
 4. **Sub-issue links** — Link each story as a tracked sub-issue of the epic
-   (use `gh api graphql` with `addSubIssue` mutation)
-5. **Beads tasks** — Create matching Beads tasks: `bd create --title="Story title (GH #N)"`
-6. **Dependency chain** — Wire Beads dependencies: `bd dep add <task> <depends-on>`
+5. **Citadel tasks** — Register tasks in Citadel with `external_issue_number` set
+6. **Dependency chain** — Wire Citadel dependencies via API
 
-**EVERY Beads task MUST have a corresponding GitHub Issue. NO EXCEPTIONS.**
+**EVERY Citadel task MUST have a corresponding GitHub Issue. NO EXCEPTIONS.**
 **EVERY GitHub Issue for a story MUST be linked as a sub-issue of its parent epic.**
 
 ### Sync Rules (MANDATORY)
 
-- **Creating work:** GitHub Issue FIRST → then Beads task with `(GH #N)` in title
-- **Starting work:** `bd update <id> --status=in_progress` AND
+- **Creating work:** GitHub Issue FIRST → then Citadel task with `(#N)` in title
+- **Starting work:** `dw claim <id>` AND
   `gh issue edit <N> --add-label "board:in-progress"`
-- **Closing work:** `bd close <id>` AND `gh issue close <N> --comment "Completed."`
+- **Closing work:** `dw close <id> --reason "description"` AND `gh issue close <N> --comment "Completed."`
   AND update epic body checkbox to `[x]`
 - **Board status:** Use `board:*` labels (see Label-Based Board Sync below)
-- **Never use `gh project` commands** — they consume the shared GraphQL budget
+- **Be judicious with `gh project` commands** — they consume the shared GraphQL budget
 - **Never skip the GitHub Issue** — if it doesn't exist in GitHub, it's wrong
 
 ### Commands
 
-| Command           | Purpose                          |
-|-------------------|----------------------------------|
-| `bd ready`        | List tasks available to work     |
-| `bd list`         | List all tasks                   |
-| `bd show <id>`    | Show task detail                 |
-| `bd create`       | Create new task                  |
-| `bd update <id>`  | Update task fields               |
-| `bd close <id>`   | Close completed task             |
-| `bd dep tree`     | Show dependency graph            |
+| Command                      | Purpose                          |
+|------------------------------|----------------------------------|
+| `dw ready`                   | List tasks available to work     |
+| `dw list`                    | List all tasks                   |
+| `dw show <id>`               | Show task detail                 |
+| `dw claim <id>`              | Claim a task (in_progress)       |
+| `dw close <id> -r "reason"`  | Close completed task             |
+| `dw blocked`                 | Show blocked tasks               |
+| `dw stats`                   | Project health statistics        |
 
 ### Task Lifecycle
 
@@ -116,7 +115,7 @@ drives agent task execution.
 Backlog → Todo → Ready → In Progress → Testing → Done
 ```
 
-- `open` status = approved for development (visible to `bd ready`)
+- `ready` status = approved for development (visible to `dw ready`)
 - `backlog` / `todo` = hidden from agent work queues
 
 ### Task Sizing (MANDATORY)
@@ -304,31 +303,16 @@ ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --restore
 
 ---
 
-## Dolt Servers
+## Citadel (Task Management)
 
-### Pi 5 Dolt (DCC Beads — canonical for BOTH `bd` CLI and bridge)
-
-| Field        | Value                                                     |
-|--------------|-----------------------------------------------------------|
-| Container    | `dcc-dolt` on Pi 5 (`192.168.50.24`)                      |
-| Database     | `beads_DCC`                                               |
-| Port         | `3306`                                                    |
-| Used by      | `bd` CLI (via `.beads/metadata.json`) AND bridge adapter  |
-
-`.beads/metadata.json` points to `192.168.50.24` with `dolt_database: beads_DCC`.
-There is NO local embedded Dolt for DCC. A legacy `.beads/dolt/` directory may
-exist but is unused and deprecated.
-
-### Hetzner Dolt (Unfocused/FC Beads — NOT for DCC)
-
-| Field        | Value                                                     |
-|--------------|-----------------------------------------------------------|
-| Container    | `dolt-beads` on Hetzner (`46.224.181.82`)                 |
-| Databases    | `beads_Unfocused`, `beads_FC`                             |
-| Tunnel       | `ssh -fNL 3307:127.0.0.1:3307 unfocused@46.224.181.82`   |
-| Used by      | Unfocused and Field Compass projects ONLY                 |
-
-**DCC has NO database on Hetzner.** Do not point DCC `bd` commands at Hetzner.
+| Field        | Value                                            |
+|--------------|--------------------------------------------------|
+| API          | `https://getunfocused.app/citadel/`              |
+| Health       | `https://getunfocused.app/citadel/health`        |
+| Server       | Hetzner `46.224.181.82` (Docker: FastAPI + PostgreSQL 16) |
+| CLI          | `dw` (Python)                                    |
+| Project      | `Desk_Command_Center`                            |
+| GitHub Org   | `Strycher` (NOT DifferentWire)                   |
 
 ---
 
@@ -336,7 +320,7 @@ exist but is unused and deprecated.
 
 If any of the following are unreachable, **STOP and alert the user:**
 
-- **Beads** (Dolt database via SSH tunnel)
+- **Citadel** (task management API)
 - **Agent Mail** (MCP server)
 
 Do not fall back to GitHub-only workflows. These tools are required for
@@ -404,6 +388,6 @@ Labels are mutually exclusive within their group — the Action auto-removes old
 ## GitHub API Budget
 
 - Use `gh` CLI (REST API) for issues/PRs — separate 5,000/hr budget
-- **NEVER** use `gh project` commands (GraphQL, shared 5,000 pt/hr budget). Use labels instead (see Label-Based Board Sync above).
-- Never query GitHub to find work — use `bd ready`
+- **Be judicious with `gh project` commands** (GraphQL, shared 5,000 pt/hr budget). Prefer labels (see Label-Based Board Sync above).
+- Never query GitHub to find work — use `dw ready`
 - No polling loops against GitHub API
