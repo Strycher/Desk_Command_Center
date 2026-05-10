@@ -329,3 +329,82 @@ def test_put_config_invalid_section():
     resp = client.put("/api/config", json={"users": {"strycher": {}}})
     assert resp.status_code == 400
     assert resp.json()["errors"]
+
+
+# --- Env-placeholder resolution (issue #252) ---
+
+import os
+from config import _resolve_env_placeholders
+
+
+class TestEnvPlaceholders:
+    def test_resolves_string_placeholder(self, monkeypatch):
+        monkeypatch.setenv("DCC_TEST_TOKEN", "actual-secret-value")
+        assert _resolve_env_placeholders("${ENV:DCC_TEST_TOKEN}") == "actual-secret-value"
+
+    def test_missing_env_resolves_to_empty(self, monkeypatch):
+        monkeypatch.delenv("DCC_NEVER_SET_VAR", raising=False)
+        assert _resolve_env_placeholders("${ENV:DCC_NEVER_SET_VAR}") == ""
+
+    def test_partial_substitution_in_string(self, monkeypatch):
+        monkeypatch.setenv("DCC_TEST_HOST", "example.com")
+        result = _resolve_env_placeholders("https://${ENV:DCC_TEST_HOST}/api")
+        assert result == "https://example.com/api"
+
+    def test_recursive_dict(self, monkeypatch):
+        monkeypatch.setenv("DCC_TEST_SECRET", "abc123")
+        node = {"users": {"strycher": {"sources": {"github": {"api_key": "${ENV:DCC_TEST_SECRET}"}}}}}
+        out = _resolve_env_placeholders(node)
+        assert out["users"]["strycher"]["sources"]["github"]["api_key"] == "abc123"
+
+    def test_non_secret_strings_pass_through(self):
+        node = {"poll_interval": 60, "url": "http://localhost:8080", "calendars": ["primary"]}
+        out = _resolve_env_placeholders(node)
+        assert out == node
+
+    def test_save_does_not_persist_resolved_secrets(self, tmp_path, monkeypatch):
+        """Critical: mutations + _save() must write placeholders, not resolved values."""
+        monkeypatch.setenv("DCC_HA_TOKEN", "real-ha-token-do-not-leak")
+        cfg_path = tmp_path / "test.json"
+        cfg_path.write_text(json.dumps({
+            "bridge": {"push_ttl": 600},
+            "display": {"poll_interval": 30, "timezone": "America/New_York"},
+            "shared_sources": {
+                "home_assistant": {
+                    "url": "http://localhost:8123",
+                    "api_key": "${ENV:DCC_HA_TOKEN}",
+                    "poll_interval": 60,
+                },
+            },
+            "users": {}, "devices": {}, "unregistered_devices": {},
+        }))
+        cfg = BridgeConfig(path=cfg_path)
+        # Runtime view sees resolved secret
+        assert cfg.get_shared_sources()["home_assistant"]["api_key"] == "real-ha-token-do-not-leak"
+        # Mutate something else and save
+        cfg.update({"bridge": {"push_ttl": 300}})
+        # On-disk file must still have the placeholder, not the resolved secret
+        on_disk = json.loads(cfg_path.read_text())
+        assert on_disk["shared_sources"]["home_assistant"]["api_key"] == "${ENV:DCC_HA_TOKEN}"
+        assert "real-ha-token-do-not-leak" not in cfg_path.read_text()
+
+    def test_record_unregistered_device_preserves_placeholders(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DCC_HA_TOKEN", "another-secret")
+        cfg_path = tmp_path / "test.json"
+        cfg_path.write_text(json.dumps({
+            "bridge": {"push_ttl": 600},
+            "display": {"poll_interval": 30, "timezone": "America/New_York"},
+            "shared_sources": {
+                "home_assistant": {
+                    "url": "http://localhost:8123",
+                    "api_key": "${ENV:DCC_HA_TOKEN}",
+                    "poll_interval": 60,
+                },
+            },
+            "users": {}, "devices": {}, "unregistered_devices": {},
+        }))
+        cfg = BridgeConfig(path=cfg_path)
+        cfg.record_unregistered_device("DEADBEEF", "192.168.1.99")
+        on_disk = json.loads(cfg_path.read_text())
+        assert on_disk["shared_sources"]["home_assistant"]["api_key"] == "${ENV:DCC_HA_TOKEN}"
+        assert "DEADBEEF" in on_disk["unregistered_devices"]

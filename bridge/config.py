@@ -8,12 +8,24 @@ Supports two config schemas:
 - **Multi-user (nested):** users/devices/shared_sources structure
 
 Legacy configs are auto-migrated to the nested schema on load.
+
+## Secrets handling (issue #252)
+
+Secrets live in `.env` (universally-recognized "do not expose" filename),
+not in bridge_config.json. The on-disk JSON contains placeholders:
+    "refresh_token": "${ENV:USERS_STRYCHER_GOOGLE_CALENDAR_REFRESH_TOKEN}"
+
+At load time, placeholders are substituted from os.environ to produce the
+runtime config. The on-disk copy (`self._raw`) keeps placeholders intact;
+mutations write back the placeholder version, so secrets never leak into
+bridge_config.json. The resolved copy (`self._data`) is what adapters see.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -24,6 +36,35 @@ logger = logging.getLogger(__name__)
 SECRET_KEYS = re.compile(
     r"(api_key|secret|token|password|credential)", re.IGNORECASE,
 )
+
+# ${ENV:VAR_NAME} placeholder for env-resolved secrets
+_ENV_PLACEHOLDER_RE = re.compile(r"\$\{ENV:([A-Z0-9_]+)\}")
+
+
+def _resolve_env_placeholders(value: Any) -> Any:
+    """Recursively replace ${ENV:VAR} placeholders with os.environ values.
+
+    Returns a deep copy of `value` with placeholders substituted in any
+    string fields. Missing env vars resolve to empty string (a warning is
+    logged once per missing var). Non-string scalars and unrecognised
+    structures pass through unchanged.
+    """
+    if isinstance(value, str):
+        def _sub(match: re.Match) -> str:
+            var = match.group(1)
+            resolved = os.environ.get(var)
+            if resolved is None:
+                logger.warning(
+                    "Config references env var %s but it is not set", var,
+                )
+                return ""
+            return resolved
+        return _ENV_PLACEHOLDER_RE.sub(_sub, value)
+    if isinstance(value, dict):
+        return {k: _resolve_env_placeholders(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_resolve_env_placeholders(x) for x in value]
+    return value
 
 # Source keys that are per-user in multi-user mode
 _PER_USER_SOURCES = {
@@ -115,6 +156,11 @@ class BridgeConfig:
 
     def __init__(self, path: Path | None = None) -> None:
         self._path = path or CONFIG_PATH
+        # _raw is what's persisted to disk (with ${ENV:VAR} placeholders).
+        # _data is the runtime view with placeholders resolved against env.
+        # Mutations write _raw and re-derive _data; _save() never writes
+        # resolved secrets back to disk.
+        self._raw: dict[str, Any] = {}
         self._data: dict[str, Any] = {}
         self._load()
 
@@ -123,25 +169,30 @@ class BridgeConfig:
         """True if config uses the nested multi-user schema."""
         return _is_nested_schema(self._data)
 
+    def _refresh_runtime(self) -> None:
+        """Re-derive `self._data` from `self._raw` by resolving env placeholders."""
+        self._data = _resolve_env_placeholders(self._raw)
+
     def _load(self) -> None:
         """Load from disk, migrating legacy format if needed."""
         if self._path.exists():
             try:
                 raw = json.loads(self._path.read_text())
-                if _is_nested_schema(raw):
-                    self._data = raw
-                else:
-                    self._data = _migrate_flat_to_nested(raw)
+                if not _is_nested_schema(raw):
+                    raw = _migrate_flat_to_nested(raw)
+                self._raw = raw
+                self._refresh_runtime()
                 logger.info("Config loaded from %s", self._path)
                 return
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("Failed to load config (%s), using defaults", exc)
-        self._data = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
+        self._raw = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
+        self._refresh_runtime()
 
     def _save(self) -> None:
-        """Persist current config to disk."""
+        """Persist `self._raw` to disk (placeholders preserved, never resolved secrets)."""
         try:
-            self._path.write_text(json.dumps(self._data, indent=2))
+            self._path.write_text(json.dumps(self._raw, indent=2))
         except OSError as exc:
             logger.error("Failed to save config: %s", exc)
 
@@ -196,11 +247,12 @@ class BridgeConfig:
     ) -> None:
         """Record an unknown device in unregistered_devices."""
         from datetime import datetime, timezone
-        unreg = self._data.setdefault("unregistered_devices", {})
+        unreg = self._raw.setdefault("unregistered_devices", {})
         unreg[chip_id] = {
             "first_seen": datetime.now(timezone.utc).isoformat(),
             "source_ip": source_ip,
         }
+        self._refresh_runtime()
         self._save()
         logger.warning("Unknown device %s from %s", chip_id, source_ip)
 
@@ -242,20 +294,23 @@ class BridgeConfig:
                     f"Section {section!r} cannot be updated via REST API"
                 )
                 continue
-            if section not in self._data:
+            if section not in self._raw:
                 errors.append(f"Unknown section: {section!r}")
                 continue
             if not isinstance(values, dict):
                 errors.append(f"Section {section!r} must be an object")
                 continue
 
-            target = self._data[section]
+            # Mutate _raw (placeholders preserved). Use _data for type-checking
+            # since _raw may contain ${ENV:...} strings instead of resolved values.
+            raw_target = self._raw[section]
+            data_target = self._data.get(section, {})
             for key, value in values.items():
-                if key not in target:
+                if key not in raw_target:
                     errors.append(f"Unknown key: {section}.{key}")
                     continue
 
-                expected_type = type(target[key])
+                expected_type = type(data_target.get(key)) if data_target.get(key) is not None else type(raw_target[key])
                 if expected_type is not type(None) and not isinstance(value, expected_type):
                     if isinstance(value, (int, float)) and expected_type in (int, float):
                         value = expected_type(value)
@@ -267,10 +322,11 @@ class BridgeConfig:
                         )
                         continue
 
-                target[key] = value
+                raw_target[key] = value
                 updated.append(f"{section}.{key}")
 
         if updated:
+            self._refresh_runtime()
             self._save()
             logger.info("Config updated: %s", ", ".join(updated))
 
