@@ -143,6 +143,9 @@ def _mock_config(tmp_path=None):
     from pathlib import Path
     import tempfile
     cfg = BridgeConfig.__new__(BridgeConfig)
+    # _raw and _data are kept in sync (no env placeholders in test fixture);
+    # writes go through _raw, runtime reads from _data. See issue #252.
+    cfg._raw = json.loads(json.dumps(MULTI_USER_CONFIG))
     cfg._data = json.loads(json.dumps(MULTI_USER_CONFIG))
     # Use a temp file so _save() works for record_unregistered_device
     cfg._path = Path(tempfile.mktemp(suffix=".json"))
