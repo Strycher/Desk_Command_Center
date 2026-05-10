@@ -278,15 +278,46 @@ Implement a resource mutex if both features are needed.
 
 **NEVER use password auth.** NEVER guess the username. It is `strycher`. Always.
 
+### Secrets Hygiene (CRITICAL — read before touching bridge files)
+
+The bridge's secret material lives in **`bridge/.env`**, NOT in
+`bridge_config.json`. The JSON file holds non-secret structure with
+`${ENV:VAR_NAME}` placeholders; the runtime resolves them from environment
+variables loaded by Docker Compose's `env_file` directive.
+
+**Files and what they contain:**
+
+| File | Contains | Safe to read/echo? |
+|------|----------|---------------------|
+| `bridge/bridge_config.json` (local + Pi) | Structure with `${ENV:...}` placeholders only | YES — no secrets in plaintext |
+| `bridge/.env` (Pi only, gitignored) | Real API keys, OAuth tokens, refresh tokens, PATs | **NO — never echo, paste, or include in agent output** |
+
+**Hard rules for any agent or human editing bridge files:**
+- **NEVER** include `.env` contents in any output, log, commit message, PR
+  body, summary, or response. The filename is the universal "do not expose"
+  signal — respect it.
+- **NEVER** paste resolved secret values back into `bridge_config.json`.
+  If you see an actual token there instead of `${ENV:...}`, that's a
+  regression — fix it, do not commit it.
+- The migration script `bridge/migrate_secrets_to_env.py` is one-shot and
+  idempotent. Re-running on a clean (post-migration) config is a no-op.
+
 ### Bridge Config Updates (CRITICAL)
 
-`bridge_config.json` on the Pi contains secrets (API keys, tokens) that do NOT
-exist in the local repo copy. **NEVER SCP the full file to the Pi.**
+`bridge_config.json` on the Pi contains the canonical structure with placeholders
+for secrets. The local repo copy (`bridge/bridge_config.json`) lags. **NEVER SCP
+the full file to the Pi** — it would clobber the placeholders the Pi's adapters
+depend on.
 
-**Safe update process:**
+**Updating secrets (rotated tokens, new credentials):**
+- Edit `bridge/.env` on the Pi directly, OR
+- Append/overwrite a single line: `KEY=new-value`
+- Restart container: `docker restart dcc-bridge`
+
+**Updating non-secret structure (poll intervals, project lists, device entries):**
 ```bash
 # Update individual fields via the merge script:
-ssh strycher@192.168.50.24 'echo '"'"'{"google_calendar": {"refresh_token": "NEW"}}'"'"' | /home/strycher/dcc-bridge/update_config.sh'
+ssh strycher@192.168.50.24 'echo '"'"'{"display": {"poll_interval": 60}}'"'"' | /home/strycher/dcc-bridge/update_config.sh'
 
 # Show backups:
 ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --show-backups'
@@ -296,10 +327,10 @@ ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --restore
 ```
 
 **Rules:**
-- `update_config.sh` deep-merges patches — unmentioned keys are preserved
+- `update_config.sh` deep-merges JSON patches — unmentioned keys are preserved
 - Automatic backup before every write (10 rotations kept)
-- **NEVER** run `scp bridge_config.json strycher@...` — it overwrites secrets
-- After config update: `docker restart dcc-bridge`
+- **NEVER** run `scp bridge_config.json strycher@...` — it overwrites placeholders
+- After any config update: `docker restart dcc-bridge`
 
 ---
 
