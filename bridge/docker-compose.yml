@@ -7,6 +7,11 @@ services:
       - "8080:8080"
     networks:
       - dcc-net
+    # Secrets live in .env and are injected as environment variables.
+    # bridge_config.json references them via ${ENV:VAR} placeholders. See
+    # docs/bridge-secrets.md and issue #252.
+    env_file:
+      - .env
     volumes:
       - ./bridge_config.json:/app/bridge_config.json
       - ./data:/app/data
