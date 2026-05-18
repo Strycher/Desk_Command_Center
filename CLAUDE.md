@@ -86,6 +86,31 @@ drives agent task execution and enforces governance.
 **EVERY Citadel task MUST have a corresponding GitHub Issue. NO EXCEPTIONS.**
 **EVERY GitHub Issue for a story MUST be linked as a sub-issue of its parent epic.**
 
+### Sub-issue linking (MANDATORY mechanism — issue #261)
+
+GitHub's native sub-issue feature shows a progress bar on the epic that
+auto-updates as children close. The linking step above (Step 4 of the
+GitHub-First Workflow) MUST be performed using the **REST API** — not
+GraphQL.
+
+**Canonical command:**
+
+```bash
+# Look up the child issue's integer ID (not the issue number, not the node ID)
+CHILD_ID=$(gh api repos/<owner>/<repo>/issues/<CHILD_NUM> --jq .id)
+
+# Link as sub-issue of the parent epic
+gh api -X POST repos/<owner>/<repo>/issues/<PARENT_NUM>/sub_issues \
+       -F sub_issue_id=$CHILD_ID
+```
+
+**Notes:**
+- `-F` (capital F) is required — `sub_issue_id` must be an integer; `-f` would send a string and the API rejects with HTTP 422.
+- REST is on a separate 5,000/hr budget from the shared GraphQL budget that powers `sync-labels-to-board.yml`. Using GraphQL `addSubIssue` works but burns budget you've reserved for board sync.
+- Verification: `gh api repos/<owner>/<repo>/issues/<PARENT_NUM>/sub_issues --jq '.[].number'` lists current sub-issue numbers of the parent.
+
+**Why not the `gh sub-issue` extension?** Third-party (`agbiotech/gh-sub-issue`, `jacobo-doist/gh-subissue`), requires per-machine install, adds an external dependency for what's a 2-line `gh api` call.
+
 ### Sync Rules (MANDATORY)
 
 - **Creating work:** GitHub Issue FIRST → then Citadel task with `(#N)` in title
