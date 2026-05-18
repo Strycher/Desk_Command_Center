@@ -9,7 +9,7 @@
 
 static constexpr uint8_t MAX_EVENTS = 20;
 static constexpr uint8_t MAX_TASKS  = 20;
-static constexpr uint8_t MAX_REPOS  = 10;
+static constexpr uint8_t MAX_REPOS  = 32;
 static constexpr uint8_t MAX_HA_ENTITIES = 40;
 static constexpr uint8_t MAX_HA_PER_DOMAIN = 6;
 static constexpr uint8_t MAX_HA_DEVICES = MAX_HA_ENTITIES;  // each device has ≥1 entity
@@ -65,7 +65,7 @@ struct WeatherData {
     uint8_t daily_count;
 };
 
-static constexpr uint8_t MAX_BEADS_PROJECTS = 6;
+static constexpr uint8_t MAX_BEADS_PROJECTS = 32;
 static constexpr uint8_t MAX_CI_RUNS = 5;
 
 struct BeadsProject {
