@@ -16,6 +16,7 @@ private:
     /* Clock widget */
     lv_obj_t* _lblClock    = nullptr;
     lv_obj_t* _lblDate     = nullptr;
+    lv_obj_t* _lblOtherTz  = nullptr;   // "AZ  5:47 PM    PT  5:47 PM" — issue #258
     lv_timer_t* _clockTimer = nullptr;
 
     /* Appointments card — up to 3 compact event rows */

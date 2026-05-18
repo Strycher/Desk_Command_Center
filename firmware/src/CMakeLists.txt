@@ -17,6 +17,7 @@ set(SHARED_SRCS
     "data_service.cpp"
     "ha_command.cpp"
     "ntp_time.cpp"
+    "time_helpers.cpp"
     "logger.cpp"
     "error_state.cpp"
     "staleness_tracker.cpp"

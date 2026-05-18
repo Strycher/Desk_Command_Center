@@ -12,6 +12,7 @@
 #include "ntp_time.h"
 #include "config_store.h"
 #include "logger.h"
+#include "time_helpers.h"   // multi-TZ formatter (issue #258)
 
 static const lv_color_t BG_COLOR     = lv_color_hex(0x0f0f23);
 static const lv_color_t CARD_BG      = lv_color_hex(0x1a1a2e);
@@ -63,6 +64,13 @@ void HomeScreen::createClock(lv_obj_t* parent) {
     lv_obj_set_style_text_color(_lblDate, TEXT_SECONDARY, 0);
     lv_obj_align(_lblDate, LV_ALIGN_TOP_LEFT, 0, SY(75));
     lv_label_set_text(_lblDate, "---");
+
+    /* Other-timezone strip — AZ + PT under the date (issue #258). */
+    _lblOtherTz = lv_label_create(area);
+    lv_obj_set_style_text_font(_lblOtherTz, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(_lblOtherTz, TEXT_SECONDARY, 0);
+    lv_obj_align(_lblOtherTz, LV_ALIGN_TOP_LEFT, 0, SY(108));
+    lv_label_set_text(_lblOtherTz, "");
 }
 
 void HomeScreen::updateClock() {
@@ -78,6 +86,20 @@ void HomeScreen::updateClock() {
     const char* d = NtpTime::dateStr();
     if (strcmp(lv_label_get_text(_lblDate), d) != 0) {
         lv_label_set_text(_lblDate, d);
+    }
+
+    /* AZ + PT strip (issue #258). Build new string and compare before
+       setting to preserve the "only update when changed" pattern. */
+    if (_lblOtherTz && NtpTime::isSynced()) {
+        char az[12] = {0};
+        char pt[12] = {0};
+        TimeHelpers::formatNow12h(TimeHelpers::TZ_ARIZONA, az, sizeof(az));
+        TimeHelpers::formatNow12h(TimeHelpers::TZ_PACIFIC, pt, sizeof(pt));
+        char line[48];
+        snprintf(line, sizeof(line), "AZ  %s    PT  %s", az, pt);
+        if (strcmp(lv_label_get_text(_lblOtherTz), line) != 0) {
+            lv_label_set_text(_lblOtherTz, line);
+        }
     }
 }
 
