@@ -69,6 +69,9 @@ void DevOpsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_pad_all(_repoList, 0, 0);
     lv_obj_set_style_pad_row(_repoList, SU(6), 0);
     lv_obj_set_flex_flow(_repoList, LV_FLEX_FLOW_COLUMN);
+    /* Touch-scroll vertically; scrollbar shown only when content overflows. */
+    lv_obj_set_scrollbar_mode(_repoList, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_scroll_dir(_repoList, LV_DIR_VER);
 
     /* === Right: Citadel per-project card === */
     lv_obj_t* citadelCard = makeCard(_screen, SX(500), UI_CONTENT_Y + UI_PAD,
@@ -81,14 +84,20 @@ void DevOpsScreen::create(lv_obj_t* parent) {
     lv_obj_align(citadelHeader, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _beadsContainer = lv_obj_create(citadelCard);
-    lv_obj_set_size(_beadsContainer, SX(266), LV_SIZE_CONTENT);
+    /* Fixed height so the container scrolls when project count exceeds
+       what fits in the card.  Card is SY(220), header occupies SY(22),
+       card padding is SU(12) on each side — available is roughly SY(174). */
+    lv_obj_set_size(_beadsContainer, SX(266), SY(174));
     lv_obj_align(_beadsContainer, LV_ALIGN_TOP_LEFT, 0, SY(22));
     lv_obj_set_style_bg_opa(_beadsContainer, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_beadsContainer, 0, 0);
     lv_obj_set_style_pad_all(_beadsContainer, 0, 0);
     lv_obj_set_style_pad_row(_beadsContainer, SU(4), 0);
     lv_obj_set_flex_flow(_beadsContainer, LV_FLEX_FLOW_COLUMN);
-    lv_obj_clear_flag(_beadsContainer, LV_OBJ_FLAG_SCROLLABLE);
+    /* Enable touch scrolling; scrollbar auto-hides when content fits. */
+    lv_obj_add_flag(_beadsContainer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(_beadsContainer, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_scroll_dir(_beadsContainer, LV_DIR_VER);
 
     /* === Right: Agent status card === */
     lv_obj_t* agentCard = makeCard(_screen, SX(500), UI_CONTENT_Y + SY(240),
