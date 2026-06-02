@@ -1,38 +1,124 @@
 #!/usr/bin/env bash
-# Desktop Command Center — Pre-commit hook
-# 1. Delegates to Beads for task tracking
-# 2. Checks Agent Mail file reservations for conflicts
+# =============================================================================
+# DifferentWire Standard Pre-Commit Hook
+# =============================================================================
+# Blocks commits unless the agent has an active (in_progress) task in Citadel.
+# By default, the active task must ALSO have a linked GitHub issue — this
+# prevents:
+#   - Coding without a claimed task
+#   - Tasks without GitHub issue linkage
+#
+# Per-project relaxation: if the project has `require_issue_link=false` in
+# Citadel, the issue-link check is skipped and a claimed task alone suffices.
+# Default is strict (TRUE) for every project; relaxation is an explicit
+# human-approved opt-out via `dw project-update <name> --require-issue-link false`.
+# See DifferentWire/citadel#48.
+#
+# Exit codes:
+#   0 = commit allowed
+#   1 = commit blocked
+#
+# Override: set DW_SKIP_CITADEL_CHECK=1 for emergency commits (logged).
+# =============================================================================
 
-set -euo pipefail
-
-# --- Beads hook delegation ---
-if command -v bd &>/dev/null; then
-    bd hooks run pre-commit "$@" || {
-        echo "⚠ Beads pre-commit hook failed (non-blocking)"
-    }
+# Allow emergency bypass with explicit env var
+if [ "${DW_SKIP_CITADEL_CHECK:-0}" = "1" ]; then
+  echo "⚠ CITADEL CHECK BYPASSED — DW_SKIP_CITADEL_CHECK=1" >&2
+  echo "  This bypass is logged. Use only for emergencies." >&2
+  exit 0
 fi
 
-# --- File reservation conflict check ---
-AGENT_IDENTITY_FILE=".agent-identity"
-if [ ! -f "$AGENT_IDENTITY_FILE" ]; then
-    # No agent identity — likely a human commit, skip reservation check
+CITADEL_API="https://getunfocused.app/citadel"
+
+# Detect project name from DW_PROJECT env var or directory name
+PROJECT="${DW_PROJECT:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")}"
+
+if [ -z "$PROJECT" ]; then
+  echo "✗ Cannot determine project name. Set DW_PROJECT or run from a git repo." >&2
+  exit 1
+fi
+
+# ─── 1. Fetch project config (for require_issue_link flag) ──────────────
+# Fail closed on any error: if we can't determine the flag, assume strict.
+# This keeps the default-strict invariant intact even during Citadel blips.
+PROJECT_RESP=$(curl -s --max-time 5 "${CITADEL_API}/projects/${PROJECT}" 2>/dev/null)
+REQUIRE_ISSUE_LINK=$(echo "$PROJECT_RESP" | python3 -c "
+import json, sys
+try:
+    p = json.load(sys.stdin)
+    # Default TRUE if field missing (older API version or corrupted response)
+    print('true' if p.get('require_issue_link', True) else 'false')
+except Exception:
+    print('true')
+" 2>/dev/null)
+
+# ─── 2. Check for in_progress tasks (with optional issue-link check) ────
+RESPONSE=$(curl -s --max-time 5 "${CITADEL_API}/projects/${PROJECT}/tasks?status=in_progress" 2>/dev/null)
+
+if [ -z "$RESPONSE" ]; then
+  echo "✗ Citadel unreachable — cannot verify task claim." >&2
+  echo "  Fix Citadel connectivity or set DW_SKIP_CITADEL_CHECK=1 for emergency." >&2
+  exit 1
+fi
+
+HAS_CLAIMED=$(echo "$RESPONSE" | REQUIRE_ISSUE_LINK="$REQUIRE_ISSUE_LINK" python3 -c "
+import json, os, sys
+require = os.environ.get('REQUIRE_ISSUE_LINK', 'true') == 'true'
+try:
+    tasks = json.load(sys.stdin)
+    claimed = [t for t in tasks if t.get('status') == 'in_progress']
+    if not claimed:
+        print('NO_TASK')
+    elif not require:
+        # Relaxed: any claimed task is sufficient. Report issue link if
+        # present for informational purposes, but don't require it.
+        t = claimed[0]
+        iss = t.get('external_issue_number')
+        if iss:
+            print(f'OK:{t[\"short_id\"]}:#{iss}')
+        else:
+            print(f'OK_RELAXED:{t[\"short_id\"]}')
+    else:
+        # Strict (default): at least one claimed task must have an issue link
+        linked = [t for t in claimed if t.get('external_issue_number')]
+        if linked:
+            print(f'OK:{linked[0][\"short_id\"]}:#{linked[0][\"external_issue_number\"]}')
+        else:
+            print(f'NO_ISSUE:{claimed[0][\"short_id\"]}')
+except Exception:
+    print('ERROR')
+" 2>/dev/null)
+
+case "$HAS_CLAIMED" in
+  OK:*)
+    TASK_ID=$(echo "$HAS_CLAIMED" | cut -d: -f2)
+    ISSUE=$(echo "$HAS_CLAIMED" | cut -d: -f3)
+    echo "✓ Citadel: active task ${TASK_ID} (${ISSUE})" >&2
     exit 0
-fi
-
-AGENT_NAME=$(cat "$AGENT_IDENTITY_FILE" | tr -d '[:space:]')
-if [ -z "$AGENT_NAME" ]; then
+    ;;
+  OK_RELAXED:*)
+    TASK_ID=$(echo "$HAS_CLAIMED" | cut -d: -f2)
+    echo "✓ Citadel: active task ${TASK_ID} (project '${PROJECT}' has issue-link requirement relaxed)" >&2
     exit 0
-fi
-
-# Get staged files (only source files we care about)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(cpp|h|py|yaml|json|ini|md)$' || true)
-if [ -z "$STAGED_FILES" ]; then
-    exit 0
-fi
-
-echo "Checking file reservations for $AGENT_NAME..."
-# Note: Full reservation check requires Agent Mail API access.
-# For now, warn if files aren't reserved. The /work protocol
-# requires explicit reservation before editing.
-echo "✓ Pre-commit checks passed"
-exit 0
+    ;;
+  NO_TASK)
+    echo "✗ No claimed task in Citadel for project '${PROJECT}'." >&2
+    echo "  Run: dw --project ${PROJECT} claim <task-id>" >&2
+    echo "  You must claim a task before committing code." >&2
+    exit 1
+    ;;
+  NO_ISSUE:*)
+    TASK_ID=$(echo "$HAS_CLAIMED" | cut -d: -f2)
+    echo "✗ Task ${TASK_ID} has no GitHub issue link." >&2
+    echo "  Every task must be linked to a GitHub issue before work begins." >&2
+    echo "  (Project '${PROJECT}' requires issue linkage — if this project doesn't" >&2
+    echo "   need it, have an admin run:" >&2
+    echo "     dw project-update ${PROJECT} --require-issue-link false)" >&2
+    exit 1
+    ;;
+  *)
+    echo "✗ Could not verify Citadel task status." >&2
+    echo "  Set DW_SKIP_CITADEL_CHECK=1 for emergency bypass." >&2
+    exit 1
+    ;;
+esac

@@ -64,6 +64,24 @@ peripheral communication.
 3. Run `dw ready` → pick highest-priority task
 4. Repeat until queue is empty
 
+### Hook chain (canonical) + verification
+
+DCC's git lifecycle hooks live in `.claude/hooks/` and are byte-equivalent to canonical at `DifferentWire/standards/hooks/` (modulo CRLF + `PROJECT_DIR`):
+
+- `preflight.sh` — Citadel + Agent Mail health check, blocks session if down
+- `pre-commit` — blocks commit if no claimed Citadel task or no GH issue link
+- `post-commit` — reminds about open referenced issues
+- `pre-push` — blocks push if referenced issues aren't closed in Citadel
+
+Verify locally:
+```bash
+python3 .claude/hooks/tests/test_hooks_smoke.py
+```
+
+Checks files exist + executable + content matches canonical + preflight runs and exits 0. Will fail if a commit drifts one of these hooks. For fleet-wide audit run `bash /c/Dev/DifferentWire/standards/scripts/audit-hook-drift.sh`.
+
+`session-state.sh` and `setup-hooks.sh` are project-specific extras (Worker mode coordination + initial wiring) that live alongside the canonical four — not subject to canonical drift check.
+
 ---
 
 ## Task Management — GitHub + Citadel
