@@ -77,3 +77,6 @@ Desktop.ini
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Per-session identity records (runtime, local)
+.claude/sessions/
