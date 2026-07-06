@@ -20,12 +20,19 @@ from .base import AdapterConfig, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
-# Legacy fallback: entity domains shown when no DCC label is configured
+# Legacy fallback: entity domains shown when no DCC label is configured.
+# Deliberately EXCLUDES high-cardinality noise domains (sensor / binary_sensor):
+# large HA installs can carry 1000+ discovery sensors (e.g. BLE mesh contact
+# sensors) that bloat the payload and stall the device's single-core JSON parser.
+# Curated sensors are meant to arrive via the DCC label (label mode), not here.
 DISPLAY_DOMAINS = {
     "climate", "light", "switch", "lock", "cover",
-    "sensor", "binary_sensor", "person", "media_player",
-    "device_tracker",
+    "person", "media_player", "device_tracker",
 }
+
+# Hard backstop on fallback size so a future entity explosion in an allowed domain
+# can't balloon the payload again (the device parses the whole response on one core).
+MAX_FALLBACK_ENTITIES = 200
 
 
 class HomeAssistantAdapter(BaseAdapter):
@@ -130,7 +137,11 @@ class HomeAssistantAdapter(BaseAdapter):
         ws_url += "/api/websocket"
 
         try:
-            async with websockets.connect(ws_url) as ws:
+            # max_size=None: the entity registry response can exceed the
+            # websockets 1 MiB default frame limit on large HA installs. Without
+            # this the recv raises 1009 (message too big) and label mode silently
+            # degrades to the domain-mode fallback.
+            async with websockets.connect(ws_url, max_size=None) as ws:
                 # Step 1: Wait for auth_required
                 msg = json.loads(await ws.recv())
                 if msg.get("type") != "auth_required":
@@ -389,16 +400,28 @@ class HomeAssistantAdapter(BaseAdapter):
     def _parse_domain_mode(self, states: list) -> dict[str, Any]:
         """Legacy parse: filter by DISPLAY_DOMAINS, group by domain."""
         by_domain: dict[str, list[dict]] = {}
+        total = 0
+        capped = False
         for entity in states:
             entity_id = entity.get("entity_id", "")
             domain = entity_id.split(".")[0]
             if domain not in DISPLAY_DOMAINS:
                 continue
+            if total >= MAX_FALLBACK_ENTITIES:
+                capped = True
+                break
             parsed = self._parse_entity(entity, domain)
             by_domain.setdefault(domain, []).append(parsed)
+            total += 1
+
+        if capped:
+            logger.warning(
+                "HA: domain-mode fallback hit %d-entity cap — payload truncated; "
+                "configure a DCC label to curate entities", MAX_FALLBACK_ENTITIES,
+            )
 
         return {
             "label_mode": False,
             "domains": by_domain,
-            "total_entities": sum(len(v) for v in by_domain.values()),
+            "total_entities": total,
         }

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from adapters import AdapterScheduler, AdapterStatus, TTLCache
-from adapters.home_assistant import HomeAssistantAdapter
+from adapters.home_assistant import MAX_FALLBACK_ENTITIES, HomeAssistantAdapter
 
 
 HA_CONFIG = {
@@ -179,13 +179,16 @@ class TestHomeAssistantAdapter:
         adapter = HomeAssistantAdapter(HA_CONFIG)
         parsed = adapter.parse(SAMPLE_RAW)
 
-        assert parsed["total_entities"] == 5  # automation filtered out
+        # sensor + automation excluded from the domain-mode fallback (#274)
+        assert parsed["total_entities"] == 4
         domains = parsed["domains"]
         assert "climate" in domains
-        assert "sensor" in domains
         assert "light" in domains
         assert "person" in domains
         assert "media_player" in domains
+        # high-cardinality noise domains are excluded from the fallback
+        assert "sensor" not in domains
+        assert "binary_sensor" not in domains
         assert "automation" not in domains
 
     def test_parse_climate_attrs(self):
@@ -199,10 +202,10 @@ class TestHomeAssistantAdapter:
         assert climate["hvac_action"] == "heating"
 
     def test_parse_sensor_attrs(self):
+        # Sensors are excluded from the domain-mode fallback (#274), but the
+        # entity parser still extracts their attributes (used in label mode).
         adapter = HomeAssistantAdapter(HA_CONFIG)
-        parsed = adapter.parse(SAMPLE_RAW)
-
-        sensor = parsed["domains"]["sensor"][0]
+        sensor = adapter._parse_entity(SAMPLE_RAW["states"][1], "sensor")
         assert sensor["unit"] == "°F"
         assert sensor["device_class"] == "temperature"
 
@@ -219,6 +222,16 @@ class TestHomeAssistantAdapter:
         parsed = adapter.parse({"states": []})
         assert parsed["total_entities"] == 0
         assert parsed["domains"] == {}
+
+    def test_domain_fallback_caps_entity_count(self):
+        # Backstop (#274): a large HA install can't balloon the fallback payload.
+        adapter = HomeAssistantAdapter(HA_CONFIG)
+        states = [
+            {"entity_id": f"switch.outlet_{i}", "state": "on", "attributes": {}}
+            for i in range(MAX_FALLBACK_ENTITIES + 50)
+        ]
+        parsed = adapter.parse({"states": states})
+        assert parsed["total_entities"] == MAX_FALLBACK_ENTITIES
 
     @pytest.mark.asyncio
     async def test_poll_requires_credentials(self):
