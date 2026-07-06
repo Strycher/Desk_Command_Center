@@ -144,7 +144,7 @@ Priority: climate > media_player > light > switch > cover > fan > lock
 Examples from current data:
 - Hallway (climate + 2 sensors) → **Climate** section
 - Back Porch Lights (light + tracker) → **Lights** section
-- Ben Samsung (tracker + battery sensor) → **People** section
+- Person A phone (tracker + battery sensor) → **People** section
 - RT-AX82U (binary_sensor + 3 sensors) → **Network** section
 - TV Outlet (5 switches) → **Switches** section
 
@@ -282,7 +282,7 @@ primary domain from entity list using domain priority.
 │  👤 People (2)                                                              │
 │  ─────────────────────────────────────────────────────────────────────────── │
 │  ┌──────────────────┐  ┌──────────────────┐                                  │
-│  │ 👤 Ben           │  │ 👤 Mari          │                                  │
+│  │ 👤 Person A           │  │ 👤 Person B          │                                  │
 │  │    🏠 Home       │  │    🏠 Home       │                                  │
 │  │    🔋 100%       │  │    🔋 56%        │                                  │
 │  └──────────────────┘  └──────────────────┘                                  │
@@ -304,7 +304,7 @@ primary domain from entity list using domain priority.
    to show on the card. Should we hide `device_tracker` entities with
    `source_type: router` from device cards? Current plan: hide them.
 
-3. **Person naming** — "Ben Samsung S24 Ultra" and "Mari's Samsung Galaxy S25
+3. **Person naming** — "Person A phone" and "Person B phone
    Ultra" are long device names. Should we shorten to just the person's name
    (strip "Samsung..." suffix)? Or is that better handled by renaming the
    device in HA?

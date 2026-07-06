@@ -57,6 +57,8 @@ Thumbs.db
 # Secrets / credentials — NEVER commit these
 secrets.h
 credentials.h
+# Machine-local infra values (Pi host/user/key, server IPs) — public repo, keep out
+CLAUDE.local.md
 .env
 .env.*
 !.env.example

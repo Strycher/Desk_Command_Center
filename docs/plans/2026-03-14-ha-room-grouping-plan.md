@@ -32,7 +32,7 @@ Current DCC-labeled entity → area mapping (from live data):
 | Dining Room     | Dining Room Switch                                |
 | Kitchen         | Kitchen LEDs                                      |
 | Garage          | Workbench (sensors + switch), Overhead switch      |
-| (no area)       | Ben's Phone, Mari's Phone (person entities)        |
+| (no area)       | Person A's Phone, Person B's Phone (person entities)        |
 
 ---
 

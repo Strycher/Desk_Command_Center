@@ -566,7 +566,7 @@ void HAScreen::addPersonCard(lv_obj_t* parent, const HADeviceGroup& grp,
         strncpy(pname, src, sizeof(pname) - 1);
         pname[sizeof(pname) - 1] = '\0';
     }
-    /* Strip trailing 's if present (e.g. "Mari's") */
+    /* Strip trailing possessive 's if present (e.g. "Alex's") */
     size_t plen = strlen(pname);
     if (plen >= 2 && pname[plen - 2] == '\'' && pname[plen - 1] == 's') {
         pname[plen - 2] = '\0';

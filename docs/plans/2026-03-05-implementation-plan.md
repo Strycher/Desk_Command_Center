@@ -987,7 +987,7 @@ Two modes (configurable):
 - `home_assistant`: Query HA REST API for weather entity
 - `openweathermap`: Direct API call with lat/lon from config
 
-Default location: Liberty Twp, OH (39.3451, -84.3916).
+Default location: <configured location>.
 
 ```python
 class WeatherAdapter(BaseAdapter):

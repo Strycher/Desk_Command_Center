@@ -13,8 +13,8 @@ from adapters.weather import WeatherAdapter
 OWM_CONFIG = {
     "provider": "openweathermap",
     "api_key": "test-key",
-    "lat": 39.3451,
-    "lon": -84.3916,
+    "lat": 0.0,
+    "lon": 0.0,
     "units": "imperial",
     "poll_interval": 900,
 }
@@ -22,8 +22,8 @@ OWM_CONFIG = {
 NWS_CONFIG = {
     "provider": "nws",
     "api_key": "",
-    "lat": 39.3451,
-    "lon": -84.3916,
+    "lat": 0.0,
+    "lon": 0.0,
     "units": "imperial",
     "poll_interval": 900,
 }
