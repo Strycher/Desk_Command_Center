@@ -168,9 +168,9 @@ home_assistant:
 weather:
   source: home_assistant   # or "openweathermap"
   default_location:
-    name: "Liberty Twp, OH"
-    lat: 39.3451
-    lon: -84.3916
+    name: "<configured location>"
+    lat: 0.0
+    lon: 0.0
 
 calendar:
   google:
@@ -347,7 +347,7 @@ This is a daily-use desktop display — it must look polished, not terminal-like
 - **Current conditions** — large icon, temperature, description
 - **Details** — humidity, wind, precipitation chance, high/low
 - **Hourly forecast** — horizontal scrollable tiles (next 6–12 hours)
-- **Location** — configurable, default: Liberty Twp, OH (39.3451, -84.3916)
+- **Location** — configurable, default: <configured location>
 - **Source** — Home Assistant weather entity or direct OpenWeatherMap fallback
 
 #### DevOps Screen
@@ -446,7 +446,7 @@ This is a daily-use desktop display — it must look polished, not terminal-like
 ### 6.2 Timezone
 
 - Stored as POSIX TZ string in NVS
-- Default: `EST5EDT,M3.2.0,M11.1.0` (Eastern with DST — Liberty Twp, OH)
+- Default: `EST5EDT,M3.2.0,M11.1.0` (Eastern with DST)
 - Travel presets: Arizona (`MST7`), Central, Pacific, etc.
 - Manual POSIX entry for edge cases
 - Changeable from Settings screen

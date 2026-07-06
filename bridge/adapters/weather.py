@@ -46,8 +46,8 @@ class WeatherAdapter(BaseAdapter):
         )
         self.provider = source_config.get("provider", "nws")
         self.api_key = source_config.get("api_key", "")
-        self.lat = source_config.get("lat", 39.3451)
-        self.lon = source_config.get("lon", -84.3916)
+        self.lat = source_config.get("lat", 0.0)
+        self.lon = source_config.get("lon", 0.0)
         self.units = source_config.get("units", "imperial")
 
     async def poll(self) -> dict[str, Any]:

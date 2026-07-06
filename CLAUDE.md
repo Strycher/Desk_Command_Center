@@ -307,10 +307,13 @@ Implement a resource mutex if both features are needed.
 
 | Field       | Value                                                    |
 |-------------|----------------------------------------------------------|
-| Host        | `192.168.50.24`                                          |
-| Username    | **`strycher`** (NOT `stryc`, NOT `pi`, NOT `unfocused`)  |
-| Auth        | Ed25519 key: `C:/Users/stryc/.ssh/id_ed25519`           |
-| SSH command | `ssh -i C:/Users/stryc/.ssh/id_ed25519 strycher@192.168.50.24` |
+| Host        | see `CLAUDE.local.md` (gitignored — not committed)       |
+| Username    | see `CLAUDE.local.md`                                     |
+| Auth        | Ed25519 key path in `CLAUDE.local.md`                    |
+| SSH command | see `CLAUDE.local.md`                                     |
+
+> **This repo is public.** The real Pi host, username, key path, and the Citadel
+> server IP live in `CLAUDE.local.md` (gitignored, per-machine) — never committed.
 
 **Services on Pi 5:**
 
@@ -319,7 +322,7 @@ Implement a resource mutex if both features are needed.
 | Home Assistant   | `homeassistant`  | 8123  | `docker restart homeassistant`   |
 | DCC Bridge       | `dcc-bridge`     | 8080  | `docker restart dcc-bridge`      |
 
-**NEVER use password auth.** NEVER guess the username. It is `strycher`. Always.
+**NEVER use password auth.** NEVER guess the username — it is fixed; see `CLAUDE.local.md`.
 
 ### Secrets Hygiene (CRITICAL — read before touching bridge files)
 
@@ -360,19 +363,19 @@ depend on.
 **Updating non-secret structure (poll intervals, project lists, device entries):**
 ```bash
 # Update individual fields via the merge script:
-ssh strycher@192.168.50.24 'echo '"'"'{"display": {"poll_interval": 60}}'"'"' | /home/strycher/dcc-bridge/update_config.sh'
+ssh <pi-user>@<pi-host> 'echo '"'"'{"display": {"poll_interval": 60}}'"'"' | /home/<pi-user>/dcc-bridge/update_config.sh'
 
 # Show backups:
-ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --show-backups'
+ssh <pi-user>@<pi-host> '/home/<pi-user>/dcc-bridge/update_config.sh --show-backups'
 
 # Emergency restore:
-ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --restore'
+ssh <pi-user>@<pi-host> '/home/<pi-user>/dcc-bridge/update_config.sh --restore'
 ```
 
 **Rules:**
 - `update_config.sh` deep-merges JSON patches — unmentioned keys are preserved
 - Automatic backup before every write (10 rotations kept)
-- **NEVER** run `scp bridge_config.json strycher@...` — it overwrites placeholders
+- **NEVER** run `scp bridge_config.json <pi-user>@...` — it overwrites placeholders
 - After any config update: `docker restart dcc-bridge`
 
 ---
@@ -383,7 +386,7 @@ ssh strycher@192.168.50.24 '/home/strycher/dcc-bridge/update_config.sh --restore
 |--------------|--------------------------------------------------|
 | API          | `https://getunfocused.app/citadel/`              |
 | Health       | `https://getunfocused.app/citadel/health`        |
-| Server       | Hetzner `46.224.181.82` (Docker: FastAPI + PostgreSQL 16) |
+| Server       | Hetzner — IP + stack in `CLAUDE.local.md`        |
 | CLI          | `dw` (Python)                                    |
 | Project      | `Desk_Command_Center`                            |
 | GitHub Org   | `Strycher` (NOT DifferentWire)                   |

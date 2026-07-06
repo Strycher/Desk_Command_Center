@@ -23,7 +23,7 @@ LEGACY_FLAT_CONFIG = {
     "display": {"poll_interval": 30, "timezone": "America/New_York"},
     "weather": {
         "provider": "openweathermap", "api_key": "sk-weather",
-        "lat": 39.3451, "lon": -84.3916, "units": "imperial",
+        "lat": 0.0, "lon": 0.0, "units": "imperial",
         "poll_interval": 900,
     },
     "home_assistant": {
