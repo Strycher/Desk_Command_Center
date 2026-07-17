@@ -64,13 +64,42 @@ else
 fi
 
 # ─── 3. Git Hooks Path ──────────────────────────────────────────────────
-HOOKS_PATH=$(cd "$PROJECT_DIR" && git config core.hookspath 2>/dev/null || echo "")
-if [ "$HOOKS_PATH" = ".claude/hooks" ]; then
-  pass "Git hooks path (.claude/hooks)"
+# Mode-aware (#221): in untracked-governance repos (.claude/ gitignored, e.g.
+# public forks) worktrees do NOT carry .claude/, so a RELATIVE hookspath
+# resolves to a nonexistent dir in every worktree and all lifecycle hooks
+# silently stop firing. There the path must be ABSOLUTE into the primary
+# clone — core.hookspath is repo-level config, so every worktree inherits it.
+# Tracked repos keep the relative path (worktrees carry .claude/ via checkout).
+if (cd "$PROJECT_DIR" && git check-ignore -q .claude/settings.json 2>/dev/null); then
+  WANT_HOOKS_PATH="$PROJECT_DIR/.claude/hooks"
+  HOOKS_MODE="untracked-governance: absolute, worktrees inherit primary clone's hooks"
 else
-  warn "Git hooks path is '${HOOKS_PATH:-<unset>}' — fixing to .claude/hooks"
-  cd "$PROJECT_DIR" && git config core.hookspath .claude/hooks
-  pass "Git hooks path fixed"
+  WANT_HOOKS_PATH=".claude/hooks"
+  HOOKS_MODE="tracked: relative"
+  # Mid-bootstrap edge: not ignored AND not yet tracked -> mode is provisional.
+  # Preflight re-runs every SessionStart, so it self-corrects once the repo
+  # either commits .claude/ (stays tracked) or gitignores it (flips absolute).
+  # Informational only — a hard fail here would block every fresh bootstrap.
+  if ! (cd "$PROJECT_DIR" && git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1); then
+    log "  note: .claude/settings.json is neither ignored nor tracked yet — hook mode is provisional until you commit .claude/ or gitignore it"
+  fi
+fi
+# MSYS/Git-Bash converts a /c/... argument to C:/... before git stores it, so
+# compare both sides in normalized form or every later run false-warns.
+norm_path() {
+  case "$1" in
+    /[a-zA-Z]/*) printf '%s:%s\n' "$(printf '%s' "${1:1:1}" | tr '[:lower:]' '[:upper:]')" "${1:2}" ;;
+    [a-zA-Z]:/*) printf '%s%s\n' "$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]')" "${1:1}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+HOOKS_PATH=$(cd "$PROJECT_DIR" && git config core.hookspath 2>/dev/null || echo "")
+if [ "$(norm_path "$HOOKS_PATH")" = "$(norm_path "$WANT_HOOKS_PATH")" ]; then
+  pass "Git hooks path ($HOOKS_MODE)"
+else
+  warn "Git hooks path is '${HOOKS_PATH:-<unset>}' — fixing to $WANT_HOOKS_PATH"
+  cd "$PROJECT_DIR" && git config core.hookspath "$WANT_HOOKS_PATH"
+  pass "Git hooks path fixed ($HOOKS_MODE)"
 fi
 
 # ─── 4. Abandoned Worktree Detection ────────────────────────────────────
@@ -113,6 +142,7 @@ if [ -d "$CANONICAL_CMDS" ]; then
   mkdir -p "$PROJECT_CMDS"
   synced=0
   installed=0
+  backed_up=0
   # Guard against `set -e` aborting on the cmp/cp non-zero returns
   for canonical in "$CANONICAL_CMDS"/*.md; do
     [ -f "$canonical" ] || continue
@@ -121,11 +151,26 @@ if [ -d "$CANONICAL_CMDS" ]; then
     if [ ! -f "$local" ]; then
       cp "$canonical" "$local" && installed=$((installed + 1)) || true
     elif ! cmp -s "$canonical" "$local"; then
+      # First-install backup for commands that were project-local before
+      # becoming canonical (e.g., work.md prior to standards#112). If a
+      # ".pre-canonical.bak" doesn't already exist for this command, the
+      # current local file is a project-local hand-roll — preserve it
+      # before the sync overwrites with canonical. Subsequent updates to
+      # the synced file are overwritten without backup (canonical owns
+      # the file once installed).
+      backup="$PROJECT_CMDS/${name}.pre-canonical.bak"
+      if [ ! -f "$backup" ]; then
+        cp "$local" "$backup" 2>/dev/null && backed_up=$((backed_up + 1)) || true
+      fi
       cp "$canonical" "$local" && synced=$((synced + 1)) || true
     fi
   done
-  if [ "$installed" -gt 0 ] || [ "$synced" -gt 0 ]; then
-    pass "Canonical commands: $installed installed, $synced updated"
+  if [ "$installed" -gt 0 ] || [ "$synced" -gt 0 ] || [ "$backed_up" -gt 0 ]; then
+    if [ "$backed_up" -gt 0 ]; then
+      pass "Canonical commands: $installed installed, $synced updated, $backed_up pre-canonical backup(s) saved (.pre-canonical.bak)"
+    else
+      pass "Canonical commands: $installed installed, $synced updated"
+    fi
   else
     pass "Canonical commands: up to date"
   fi
@@ -134,12 +179,38 @@ else
 fi
 
 # ─── 6. Session State Recovery ───────────────────────────────────────────
+#
+# Hook-point for the session-state script — a per-project tool that writes
+# a snapshot of the agent's volatile state (claimed Citadel tasks, active
+# worktree, Agent Mail identity, open PRs, last Tier 2 approval, in-flight
+# notes) to .claude/agent-session.json. Preflight reads it here so post-
+# compaction sessions resume with structured handoff.
+#
+# Canonical writer (as of standards#107): hooks/session-state.py. Lifted
+# from the Strycher/LoRa#260 prototype on 2026-06-04. Projects install via
+# copy + post-commit wire-up (REPOCONFIG.md §Enforcement Hooks); future
+# auto-propagation tracked at standards#76.
+#
+# This block tries .py FIRST (canonical), then .sh as transition fallback
+# for any project still on a hand-rolled bash variant.
+#
 PREFLIGHT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SESSION_STATE_SCRIPT="$PREFLIGHT_DIR/session-state.sh"
 SESSION_STATE_FILE="$PROJECT_DIR/.claude/agent-session.json"
+SESSION_STATE_SCRIPT_PY="$PREFLIGHT_DIR/session-state.py"
+SESSION_STATE_SCRIPT_SH="$PREFLIGHT_DIR/session-state.sh"
 
-if [ -f "$SESSION_STATE_FILE" ] && [ -f "$SESSION_STATE_SCRIPT" ]; then
-  SESSION_OUTPUT=$(bash "$SESSION_STATE_SCRIPT" read 2>/dev/null || true)
+if [ -f "$SESSION_STATE_FILE" ]; then
+  SESSION_OUTPUT=""
+  if [ -f "$SESSION_STATE_SCRIPT_PY" ]; then
+    # Prefer python3 if present, else python.
+    if command -v python3 >/dev/null 2>&1; then
+      SESSION_OUTPUT=$(python3 "$SESSION_STATE_SCRIPT_PY" read 2>/dev/null || true)
+    elif command -v python >/dev/null 2>&1; then
+      SESSION_OUTPUT=$(python "$SESSION_STATE_SCRIPT_PY" read 2>/dev/null || true)
+    fi
+  elif [ -f "$SESSION_STATE_SCRIPT_SH" ]; then
+    SESSION_OUTPUT=$(bash "$SESSION_STATE_SCRIPT_SH" read 2>/dev/null || true)
+  fi
   if [ -n "$SESSION_OUTPUT" ]; then
     log ""
     log "═══ Active Agent Session ═══"

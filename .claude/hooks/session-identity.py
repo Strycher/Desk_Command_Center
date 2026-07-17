@@ -213,10 +213,35 @@ def _validate_identity(name: str) -> str:
     return n
 
 
+def _warn_unrecorded(name: str) -> None:
+    """Loud, unmissable marker that a printed name is a derived placeholder.
+
+    Root cause of standards#222: whoami/register printed derive() output
+    indistinguishably from a recorded identity, so sessions professed
+    placeholder names to Agent Mail, which silently substituted its own
+    (e.g. requested 'AzureWharf' -> got 'PearlDeer', 2026-07-15). The name on
+    stdout stays parseable; the warning goes to stderr.
+    """
+    print(
+        f"UNRECORDED: '{name}' is a locally-derived placeholder, NOT an Agent "
+        f"Mail identity - AM never issued it and may silently assign a "
+        f"different name if you register with it (standards#222).\n"
+        f"  Register with AM with the name OMITTED, then persist what AM "
+        f"returns:\n"
+        f"    session-identity.py register --identity <AM-assigned-name>",
+        file=sys.stderr,
+    )
+
+
 def cmd_whoami() -> int:
     uuid, _ = _require_uuid()
     rec = _read_or_die(uuid)
-    print(rec["identity"] if (rec and rec.get("identity")) else derive(uuid))
+    if rec and rec.get("identity"):
+        print(rec["identity"])
+    else:
+        name = derive(uuid)
+        print(name)
+        _warn_unrecorded(name)
     return 0
 
 
@@ -266,7 +291,9 @@ def cmd_register(explicit_identity=None) -> int:
         # before migration). Derivation is deterministic, so whoami recovers it
         # on demand; a session claims a name explicitly with `register --identity`
         # (or `migrate` seeds it). standards#195 deploy-safety.
-        print(derive(uuid))
+        name = derive(uuid)
+        print(name)
+        _warn_unrecorded(name)   # standards#222: never let a placeholder pass as identity
         return 0
     print(identity)
     return 0
